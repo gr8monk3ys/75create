@@ -5,3 +5,7 @@ next-env.d.ts
 *.tsbuildinfo
 .DS_Store
 .vercel
+
+# test artifacts
+.playwright-mcp/
+/*.png
