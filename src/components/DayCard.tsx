@@ -37,26 +37,22 @@ export function DayCard({
     return dayData.checks[`${dayIndex}:${ruleId}`] === true
   }
 
-  function requiredAllChecked(overrides?: Record<string, boolean>): boolean {
-    return challenge.rules
-      .filter((r) => r.required)
-      .every((r) => {
-        const key = `${dayIndex}:${r.id}`
-        if (overrides && key in overrides) return overrides[key]
-        return dayData.checks[key] === true
-      })
-  }
-
   function toggle(ruleId: string) {
-    const key = `${dayIndex}:${ruleId}`
-    const next = !(dayData.checks[key] === true)
+    const next = !isChecked(ruleId)
     repo.saveCheck(cid, dayIndex, ruleId, next)
 
-    const nowAll = requiredAllChecked({ [key]: next })
-    if (nowAll && !completed) {
+    // Re-read from storage so completion is correct regardless of render
+    // timing (rapid clicks would otherwise close over stale props).
+    const fresh = repo.getDayData(cid)
+    const nowAll = challenge.rules
+      .filter((r) => r.required)
+      .every((r) => fresh.checks[`${dayIndex}:${r.id}`] === true)
+    const wasCompleted = Boolean(fresh.completions[dayIndex])
+
+    if (nowAll && !wasCompleted) {
       repo.saveDayCompletion(cid, dayIndex, new Date().toISOString())
       onComplete(dayIndex)
-    } else if (!nowAll && completed) {
+    } else if (!nowAll && wasCompleted) {
       repo.saveDayCompletion(cid, dayIndex, null)
     }
     refresh()

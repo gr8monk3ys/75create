@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Bricolage_Grotesque, Instrument_Sans, Space_Mono } from 'next/font/google'
 import './globals.css'
 import { AppProvider } from '@/components/AppProvider'
+import StyledJsxRegistry from '@/components/StyledJsxRegistry'
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -40,7 +41,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${bricolage.variable} ${instrument.variable} ${spaceMono.variable}`}
     >
       <body>
-        <AppProvider>{children}</AppProvider>
+        <StyledJsxRegistry>
+          <AppProvider>{children}</AppProvider>
+        </StyledJsxRegistry>
       </body>
     </html>
   )

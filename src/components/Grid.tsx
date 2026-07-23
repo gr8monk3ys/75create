@@ -15,30 +15,26 @@ const LABELS: Record<Day['state'], string> = {
   future: 'upcoming',
 }
 
-function Cell({ day }: { day: Day }) {
-  const rot = rotation(day.index)
-  const title = `Day ${day.index} — ${LABELS[day.state]}`
-  return (
-    <div
-      className={`cell cell-${day.state}`}
-      title={title}
-      role="img"
-      aria-label={title}
-      style={{ '--rot': `${rot}deg` } as React.CSSProperties}
-    >
-      {day.state === 'skipped' && <span className="cell-mark">–</span>}
-      {day.state === 'missed' && <span className="cell-mark">·</span>}
-    </div>
-  )
-}
-
 export function Grid({ days, compact = false }: { days: Day[]; compact?: boolean }) {
   return (
     <div className={`grid-wrap ${compact ? 'grid-compact' : ''}`}>
       <div className="grid-cells" role="list" aria-label="75-day progress grid">
-        {days.map((d) => (
-          <Cell key={d.index} day={d} />
-        ))}
+        {days.map((d) => {
+          const title = `Day ${d.index} — ${LABELS[d.state]}`
+          return (
+            <div
+              key={d.index}
+              className={`cell cell-${d.state}`}
+              title={title}
+              role="img"
+              aria-label={title}
+              style={{ '--rot': `${rotation(d.index)}deg` } as React.CSSProperties}
+            >
+              {d.state === 'skipped' && <span className="cell-mark">–</span>}
+              {d.state === 'missed' && <span className="cell-mark">·</span>}
+            </div>
+          )
+        })}
       </div>
       <style jsx>{`
         .grid-wrap {

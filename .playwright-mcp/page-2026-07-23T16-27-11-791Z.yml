@@ -1,0 +1,38 @@
+- generic [ref=f4e1]:
+  - button "Open Next.js Dev Tools" [ref=f4e18] [cursor=pointer]
+  - alert [ref=f4e22]
+  - main [ref=f4e23]:
+    - generic [ref=f4e24]:
+      - generic [ref=f4e25]: 01 Medium
+      - generic [ref=f4e26]: 02 Rules
+      - generic [ref=f4e27]: 03 Stakes
+    - generic [ref=f4e28]:
+      - text: Step one
+      - heading "What are you making?" [level=1] [ref=f4e29]
+      - paragraph [ref=f4e30]: This just tailors the wording. You can mix media freely.
+      - generic [ref=f4e31]:
+        - button "✍ Writing" [active] [ref=f4e32] [cursor=pointer]:
+          - generic [ref=f4e33]: ✍
+          - text: Writing
+        - button "✎ Drawing" [ref=f4e34] [cursor=pointer]:
+          - generic [ref=f4e35]: ✎
+          - text: Drawing
+        - button "♪ Music" [ref=f4e36] [cursor=pointer]:
+          - generic [ref=f4e37]: ♪
+          - text: Music
+        - button "◉ Photography" [ref=f4e38] [cursor=pointer]:
+          - generic [ref=f4e39]: ◉
+          - text: Photography
+        - button "▶ Video" [ref=f4e40] [cursor=pointer]:
+          - generic [ref=f4e41]: ▶
+          - text: Video
+        - button "⌘ Code / generative" [ref=f4e42] [cursor=pointer]:
+          - generic [ref=f4e43]: ⌘
+          - text: Code / generative
+        - button "✦ Mixed" [ref=f4e44] [cursor=pointer]:
+          - generic [ref=f4e45]: ✦
+          - text: Mixed
+        - button "◇ Other" [ref=f4e46] [cursor=pointer]:
+          - generic [ref=f4e47]: ◇
+          - text: Other
+      - 'button "Next: rules" [ref=f4e49] [cursor=pointer]'

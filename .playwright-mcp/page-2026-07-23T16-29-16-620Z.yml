@@ -1,0 +1,161 @@
+- generic [ref=f5e1]:
+  - main [ref=f5e2]:
+    - navigation [ref=f5e13]:
+      - link "75 Create" [ref=f5e14] [cursor=pointer]:
+        - /url: /
+      - generic [ref=f5e15]:
+        - link "Settings" [ref=f5e16] [cursor=pointer]:
+          - /url: /settings
+        - link "Share" [ref=f5e17] [cursor=pointer]:
+          - /url: /dashboard/share
+    - generic [ref=f5e18]:
+      - generic [ref=f5e19]:
+        - generic [ref=f5e20]: Day
+        - generic [ref=f5e21]:
+          - text: "1"
+          - generic [ref=f5e22]: /75
+      - generic [ref=f5e23]:
+        - generic [ref=f5e24]: Streak
+        - generic [ref=f5e25]:
+          - text: "1"
+          - generic [ref=f5e166]: day
+      - generic [ref=f5e26]:
+        - generic [ref=f5e27]: Longest
+        - generic [ref=f5e28]: "1"
+    - generic [ref=f5e29]:
+      - generic [ref=f5e31]:
+        - generic [ref=f5e32]:
+          - generic [ref=f5e33]:
+            - text: Completed
+            - heading "Day 1" [level=2] [ref=f5e34]
+          - generic [ref=f5e167]: ✓ done
+        - list [ref=f5e35]:
+          - listitem [ref=f5e36]:
+            - 'button "Create for 30+ minutes Work on your craft: draw, write, compose, film, code art — anything generative in your medium." [active] [pressed] [ref=f5e37] [cursor=pointer]':
+              - generic [ref=f5e38]: ✓
+              - generic [ref=f5e39]:
+                - generic [ref=f5e40]: Create for 30+ minutes
+                - generic [ref=f5e41]: "Work on your craft: draw, write, compose, film, code art — anything generative in your medium."
+          - listitem [ref=f5e42]:
+            - button "Study one piece of work Actively analyze something good in your medium — a painting, a chapter, a track. Not passive scrolling." [pressed] [ref=f5e43] [cursor=pointer]:
+              - generic [ref=f5e44]: ✓
+              - generic [ref=f5e45]:
+                - generic [ref=f5e46]: Study one piece of work
+                - generic [ref=f5e47]: Actively analyze something good in your medium — a painting, a chapter, a track. Not passive scrolling.
+          - listitem [ref=f5e48]:
+            - button "Log the day A short note (1–3 sentences) on what you made or learned." [pressed] [ref=f5e49] [cursor=pointer]:
+              - generic [ref=f5e50]: ✓
+              - generic [ref=f5e51]:
+                - generic [ref=f5e52]: Log the day
+                - generic [ref=f5e53]: A short note (1–3 sentences) on what you made or learned.
+          - listitem [ref=f5e54]:
+            - button "Capture an artifact Upload or link a photo, snippet, or excerpt of the day's work (private by default)." [pressed] [ref=f5e55] [cursor=pointer]:
+              - generic [ref=f5e56]: ✓
+              - generic [ref=f5e57]:
+                - generic [ref=f5e58]: Capture an artifact
+                - generic [ref=f5e59]: Upload or link a photo, snippet, or excerpt of the day's work (private by default).
+          - listitem [ref=f5e60]:
+            - button "Create before consuming The day's first engagement with your craft must be making, not scrolling." [pressed] [ref=f5e61] [cursor=pointer]:
+              - generic [ref=f5e62]: ✓
+              - generic [ref=f5e63]:
+                - generic [ref=f5e64]: Create before consuming
+                - generic [ref=f5e65]: The day's first engagement with your craft must be making, not scrolling.
+        - generic [ref=f5e66]:
+          - generic [ref=f5e67]:
+            - generic [ref=f5e68]: Log the day
+            - generic [ref=f5e69]: 0/500
+          - textbox "What did you make or learn today?" [ref=f5e70]
+        - generic [ref=f5e71]:
+          - generic [ref=f5e72]: Capture an artifact
+          - generic [ref=f5e74]:
+            - button "Upload image" [ref=f5e75] [cursor=pointer]
+            - generic [ref=f5e76]: or
+            - generic [ref=f5e77]:
+              - textbox "paste a link" [ref=f5e78]
+              - button "Add" [ref=f5e79] [cursor=pointer]
+      - generic [ref=f5e81]:
+        - generic [ref=f5e82]:
+          - generic [ref=f5e83]: The grid
+          - generic [ref=f5e84]: made skipped missed
+        - list "75-day progress grid" [ref=f5e89]:
+          - img "Day 1 — completed" [ref=f5e168]
+          - img "Day 2 — upcoming" [ref=f5e91]
+          - img "Day 3 — upcoming" [ref=f5e92]
+          - img "Day 4 — upcoming" [ref=f5e93]
+          - img "Day 5 — upcoming" [ref=f5e94]
+          - img "Day 6 — upcoming" [ref=f5e95]
+          - img "Day 7 — upcoming" [ref=f5e96]
+          - img "Day 8 — upcoming" [ref=f5e97]
+          - img "Day 9 — upcoming" [ref=f5e98]
+          - img "Day 10 — upcoming" [ref=f5e99]
+          - img "Day 11 — upcoming" [ref=f5e100]
+          - img "Day 12 — upcoming" [ref=f5e101]
+          - img "Day 13 — upcoming" [ref=f5e102]
+          - img "Day 14 — upcoming" [ref=f5e103]
+          - img "Day 15 — upcoming" [ref=f5e104]
+          - img "Day 16 — upcoming" [ref=f5e105]
+          - img "Day 17 — upcoming" [ref=f5e106]
+          - img "Day 18 — upcoming" [ref=f5e107]
+          - img "Day 19 — upcoming" [ref=f5e108]
+          - img "Day 20 — upcoming" [ref=f5e109]
+          - img "Day 21 — upcoming" [ref=f5e110]
+          - img "Day 22 — upcoming" [ref=f5e111]
+          - img "Day 23 — upcoming" [ref=f5e112]
+          - img "Day 24 — upcoming" [ref=f5e113]
+          - img "Day 25 — upcoming" [ref=f5e114]
+          - img "Day 26 — upcoming" [ref=f5e115]
+          - img "Day 27 — upcoming" [ref=f5e116]
+          - img "Day 28 — upcoming" [ref=f5e117]
+          - img "Day 29 — upcoming" [ref=f5e118]
+          - img "Day 30 — upcoming" [ref=f5e119]
+          - img "Day 31 — upcoming" [ref=f5e120]
+          - img "Day 32 — upcoming" [ref=f5e121]
+          - img "Day 33 — upcoming" [ref=f5e122]
+          - img "Day 34 — upcoming" [ref=f5e123]
+          - img "Day 35 — upcoming" [ref=f5e124]
+          - img "Day 36 — upcoming" [ref=f5e125]
+          - img "Day 37 — upcoming" [ref=f5e126]
+          - img "Day 38 — upcoming" [ref=f5e127]
+          - img "Day 39 — upcoming" [ref=f5e128]
+          - img "Day 40 — upcoming" [ref=f5e129]
+          - img "Day 41 — upcoming" [ref=f5e130]
+          - img "Day 42 — upcoming" [ref=f5e131]
+          - img "Day 43 — upcoming" [ref=f5e132]
+          - img "Day 44 — upcoming" [ref=f5e133]
+          - img "Day 45 — upcoming" [ref=f5e134]
+          - img "Day 46 — upcoming" [ref=f5e135]
+          - img "Day 47 — upcoming" [ref=f5e136]
+          - img "Day 48 — upcoming" [ref=f5e137]
+          - img "Day 49 — upcoming" [ref=f5e138]
+          - img "Day 50 — upcoming" [ref=f5e139]
+          - img "Day 51 — upcoming" [ref=f5e140]
+          - img "Day 52 — upcoming" [ref=f5e141]
+          - img "Day 53 — upcoming" [ref=f5e142]
+          - img "Day 54 — upcoming" [ref=f5e143]
+          - img "Day 55 — upcoming" [ref=f5e144]
+          - img "Day 56 — upcoming" [ref=f5e145]
+          - img "Day 57 — upcoming" [ref=f5e146]
+          - img "Day 58 — upcoming" [ref=f5e147]
+          - img "Day 59 — upcoming" [ref=f5e148]
+          - img "Day 60 — upcoming" [ref=f5e149]
+          - img "Day 61 — upcoming" [ref=f5e150]
+          - img "Day 62 — upcoming" [ref=f5e151]
+          - img "Day 63 — upcoming" [ref=f5e152]
+          - img "Day 64 — upcoming" [ref=f5e153]
+          - img "Day 65 — upcoming" [ref=f5e154]
+          - img "Day 66 — upcoming" [ref=f5e155]
+          - img "Day 67 — upcoming" [ref=f5e156]
+          - img "Day 68 — upcoming" [ref=f5e157]
+          - img "Day 69 — upcoming" [ref=f5e158]
+          - img "Day 70 — upcoming" [ref=f5e159]
+          - img "Day 71 — upcoming" [ref=f5e160]
+          - img "Day 72 — upcoming" [ref=f5e161]
+          - img "Day 73 — upcoming" [ref=f5e162]
+          - img "Day 74 — upcoming" [ref=f5e163]
+          - img "Day 75 — upcoming" [ref=f5e164]
+    - status:
+      - generic:
+        - heading "Day done." [level=2]
+        - paragraph: One more mark on the grid.
+  - button "Open Next.js Dev Tools" [ref=f5e9] [cursor=pointer]
+  - alert [ref=f5e165]

@@ -24,7 +24,9 @@ export function StreakHeader({ dayIndex, current, longest, totalDays }: Props) {
         <span className="eyebrow">Streak</span>
         <div className="num font-display">
           {current}
-          <span className="unit">🔥</span>
+          <span className="unit" aria-hidden>
+            {current > 0 ? 'day' + (current === 1 ? '' : 's') : ''}
+          </span>
         </div>
       </div>
       <div className="stat">
@@ -65,7 +67,11 @@ export function StreakHeader({ dayIndex, current, longest, totalDays }: Props) {
           gap: 0.25rem;
         }
         .unit {
-          font-size: 0.55em;
+          font-size: 0.32em;
+          font-family: var(--font-mono);
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--muted);
         }
         .stat-day {
           margin-right: auto;

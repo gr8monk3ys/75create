@@ -1,0 +1,34 @@
+- generic [active] [ref=f4e1]:
+  - button "Open Next.js Dev Tools" [ref=f4e18] [cursor=pointer]
+  - alert [ref=f4e22]
+  - main [ref=f4e23]:
+    - generic [ref=f4e24]:
+      - generic [ref=f4e25]: 01 Medium
+      - generic [ref=f4e26]: 02 Rules
+      - generic [ref=f4e27]: 03 Stakes
+    - generic [ref=f4e98]:
+      - text: Step three
+      - heading "Set your stakes" [level=1] [ref=f4e99]
+      - generic [ref=f4e100]:
+        - button "Classic Any missed day restarts you at Day 1." [ref=f4e101] [cursor=pointer]:
+          - generic [ref=f4e102]: Classic
+          - generic [ref=f4e103]: Any missed day restarts you at Day 1.
+        - button "Grace Three skip tokens for life. A fourth miss resets." [ref=f4e104] [cursor=pointer]:
+          - generic [ref=f4e105]: Grace
+          - generic [ref=f4e106]: Three skip tokens for life. A fourth miss resets.
+        - button "Extend A missed day adds a day to the end. Streak resets, challenge continues." [ref=f4e107] [cursor=pointer]:
+          - generic [ref=f4e108]: Extend
+          - generic [ref=f4e109]: A missed day adds a day to the end. Streak resets, challenge continues.
+      - paragraph [ref=f4e110]: This choice locks when you start. Choose honestly.
+      - generic [ref=f4e111]:
+        - generic [ref=f4e112]: Start date
+        - generic [ref=f4e113]:
+          - button "Today" [ref=f4e114] [cursor=pointer]
+          - button "Pick a date" [ref=f4e115] [cursor=pointer]
+      - generic [ref=f4e116]:
+        - generic [ref=f4e117]: Why are you starting?
+        - paragraph [ref=f4e118]: We'll show this back to you on the hard days. One or two lines.
+        - textbox "Because I want to finish something for once…" [ref=f4e119]
+      - generic [ref=f4e120]:
+        - button "Back" [ref=f4e121] [cursor=pointer]
+        - button "Start my 75 →" [ref=f4e122] [cursor=pointer]
