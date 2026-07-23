@@ -17,10 +17,11 @@ interface Root {
   user: User | null
   challenges: Challenge[]
   dayData: Record<string, DayData>
+  signedIn: boolean
 }
 
 function emptyRoot(): Root {
-  return { user: null, challenges: [], dayData: {} }
+  return { user: null, challenges: [], dayData: {}, signedIn: false }
 }
 
 export class LocalRepository implements Repository {
@@ -43,7 +44,9 @@ export class LocalRepository implements Repository {
   }
 
   private dayDataFor(root: Root, challengeId: string): DayData {
-    if (!root.dayData[challengeId]) root.dayData[challengeId] = emptyDayData()
+    // Normalize in place so mutations by the caller persist on write, while
+    // backfilling any fields missing from older stored data.
+    root.dayData[challengeId] = { ...emptyDayData(), ...root.dayData[challengeId] }
     return root.dayData[challengeId]
   }
 
@@ -55,6 +58,16 @@ export class LocalRepository implements Repository {
   saveUser(user: User): void {
     const root = this.read()
     root.user = user
+    this.write(root)
+  }
+
+  isSignedIn(): boolean {
+    return this.read().signedIn && this.read().user !== null
+  }
+
+  setSignedIn(value: boolean): void {
+    const root = this.read()
+    root.signedIn = value
     this.write(root)
   }
 
@@ -81,7 +94,7 @@ export class LocalRepository implements Repository {
 
   // ---- day data ----
   getDayData(challengeId: string): DayData {
-    return this.read().dayData[challengeId] ?? emptyDayData()
+    return { ...emptyDayData(), ...this.read().dayData[challengeId] }
   }
 
   saveDayCompletion(
@@ -137,6 +150,20 @@ export class LocalRepository implements Repository {
     dd.artifacts[dayIndex] = (dd.artifacts[dayIndex] ?? []).filter(
       (a) => a.id !== artifactId,
     )
+    this.write(root)
+  }
+
+  addSkip(challengeId: string, dayIndex: number): void {
+    const root = this.read()
+    const dd = this.dayDataFor(root, challengeId)
+    if (!dd.skips.includes(dayIndex)) dd.skips.push(dayIndex)
+    this.write(root)
+  }
+
+  addActionedMiss(challengeId: string, dayIndex: number): void {
+    const root = this.read()
+    const dd = this.dayDataFor(root, challengeId)
+    if (!dd.actionedMisses.includes(dayIndex)) dd.actionedMisses.push(dayIndex)
     this.write(root)
   }
 

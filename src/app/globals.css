@@ -1,28 +1,180 @@
 @import 'tailwindcss';
 
+/* ============================================================
+   75 Create — "The daily mark"
+   Riso pigment on sketch paper. Cool cobalt field, warm accents.
+   ============================================================ */
+
 :root {
-  --bg: #0f0e17;
-  --surface: #1a1826;
-  --surface-2: #242233;
-  --text: #fffffe;
-  --muted: #a7a9be;
-  --accent: #ff8906;
-  --accent-2: #f25f4c;
-  --complete: #ff8906;
-  --today: #e53170;
-  --missed: #3a3750;
-  --skipped: #7f5af0;
-  --future: #201e2e;
+  --paper: #efe9dc;
+  --paper-2: #e7e0d1;
+  --paper-3: #ded5c2;
+  --ink: #1b1a17;
+  --ink-soft: #4a463d;
+  --muted: #8a8274;
+  --line: #d6ccb8;
+
+  /* pigments */
+  --cobalt: #2340d8;
+  --coral: #f5462d;
+  --marigold: #e0910f;
+  --pink: #ff48b0;
+  --moss: #2f7d4f;
+
+  /* grid semantics */
+  --cell-complete: var(--cobalt);
+  --cell-today: var(--coral);
+  --cell-skipped: var(--marigold);
+  --cell-missed: #cdbfa6;
+  --cell-future: transparent;
+
+  --font-display: var(--font-bricolage), 'Trebuchet MS', sans-serif;
+  --font-body: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
 }
 
-html,
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15140f;
+    --paper-2: #1e1c16;
+    --paper-3: #272419;
+    --ink: #f3ecdd;
+    --ink-soft: #cdc5b4;
+    --muted: #8f8877;
+    --line: #322e22;
+    --cobalt: #5b74ff;
+    --cell-missed: #3a3526;
+  }
 }
 
 * {
   box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* dot-grid sketch-paper texture */
+body {
+  background-image: radial-gradient(var(--line) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: -11px -11px;
+  min-height: 100dvh;
+}
+
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 0.98;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+a {
+  color: inherit;
+}
+
+/* --- shared primitives --- */
+.panel {
+  background: var(--paper-2);
+  border: 1.5px solid var(--line);
+  border-radius: 14px;
+}
+
+.btn {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.85rem 1.4rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  cursor: pointer;
+  transition:
+    transform 0.12s ease,
+    background 0.12s ease,
+    box-shadow 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 6px 0 var(--coral);
+}
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 2px 3px 0 var(--coral);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--ink);
+}
+.btn-ghost:hover {
+  box-shadow: 4px 6px 0 var(--cobalt);
+}
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0.4) rotate(var(--rot, 0deg));
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.12) rotate(var(--rot, 0deg));
+  }
+  100% {
+    transform: scale(1) rotate(var(--rot, 0deg));
+    opacity: 1;
+  }
+}
+
+@keyframes today-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--coral) 0%, transparent);
+  }
 }

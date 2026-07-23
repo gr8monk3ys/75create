@@ -67,14 +67,17 @@ export function computeDayStates(
   now: Date,
   tz: string,
   bufferHrs: number,
+  skips: number[] = [],
 ): Day[] {
   const current = currentDayIndex(challenge, now, tz, bufferHrs)
   const total = totalDays(challenge)
+  const skipped = new Set(skips)
   const days: Day[] = []
   for (let index = 1; index <= total; index++) {
     const completedAt = completions[index] ?? null
     let state: DayState
     if (completedAt) state = 'complete'
+    else if (skipped.has(index)) state = 'skipped'
     else if (index === current) state = 'today'
     else if (current > 0 && index < current) state = 'missed'
     else state = 'future'

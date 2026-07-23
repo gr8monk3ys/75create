@@ -13,16 +13,23 @@ export interface DayData {
   checks: Record<string, boolean>
   /** dayIndex -> artifact metadata list. */
   artifacts: Record<number, Artifact[]>
+  /** Day indices covered by a spent skip token. */
+  skips: number[]
+  /** Missed day indices whose miss-policy consequence has been applied. */
+  actionedMisses: number[]
 }
 
 export function emptyDayData(): DayData {
-  return { completions: {}, logs: {}, checks: {}, artifacts: {} }
+  return { completions: {}, logs: {}, checks: {}, artifacts: {}, skips: [], actionedMisses: [] }
 }
 
 export interface Repository {
-  // --- user ---
+  // --- user / session ---
   getUser(): User | null
   saveUser(user: User): void
+  /** Whether a session is active. Signing out clears this without losing data. */
+  isSignedIn(): boolean
+  setSignedIn(value: boolean): void
 
   // --- challenges ---
   getChallenges(): Challenge[]
@@ -54,6 +61,10 @@ export interface Repository {
     dayIndex: number,
     artifactId: string,
   ): void
+  /** Record that a skip token covered this day. */
+  addSkip(challengeId: string, dayIndex: number): void
+  /** Record that this missed day's policy consequence has been applied. */
+  addActionedMiss(challengeId: string, dayIndex: number): void
 
   // --- artifact blobs (IndexedDB) ---
   saveArtifactBlob(blob: Blob): Promise<string>

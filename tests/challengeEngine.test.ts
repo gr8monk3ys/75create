@@ -75,6 +75,14 @@ describe('computeDayStates', () => {
     const days = computeDayStates(ext, {}, new Date('2026-01-01T10:00:00Z'), 'UTC', 3)
     expect(days).toHaveLength(77)
   })
+
+  it('marks skipped days as skipped rather than missed', () => {
+    const now = new Date('2026-01-05T10:00:00Z') // day 5
+    const days = computeDayStates(c, { 1: 'x' }, now, 'UTC', 3, [2, 3])
+    expect(days[1].state).toBe('skipped') // day 2
+    expect(days[2].state).toBe('skipped') // day 3
+    expect(days[3].state).toBe('missed') // day 4 not skipped
+  })
 })
 
 describe('streaks', () => {
