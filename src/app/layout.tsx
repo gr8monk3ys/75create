@@ -3,6 +3,7 @@ import { Bricolage_Grotesque, Instrument_Sans, Space_Mono } from 'next/font/goog
 import './globals.css'
 import { AppProvider } from '@/components/AppProvider'
 import StyledJsxRegistry from '@/components/StyledJsxRegistry'
+import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -26,6 +27,27 @@ export const metadata: Metadata = {
   description:
     'A free, zero-friction tracker for a 75-day creative challenge. One mark a day. Keep the streak, log the work, and walk away with 75 days of proof.',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: '75 Create',
+  },
+  openGraph: {
+    title: '75 Create — 75 days of creative discipline',
+    description:
+      'A free, zero-friction tracker for a 75-day creative challenge. One mark a day. Keep the streak, log the work, and walk away with 75 days of proof.',
+    siteName: '75 Create',
+    type: 'website',
+    images: [{ url: '/icon-512.png', width: 512, height: 512 }],
+  },
 }
 
 export const viewport: Viewport = {
@@ -44,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <StyledJsxRegistry>
           <AppProvider>{children}</AppProvider>
         </StyledJsxRegistry>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   )

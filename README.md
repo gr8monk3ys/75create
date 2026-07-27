@@ -59,7 +59,17 @@ brand and the growth loop (built to be screenshot-shared). Bricolage Grotesque /
 Instrument Sans / Space Mono. Calm by default, celebratory on completion; private by
 default.
 
+## Install as an app
+
+75 Create is an installable PWA: full icon set, offline support via a service
+worker (network-first navigations, cached app shell), and standalone display.
+On mobile, use "Add to Home Screen"; on desktop Chrome/Edge, use the install
+icon in the address bar. Since all state is local, the installed app works
+fully offline after the first visit.
+
 ## Status
 
-Local-first prototype. Server-dependent pieces (real email/OAuth, cross-device sync)
-are intentionally stubbed and clearly labeled in the UI.
+Deployed local-first product (web + installable PWA). Server-dependent pieces
+(real email/OAuth, cross-device sync) are intentionally stubbed and clearly
+labeled in the UI — the `Repository` interface is the seam where a Supabase
+backend slots in.
