@@ -4,6 +4,7 @@ import './globals.css'
 import { AppProvider } from '@/components/AppProvider'
 import StyledJsxRegistry from '@/components/StyledJsxRegistry'
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar'
+import { ReminderScheduler } from '@/components/ReminderScheduler'
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -64,7 +65,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body>
         <StyledJsxRegistry>
-          <AppProvider>{children}</AppProvider>
+          <AppProvider>
+            {children}
+            <ReminderScheduler />
+          </AppProvider>
         </StyledJsxRegistry>
         <ServiceWorkerRegistrar />
       </body>

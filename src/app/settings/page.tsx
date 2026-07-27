@@ -8,7 +8,7 @@ import { buildExport } from '@/lib/export'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
-  const { loading, user, repo, refresh, signOut } = useApp()
+  const { loading, user, repo, refresh, signOut, supabaseEnabled } = useApp()
   const router = useRouter()
   const [reminderOn, setReminderOn] = useState(false)
   const [reminderTime, setReminderTime] = useState('20:00')
@@ -111,8 +111,9 @@ export default function Settings() {
           </div>
         )}
         <p className="note font-mono">
-          Prototype note: email reminders need the future server backend. For now this
-          schedules a local browser notification.
+          {supabaseEnabled
+            ? 'Browser notifications fire on this device while the app is open. Email reminders are sent by the server at your reminder time (when the reminder function is deployed).'
+            : 'Prototype note: email reminders need a server backend. For now this fires a browser notification on this device.'}
         </p>
       </section>
 

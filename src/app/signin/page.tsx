@@ -6,18 +6,40 @@ import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 
 export default function SignIn() {
-  const { signIn, repo } = useApp()
+  const { signIn, signInWithGoogle, supabaseEnabled, repo } = useApp()
   const router = useRouter()
   const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [busy, setBusy] = useState(false)
 
-  function enter(e: React.FormEvent) {
+  async function enter(e: React.FormEvent) {
     e.preventDefault()
     const value = email.trim()
-    if (!value) return
-    signIn(value)
-    // Route based on whether an account already has a challenge.
-    const hasChallenge = repo.getActiveChallenge() !== null
-    router.push(hasChallenge ? '/dashboard' : '/setup')
+    if (!value || busy) return
+    setBusy(true)
+    try {
+      const mode = await signIn(value)
+      if (mode === 'magic-link-sent') {
+        setSent(true)
+        return
+      }
+      // Local mode: route based on whether an account already has a challenge.
+      const hasChallenge = repo.getActiveChallenge() !== null
+      router.push(hasChallenge ? '/dashboard' : '/setup')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function google() {
+    if (supabaseEnabled) {
+      await signInWithGoogle() // redirects to Google
+      return
+    }
+    const value = email.trim() || 'creative@example.com'
+    if (!email.trim()) setEmail(value)
+    await signIn(value)
+    router.push(repo.getActiveChallenge() ? '/dashboard' : '/setup')
   }
 
   return (
@@ -28,43 +50,55 @@ export default function SignIn() {
 
       <div className="auth-card panel">
         <span className="eyebrow">Start or resume</span>
-        <h1 className="font-display auth-h1">Sign in with your email</h1>
+        <h1 className="font-display auth-h1">
+          {sent ? 'Check your email' : 'Sign in with your email'}
+        </h1>
 
-        <form onSubmit={enter} className="auth-form">
-          <label className="field">
-            <span className="field-label font-mono">Email</span>
-            <input
-              type="email"
-              required
-              autoFocus
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@studio.com"
-              className="input"
-            />
-          </label>
-          <button type="submit" className="btn">
-            Send magic link
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost google"
-            onClick={() => {
-              if (!email.trim()) setEmail('creative@example.com')
-              const value = email.trim() || 'creative@example.com'
-              signIn(value)
-              router.push(repo.getActiveChallenge() ? '/dashboard' : '/setup')
-            }}
-          >
-            Continue with Google
-          </button>
-        </form>
+        {sent ? (
+          <p className="sent-note">
+            A magic link is on its way to <strong>{email.trim()}</strong>. Open it
+            on this device to sign in — you can close this tab.
+          </p>
+        ) : (
+          <form onSubmit={enter} className="auth-form">
+            <label className="field">
+              <span className="field-label font-mono">Email</span>
+              <input
+                type="email"
+                required
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@studio.com"
+                className="input"
+              />
+            </label>
+            <button type="submit" className="btn" disabled={busy}>
+              {busy ? 'Sending…' : 'Send magic link'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost google"
+              onClick={google}
+              disabled={busy}
+            >
+              Continue with Google
+            </button>
+          </form>
+        )}
 
-        <p className="proto-note font-mono">
-          Prototype note: this build runs entirely in your browser. There&apos;s no
-          server yet, so the magic link and Google button sign you in instantly and
-          your challenge is saved locally on this device.
-        </p>
+        {supabaseEnabled ? (
+          <p className="proto-note font-mono">
+            Your challenge syncs across devices. Your artifacts stay private to
+            your account.
+          </p>
+        ) : (
+          <p className="proto-note font-mono">
+            Prototype note: this build runs entirely in your browser. There&apos;s no
+            server configured, so the magic link and Google button sign you in
+            instantly and your challenge is saved locally on this device.
+          </p>
+        )}
       </div>
 
       <style jsx>{`
@@ -128,6 +162,11 @@ export default function SignIn() {
           color: var(--muted);
           border-top: 1.5px dashed var(--line);
           padding-top: 1rem;
+        }
+        .sent-note {
+          color: var(--ink-soft);
+          line-height: 1.6;
+          margin: 0;
         }
       `}</style>
     </main>
