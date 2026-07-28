@@ -1,5 +1,9 @@
 # 75 Create
 
+<p align="center">
+  <img src="docs/assets/hero.png" alt="75create preview" width="640">
+</p>
+
 A free, zero-friction tracker for a **75-day creative discipline challenge** — the
 75 Hard / 75 Fluent format, adapted for creative work. Do five daily tasks for 75
 days, keep a streak, log the work, and walk away with 75 days of documented output.
