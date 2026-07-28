@@ -59,7 +59,44 @@ brand and the growth loop (built to be screenshot-shared). Bricolage Grotesque /
 Instrument Sans / Space Mono. Calm by default, celebratory on completion; private by
 default.
 
+## Install as an app
+
+75 Create is an installable PWA: full icon set, offline support via a service
+worker (network-first navigations, cached app shell), and standalone display.
+On mobile, use "Add to Home Screen"; on desktop Chrome/Edge, use the install
+icon in the address bar. Since all state is local, the installed app works
+fully offline after the first visit.
+
+## Optional server backend (Supabase)
+
+The app is fully functional with no server. To turn on **real auth (magic
+link / Google)** and **cross-device sync**:
+
+1. Create a Supabase project and run `supabase/migrations/0001_init.sql`
+   (tables + RLS + the private `artifacts` storage bucket).
+2. Enable the Email (magic link) and Google providers under Auth.
+3. Build with the env vars:
+
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+   ```
+
+Without those vars, nothing changes — prototype local sign-in, single device.
+With them, the server session becomes the source of truth for auth, and a
+write-through outbox (`src/lib/syncedRepository.ts`) mirrors every local
+mutation to Postgres (JSONB rows, last-write-wins) and artifact images to
+Storage. The app stays local-first: reads are always served locally, so
+offline keeps working; the outbox flushes when back online.
+
+**Email reminders:** deploy `supabase/functions/send-reminders` and schedule
+it every 15 minutes; it emails users at their chosen reminder time via Resend
+(`RESEND_API_KEY` + `REMINDER_FROM` secrets). Browser-notification reminders
+fire client-side with no server at all.
+
 ## Status
 
-Local-first prototype. Server-dependent pieces (real email/OAuth, cross-device sync)
-are intentionally stubbed and clearly labeled in the UI.
+Feature-complete product: web app + installable offline PWA, with an optional
+Supabase backend (auth, sync, email reminders) that activates via env vars.
+Full account deletion of the *auth user* (not just data) still requires the
+Supabase dashboard or a service-role function.

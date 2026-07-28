@@ -10,6 +10,8 @@ import {
   useState,
 } from 'react'
 import { LocalRepository } from '@/lib/localRepository'
+import { SyncedRepository } from '@/lib/syncedRepository'
+import { isSupabaseConfigured, supabase } from '@/lib/supabase'
 import { DayData, Repository, newId } from '@/lib/repository'
 import {
   applyMissPolicy,
@@ -42,7 +44,11 @@ interface AppValue {
   derived: Derived
   banner: Banner | null
   dismissBanner: () => void
-  signIn: (email: string) => void
+  /** Resolves 'magic-link-sent' when a real auth email was sent (Supabase). */
+  signIn: (email: string) => Promise<'local' | 'magic-link-sent'>
+  signInWithGoogle: () => Promise<void>
+  /** True when a Supabase backend is configured (real auth + sync). */
+  supabaseEnabled: boolean
   signOut: () => void
   /** Re-read from storage and recompute (call after any mutation). */
   refresh: () => void
@@ -62,7 +68,8 @@ const emptyDerived: Derived = {
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const repoRef = useRef<Repository | null>(null)
   if (!repoRef.current && typeof window !== 'undefined') {
-    repoRef.current = new LocalRepository()
+    const local = new LocalRepository()
+    repoRef.current = supabase ? new SyncedRepository(local, supabase) : local
   }
 
   const [loading, setLoading] = useState(true)
@@ -106,6 +113,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     load()
   }, [load])
 
+  // Real auth: when Supabase is configured the server session is the source of
+  // truth for being signed in, and the prototype local session is disabled.
+  useEffect(() => {
+    if (!supabase) return
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // setTimeout: supabase-js warns against calling its APIs directly inside
+      // this callback (deadlock risk).
+      setTimeout(() => {
+        const repo = repoRef.current as SyncedRepository | null
+        if (!repo) return
+        if (session?.user) {
+          void repo
+            .connectRemote(session.user.id, session.user.email ?? '')
+            .then(() => {
+              repo.setSignedIn(true)
+              load()
+            })
+        } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
+          repo.disconnectRemote()
+          repo.setSignedIn(false)
+          load()
+        }
+      }, 0)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [load])
+
   const refresh = useCallback(() => load(), [load])
 
   const derived = useMemo<Derived>(() => {
@@ -131,9 +165,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [challenge, user, dayData])
 
   const signIn = useCallback(
-    (email: string) => {
+    async (email: string): Promise<'local' | 'magic-link-sent'> => {
+      if (supabase) {
+        await supabase.auth.signInWithOtp({
+          email,
+          options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+        })
+        return 'magic-link-sent'
+      }
       const repo = repoRef.current
-      if (!repo) return
+      if (!repo) return 'local'
       let u = repo.getUser()
       if (!u || u.email !== email) {
         u = {
@@ -148,11 +189,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
       repo.setSignedIn(true)
       load()
+      return 'local'
     },
     [load],
   )
 
+  const signInWithGoogle = useCallback(async () => {
+    if (!supabase) return
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: `${window.location.origin}/dashboard` },
+    })
+  }, [])
+
   const signOut = useCallback(() => {
+    if (supabase) void supabase.auth.signOut()
     repoRef.current?.setSignedIn(false)
     load()
   }, [load])
@@ -186,6 +237,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     banner,
     dismissBanner: () => setBanner(null),
     signIn,
+    signInWithGoogle,
+    supabaseEnabled: isSupabaseConfigured(),
     signOut,
     refresh,
     confirmReset,

@@ -167,6 +167,13 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
+  /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
+  replaceDayData(challengeId: string, data: DayData): void {
+    const root = this.read()
+    root.dayData[challengeId] = { ...emptyDayData(), ...data }
+    this.write(root)
+  }
+
   // ---- IndexedDB blobs ----
   private openDb(): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
@@ -182,6 +189,12 @@ export class LocalRepository implements Repository {
 
   async saveArtifactBlob(blob: Blob): Promise<string> {
     const id = newId()
+    await this.putArtifactBlob(id, blob)
+    return id
+  }
+
+  /** Store a blob under a caller-chosen id (used by remote hydration). */
+  async putArtifactBlob(id: string, blob: Blob): Promise<void> {
     // Store the raw bytes + type rather than the Blob itself: ArrayBuffers
     // survive structured clone identically across browsers and test shims.
     const buffer = await blob.arrayBuffer()
@@ -193,7 +206,6 @@ export class LocalRepository implements Repository {
       tx.onerror = () => reject(tx.error)
     })
     db.close()
-    return id
   }
 
   async getArtifactBlob(id: string): Promise<Blob | null> {
