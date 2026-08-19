@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { buildExport } from '@/lib/export'
 import type { User } from '@/lib/types'
+import { detectTimezone } from '@/lib/timezone'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
@@ -24,7 +25,6 @@ export default function Settings() {
 
 function SettingsForm({ user }: { user: User }) {
   const { repo, refresh, signOut, supabaseEnabled } = useApp()
-  const router = useRouter()
   const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
   const [reminderTime, setReminderTime] = useState(user.reminderTime ?? '20:00')
   const [buffer, setBuffer] = useState(user.lateNightBufferHrs)
@@ -33,6 +33,7 @@ function SettingsForm({ user }: { user: User }) {
   )
   const [exporting, setExporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  const deviceTz = detectTimezone()
 
   async function saveReminders(on: boolean, time: string) {
     if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
@@ -46,6 +47,11 @@ function SettingsForm({ user }: { user: User }) {
   function saveBuffer(hrs: number) {
     setBuffer(hrs)
     repo.saveUser({ ...user, lateNightBufferHrs: hrs })
+    refresh()
+  }
+
+  function saveTz(tz: string) {
+    repo.saveUser({ ...user, tz })
     refresh()
   }
 
@@ -63,7 +69,10 @@ function SettingsForm({ user }: { user: User }) {
     if (confirmText !== 'DELETE') return
     await repo.deleteAllData()
     signOut()
-    router.push('/')
+    // A hard navigation, not router.push: signing out re-runs the signed-out
+    // redirect on this page, which raced the push and could land the user on
+    // /signin instead. It also guarantees no wiped state survives in memory.
+    window.location.replace('/')
   }
 
   return (
@@ -119,6 +128,22 @@ function SettingsForm({ user }: { user: User }) {
       </section>
 
       <section className="block panel">
+        <h2 className="font-display block-h2">Time zone</h2>
+        <p className="block-sub">
+          Your day rolls over here. It follows this device automatically — change
+          it only if you want your challenge pinned to somewhere else.
+        </p>
+        <div className="tz-row">
+          <span className="tz-current font-mono">{user.tz}</span>
+          {deviceTz && deviceTz !== user.tz && (
+            <button className="btn btn-ghost small" onClick={() => saveTz(deviceTz)}>
+              Use {deviceTz}
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="block panel">
         <h2 className="font-display block-h2">Late-night buffer</h2>
         <p className="block-sub">
           How many hours past midnight still counts as “today” — for when you create
@@ -171,7 +196,15 @@ function SettingsForm({ user }: { user: User }) {
         </div>
       </section>
 
-      <button className="btn btn-ghost signout" onClick={() => { signOut(); router.push('/') }}>
+      <button
+        className="btn btn-ghost signout"
+        onClick={() => {
+          signOut()
+          // Same race as deletion: signing out triggers this page's
+          // signed-out redirect, so leave with a hard navigation.
+          window.location.replace('/')
+        }}
+      >
         Sign out
       </button>
 
@@ -252,6 +285,24 @@ function SettingsForm({ user }: { user: User }) {
           border-top: 1.5px dashed var(--line);
           padding-top: 0.9rem;
           line-height: 1.5;
+        }
+        .tz-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+        .tz-current {
+          font-size: 0.85rem;
+          color: var(--ink);
+          background: var(--paper-3);
+          border-radius: 8px;
+          padding: 0.5rem 0.75rem;
+        }
+        .small {
+          padding: 0.6rem 1rem;
+          min-height: 44px;
+          font-size: 0.7rem;
         }
         .chips {
           display: flex;

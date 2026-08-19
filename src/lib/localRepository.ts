@@ -66,6 +66,16 @@ export class LocalRepository implements Repository {
   }
 
   setSignedIn(value: boolean): void {
+    // Signing out runs right after account deletion. Writing an empty root here
+    // would resurrect the storage key seconds after the user asked for every
+    // trace of it to be gone, so there is nothing to do when it is already gone.
+    if (
+      !value &&
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem(ROOT_KEY) === null
+    ) {
+      return
+    }
     const root = this.read()
     root.signedIn = value
     this.write(root)

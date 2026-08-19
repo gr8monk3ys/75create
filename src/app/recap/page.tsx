@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { Grid } from '@/components/Grid'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
+import { safeHref } from '@/lib/safeUrl'
 import { Artifact } from '@/lib/types'
 
 export default function Recap() {
@@ -318,9 +319,15 @@ function GalleryItem({ artifact }: { artifact: Artifact }) {
   }, [artifact, repo])
 
   if (artifact.kind === 'url') {
+    const href = safeHref(artifact.url)
     return (
-      <a href={artifact.url} target="_blank" rel="noreferrer" className="g-link font-mono">
-        🔗 link
+      <a
+        href={href ?? undefined}
+        target="_blank"
+        rel="noreferrer"
+        className="g-link font-mono"
+      >
+        {href ? '🔗 link' : '⚠ unsafe link'}
         <style jsx>{`
           .g-link {
             display: grid;

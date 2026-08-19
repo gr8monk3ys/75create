@@ -101,4 +101,20 @@ describe('LocalRepository artifact blobs', () => {
     await repo.deleteArtifactBlob(id)
     expect(await repo.getArtifactBlob(id)).toBeNull()
   })
+  it('leaves no storage behind after deleteAllData, even if sign-out follows', async () => {
+    const repo = new LocalRepository()
+    repo.saveUser(makeUser())
+    repo.saveChallenge(makeChallenge())
+    repo.setSignedIn(true)
+
+    await repo.deleteAllData()
+    // The settings page signs out immediately after wiping; that must not
+    // re-create the record the user just deleted.
+    repo.setSignedIn(false)
+
+    expect(localStorage.getItem('75create.v1')).toBeNull()
+    expect(repo.getUser()).toBeNull()
+    expect(repo.getChallenges()).toEqual([])
+    expect(repo.isSignedIn()).toBe(false)
+  })
 })

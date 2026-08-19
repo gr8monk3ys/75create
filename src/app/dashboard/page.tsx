@@ -171,7 +171,7 @@ export default function Dashboard() {
         }
         .nav-links {
           display: flex;
-          gap: 1.25rem;
+          gap: 0.35rem;
           font-size: 0.78rem;
           text-transform: uppercase;
           letter-spacing: 0.08em;
@@ -179,6 +179,12 @@ export default function Dashboard() {
         .nav-links :global(a) {
           color: var(--ink-soft);
           text-decoration: none;
+          /* Padded out to a 44px thumb target rather than a 20px text line. */
+          display: inline-flex;
+          align-items: center;
+          min-height: 44px;
+          padding: 0 0.6rem;
+          border-radius: 8px;
         }
         .nav-links :global(a:hover) {
           color: var(--coral);

@@ -25,13 +25,31 @@ const PRECACHE = [
   '/icon-512.png',
 ]
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+// cache.addAll() rejects atomically, so a single 404 in the list used to mean
+// the worker never installed at all and offline support silently didn't exist.
+// Each URL is cached independently; whatever succeeds is worth having.
+async function precache() {
+  const cache = await caches.open(CACHE)
+  const results = await Promise.allSettled(
+    PRECACHE.map(async (url) => {
+      const response = await fetch(url, { cache: 'reload' })
+      if (!response.ok) throw new Error(`${url}: ${response.status}`)
+      await cache.put(url, response)
+    })
   )
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length) {
+    console.warn(`[75create sw] ${failed.length}/${PRECACHE.length} precache misses`)
+  }
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(precache().then(() => self.skipWaiting()))
+})
+
+// Lets the page trigger an immediate activation after it sees a new worker.
+self.addEventListener('message', (event) => {
+  if (event.data === 'skip-waiting') self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
