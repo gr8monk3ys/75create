@@ -22,7 +22,8 @@ bun test           # unit tests (bun:test)
 bun run lint       # ESLint (flat config, next/core-web-vitals)
 bun run typecheck  # tsc --noEmit
 bun run build      # production build (regenerates PWA icons first)
-bun run check      # everything CI runs
+bun run check      # lint + typecheck + unit tests
+bun run test:e2e   # Playwright, against a real production build
 ```
 
 ## What's built (MVP F1–F10)
@@ -81,8 +82,10 @@ fully offline after the first visit.
 The app is fully functional with no server. To turn on **real auth (magic
 link / Google)** and **cross-device sync**:
 
-1. Create a Supabase project and run `supabase/migrations/0001_init.sql`
-   (tables + RLS + the private `artifacts` storage bucket).
+1. Create a Supabase project and run the migrations in order:
+   `supabase/migrations/0001_init.sql` (tables + RLS + the private `artifacts`
+   storage bucket), then `0002_hardening.sql` (server-owned `updated_at`,
+   policies scoped to authenticated users, reminder index).
 2. Enable the Email (magic link) and Google providers under Auth.
 3. Build with the env vars:
 
@@ -103,13 +106,35 @@ Storage. The app stays local-first: reads are always served locally, so
 offline keeps working; the outbox flushes when back online.
 
 **Email reminders:** deploy `supabase/functions/send-reminders` and schedule
-it every 15 minutes; it emails users at their chosen reminder time via Resend
-(`RESEND_API_KEY` + `REMINDER_FROM` secrets). Browser-notification reminders
-fire client-side with no server at all.
+it every 15 minutes; it emails users at their chosen reminder time via Resend.
+Set three function secrets: `RESEND_API_KEY`, `REMINDER_FROM` (a verified
+sender), and `REMINDER_SECRET`. The scheduler must send that secret as an
+`x-reminder-secret` header — without it the function refuses the request, so
+the URL isn't an open email-sending endpoint billed to your account.
+
+**Browser notifications** fire client-side with no server, but only while the
+app is open, and not at all on iOS — Safari doesn't implement the `Notification`
+constructor, in the browser or in an installed PWA. Treat email as the reminder
+channel that actually reaches people until Web Push is in place.
+
+### Error reporting
+
+Set `NEXT_PUBLIC_ERROR_ENDPOINT` to a URL that accepts a JSON POST and every
+error boundary, unhandled rejection and window error is reported to it. Without
+it, errors are logged to the console and nothing leaves the device.
 
 ## Status
 
 Feature-complete product: web app + installable offline PWA, with an optional
 Supabase backend (auth, sync, email reminders) that activates via env vars.
-Full account deletion of the *auth user* (not just data) still requires the
-Supabase dashboard or a service-role function.
+
+Known gaps before this is safe to hand to strangers:
+
+- **Reminders don't reach phones.** Browser notifications need the app open and
+  don't exist on iOS at all. Web Push is the fix, and isn't built yet.
+- **Local-only by default.** Without Supabase configured, a cache clear loses the
+  challenge — and on iOS, Safari caps script-writable storage at seven days for
+  a site that isn't installed to the home screen.
+- **Deleting an account** removes the data but not the Supabase auth user; that
+  needs a service-role function.
+- There is **no native mobile app** — the mobile experience is the PWA.
