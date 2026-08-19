@@ -112,10 +112,24 @@ sender), and `REMINDER_SECRET`. The scheduler must send that secret as an
 `x-reminder-secret` header — without it the function refuses the request, so
 the URL isn't an open email-sending endpoint billed to your account.
 
+**Push notifications (the one that reaches phones):** run
+`supabase/migrations/0003_push.sql`, generate a VAPID key pair
+(`npx web-push generate-vapid-keys`), then:
+
+- build with `NEXT_PUBLIC_VAPID_PUBLIC_KEY=<public key>`;
+- deploy `supabase/functions/send-push` with secrets `VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (a `mailto:` or `https:` contact URL)
+  and `PUSH_SECRET`, and schedule it every 15 minutes with an
+  `x-push-secret` header.
+
+Turning on the reminder in settings then subscribes that device, and the
+notification arrives with the app closed. On iOS this requires the app to be
+added to the Home Screen (16.4+) — in a Safari tab, no web notification of any
+kind is possible.
+
 **Browser notifications** fire client-side with no server, but only while the
 app is open, and not at all on iOS — Safari doesn't implement the `Notification`
-constructor, in the browser or in an installed PWA. Treat email as the reminder
-channel that actually reaches people until Web Push is in place.
+constructor. They remain the fallback when push isn't configured.
 
 ### Error reporting
 
@@ -130,8 +144,10 @@ Supabase backend (auth, sync, email reminders) that activates via env vars.
 
 Known gaps before this is safe to hand to strangers:
 
-- **Reminders don't reach phones.** Browser notifications need the app open and
-  don't exist on iOS at all. Web Push is the fix, and isn't built yet.
+- **Push delivery is unverified end to end.** The client subscription, service
+  worker handlers, VAPID signing (unit-tested against WebCrypto) and sender are
+  all in place, but no push has been delivered through a real push service —
+  that needs VAPID keys and a deployed function.
 - **Local-only by default.** Without Supabase configured, a cache clear loses the
   challenge — and on iOS, Safari caps script-writable storage at seven days for
   a site that isn't installed to the home screen.

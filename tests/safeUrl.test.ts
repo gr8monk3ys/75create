@@ -44,3 +44,26 @@ describe('safeHref', () => {
     expect(safeHref(undefined)).toBeNull()
   })
 })
+
+describe('decodeVapidKey', () => {
+  it('decodes a base64url application server key to 65 bytes', async () => {
+    const { decodeVapidKey } = await import('@/lib/push')
+    const pair = (await crypto.subtle.generateKey(
+      { name: 'ECDSA', namedCurve: 'P-256' },
+      true,
+      ['sign', 'verify'],
+    )) as CryptoKeyPair
+    const raw = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey))
+    let binary = ''
+    for (const b of raw) binary += String.fromCharCode(b)
+    const base64Url = btoa(binary)
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+    const decoded = decodeVapidKey(base64Url)
+    expect(decoded.length).toBe(65)
+    expect(decoded[0]).toBe(0x04)
+    expect(Array.from(decoded)).toEqual(Array.from(raw))
+  })
+})

@@ -110,3 +110,53 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(staleWhileRevalidate(request))
   }
 })
+
+/* ---- Web Push ----------------------------------------------------------
+ * Reminders arrive through the browser's push service, so they work with the
+ * app closed — and on iOS, where the Notification constructor doesn't exist,
+ * this is the only way a reminder reaches the user at all.
+ *
+ * Pushes are sent without a payload: the message is fixed, and going
+ * payload-less means the sender needs no message encryption. showNotification
+ * is mandatory — a push that displays nothing costs the site its permission.
+ */
+self.addEventListener('push', (event) => {
+  let body = 'Make your mark before the day rolls over.'
+  if (event.data) {
+    try {
+      body = event.data.json().body ?? body
+    } catch {
+      body = event.data.text() || body
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification('75 Create', {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: '75create-reminder',
+      renotify: true,
+      data: { url: '/dashboard' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = event.notification.data?.url || '/dashboard'
+
+  // Focus an open tab if there is one rather than piling up new ones.
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (new URL(client.url).pathname === target && 'focus' in client) {
+            return client.focus()
+          }
+        }
+        return self.clients.openWindow(target)
+      })
+  )
+})

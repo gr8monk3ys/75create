@@ -7,6 +7,14 @@ import { useApp } from '@/components/AppProvider'
 import { buildExport } from '@/lib/export'
 import type { User } from '@/lib/types'
 import { detectTimezone } from '@/lib/timezone'
+import {
+  getPushStatus,
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushStatus,
+} from '@/lib/push'
+import { supabase } from '@/lib/supabase'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
@@ -34,14 +42,40 @@ function SettingsForm({ user }: { user: User }) {
   const [exporting, setExporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   const deviceTz = detectTimezone()
+  const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
+
+  useEffect(() => {
+    // Reading the current subscription is async and prompts for nothing.
+    let cancelled = false
+    void getPushStatus().then((s) => {
+      if (!cancelled) setPushStatus(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function saveReminders(on: boolean, time: string) {
+    repo.saveUser({ ...user, reminderTime: on ? time : null })
+    refresh()
+
+    // Push first where it's available: it's the only reminder that reaches a
+    // phone with the app closed, and the only one that works on iOS at all.
+    if (isPushSupported() && supabase) {
+      const status = on
+        ? await subscribeToPush(supabase, user.id)
+        : (await unsubscribeFromPush(supabase), 'unsubscribed' as const)
+      setPushStatus(status)
+      setPermission(
+        typeof Notification === 'undefined' ? 'default' : Notification.permission,
+      )
+      return
+    }
+
     if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       const p = await Notification.requestPermission()
       setPermission(p)
     }
-    repo.saveUser({ ...user, reminderTime: on ? time : null })
-    refresh()
   }
 
   function saveBuffer(hrs: number) {
@@ -120,11 +154,7 @@ function SettingsForm({ user }: { user: User }) {
             </span>
           </div>
         )}
-        <p className="note font-mono">
-          {supabaseEnabled
-            ? 'Browser notifications fire on this device while the app is open. Email reminders are sent by the server at your reminder time (when the reminder function is deployed).'
-            : 'Prototype note: email reminders need a server backend. For now this fires a browser notification on this device.'}
-        </p>
+        <p className="note font-mono">{reminderChannelNote(supabaseEnabled, pushStatus)}</p>
       </section>
 
       <section className="block panel">
@@ -355,4 +385,18 @@ function SettingsForm({ user }: { user: User }) {
       `}</style>
     </main>
   )
+}
+
+/** Say plainly which reminder channel this device will actually get. */
+function reminderChannelNote(supabaseEnabled: boolean, pushStatus: PushStatus): string {
+  if (pushStatus === 'subscribed') {
+    return 'Push notifications are on for this device — they arrive even with the app closed.'
+  }
+  if (pushStatus === 'denied') {
+    return 'Notifications are blocked for this site in your browser or system settings. Re-allow them there to get reminders.'
+  }
+  if (supabaseEnabled) {
+    return 'This device gets a browser notification while the app is open. Email reminders are sent by the server at your reminder time, when that function is deployed.'
+  }
+  return 'Prototype note: email and push reminders need the server backend. For now this fires a browser notification on this device, and only while the app is open.'
 }
