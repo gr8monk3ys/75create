@@ -55,6 +55,12 @@ function makeMockClient(state: MockState): SupabaseClient {
         },
       }),
     }),
+    functions: {
+      invoke: (name: string) => {
+        state.calls.push({ op: 'invoke', table: name })
+        return Promise.resolve({ data: { deleted: true }, error: null })
+      },
+    },
     storage: {
       from: () => ({
         upload: (path: string) => {
@@ -187,6 +193,11 @@ describe('SyncedRepository', () => {
 
     const deletes = state.calls.filter((c) => c.op === 'delete').map((c) => c.table)
     expect(deletes).toEqual(['day_data', 'challenges', 'profiles'])
+    // The auth user itself needs the service role, so it goes through the
+    // delete-account function rather than staying behind.
+    expect(state.calls.some((c) => c.op === 'invoke' && c.table === 'delete-account')).toBe(
+      true,
+    )
     expect(repo.getChallenges()).toEqual([])
   })
   // PostgREST renders timestamptz in the database's timezone, which need not

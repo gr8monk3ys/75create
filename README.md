@@ -131,6 +131,12 @@ kind is possible.
 app is open, and not at all on iOS — Safari doesn't implement the `Notification`
 constructor. They remain the fallback when push isn't configured.
 
+**Account deletion:** deploy `supabase/functions/delete-account` (leave JWT
+verification on — it deletes whoever is calling, and takes no user id). The app
+invokes it after wiping local and remote data, so deleting an account really
+removes the auth user rather than leaving one that can sign back in. Without it
+deployed the data is still deleted; only the account record survives.
+
 ### Error reporting
 
 Set `NEXT_PUBLIC_ERROR_ENDPOINT` to a URL that accepts a JSON POST and every
@@ -151,6 +157,4 @@ Known gaps before this is safe to hand to strangers:
 - **Local-only by default.** Without Supabase configured, a cache clear loses the
   challenge — and on iOS, Safari caps script-writable storage at seven days for
   a site that isn't installed to the home screen.
-- **Deleting an account** removes the data but not the Supabase auth user; that
-  needs a service-role function.
 - There is **no native mobile app** — the mobile experience is the PWA.

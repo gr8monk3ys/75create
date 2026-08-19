@@ -502,6 +502,16 @@ export class SyncedRepository implements Repository {
       await this.client.from('day_data').delete().eq('user_id', this.userId)
       await this.client.from('challenges').delete().eq('user_id', this.userId)
       await this.client.from('profiles').delete().eq('id', this.userId)
+
+      // The rows above are all a user can delete with their own credentials.
+      // Removing the auth account itself needs the service role, which lives in
+      // the delete-account function. If it isn't deployed the data is still
+      // gone; the account would just be able to sign back in to an empty slate.
+      try {
+        await this.client.functions.invoke('delete-account', { method: 'POST' })
+      } catch {
+        // Deliberately non-fatal: never block a deletion the user asked for.
+      }
     }
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(OUTBOX_KEY)
