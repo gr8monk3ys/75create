@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { DayData, Repository } from '@/lib/repository'
 import { Challenge, MAX_LOG_CHARS } from '@/lib/types'
 import { ArtifactInput } from './ArtifactInput'
@@ -24,14 +24,14 @@ export function DayCard({
 }: Props) {
   const cid = challenge.id
   const completed = Boolean(dayData.completions[dayIndex])
+  // Seeded from storage once. It is deliberately NOT re-synced from `dayData`:
+  // an autosave round-trip re-reads storage, and copying that back into the
+  // textarea can drop characters typed while the save was in flight. The
+  // dashboard mounts one card per day (`key={dayIndex}`), so a day rollover
+  // still picks up the stored log.
   const [log, setLog] = useState(dayData.logs[dayIndex]?.text ?? '')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
-
-  // Keep local log in sync when the day changes.
-  useEffect(() => {
-    setLog(dayData.logs[dayIndex]?.text ?? '')
-  }, [dayIndex, dayData.logs])
 
   function isChecked(ruleId: string): boolean {
     return dayData.checks[`${dayIndex}:${ruleId}`] === true

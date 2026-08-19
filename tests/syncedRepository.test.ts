@@ -1,5 +1,4 @@
-import 'fake-indexeddb/auto'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { LocalRepository } from '@/lib/localRepository'
 import { SyncedRepository } from '@/lib/syncedRepository'

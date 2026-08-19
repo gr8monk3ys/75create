@@ -5,17 +5,24 @@ A free, zero-friction tracker for a **75-day creative discipline challenge** —
 days, keep a streak, log the work, and walk away with 75 days of documented output.
 
 This repository is a **local-first MVP**: it runs entirely in the browser with no
-backend, so you can `npm run dev` and use it immediately. All persistence goes
+backend, so you can `bun dev` and use it immediately. All persistence goes
 through a `Repository` interface (localStorage + IndexedDB today) that is designed
 to be swapped for Supabase later without touching feature code.
 
 ## Quick start
 
+Requires [Bun](https://bun.sh) ≥ 1.2 (the version in `packageManager` is what CI
+uses). Bun is the package manager, script runner, and test runner; there is no
+npm lockfile.
+
 ```bash
-npm install
-npm run dev      # http://localhost:3000
-npm test         # unit tests (Vitest)
-npm run build    # production build
+bun install
+bun dev            # http://localhost:3000
+bun test           # unit tests (bun:test)
+bun run lint       # ESLint (flat config, next/core-web-vitals)
+bun run typecheck  # tsc --noEmit
+bun run build      # production build (regenerates PWA icons first)
+bun run check      # everything CI runs
 ```
 
 ## What's built (MVP F1–F10)
@@ -44,6 +51,8 @@ day.
 ## Architecture
 
 - **Next.js (App Router) + TypeScript + Tailwind**, styled-jsx for component styles.
+- **Bun** for installs, scripts, and tests (`bun test` with happy-dom +
+  fake-indexeddb, wired up in `tests/setup.ts` via `bunfig.toml`).
 - `src/lib/challengeEngine.ts` — pure, deterministic day/streak/miss-policy logic
   (time is injected, never read inside). This is the tested correctness core.
 - `src/lib/repository.ts` + `localRepository.ts` — persistence abstraction.
@@ -81,6 +90,10 @@ link / Google)** and **cross-device sync**:
    NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
    NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
    ```
+
+Set `NEXT_PUBLIC_SITE_URL` to the deployed origin as well, so Open Graph images
+in link previews resolve against the real domain instead of `localhost`. (On
+Vercel this falls back to the production URL automatically.)
 
 Without those vars, nothing changes — prototype local sign-in, single device.
 With them, the server session becomes the source of truth for auth, and a

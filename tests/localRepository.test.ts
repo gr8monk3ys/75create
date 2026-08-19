@@ -1,5 +1,4 @@
-import 'fake-indexeddb/auto'
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'bun:test'
 import { LocalRepository } from '@/lib/localRepository'
 import type { Challenge, User } from '@/lib/types'
 

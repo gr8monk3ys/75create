@@ -6,7 +6,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react'
 import { LocalRepository } from '@/lib/localRepository'
@@ -66,11 +65,13 @@ const emptyDerived: Derived = {
 }
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const repoRef = useRef<Repository | null>(null)
-  if (!repoRef.current && typeof window !== 'undefined') {
+  // Built once, lazily, and only in the browser: both implementations touch
+  // localStorage/IndexedDB, which don't exist during server rendering.
+  const [repo] = useState<Repository | null>(() => {
+    if (typeof window === 'undefined') return null
     const local = new LocalRepository()
-    repoRef.current = supabase ? new SyncedRepository(local, supabase) : local
-  }
+    return supabase ? new SyncedRepository(local, supabase) : local
+  })
 
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
@@ -90,7 +91,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * consequences and surfacing a reset confirmation), then load state.
    */
   const load = useCallback(() => {
-    const repo = repoRef.current
     if (!repo) return
     if (!repo.isSignedIn()) {
       setUser(null)
@@ -107,9 +107,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setChallenge(active)
     setDayData(active ? repo.getDayData(active.id) : emptyDayDataValue())
     setLoading(false)
-  }, [])
+  }, [repo])
 
   useEffect(() => {
+    // Hydration from localStorage/IndexedDB, which are unreadable during
+    // render and on the server — an effect is the only place this can happen.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load()
   }, [load])
 
@@ -117,28 +120,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // truth for being signed in, and the prototype local session is disabled.
   useEffect(() => {
     if (!supabase) return
+    const synced = repo as SyncedRepository | null
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       // setTimeout: supabase-js warns against calling its APIs directly inside
       // this callback (deadlock risk).
       setTimeout(() => {
-        const repo = repoRef.current as SyncedRepository | null
-        if (!repo) return
+        if (!synced) return
         if (session?.user) {
-          void repo
+          void synced
             .connectRemote(session.user.id, session.user.email ?? '')
             .then(() => {
-              repo.setSignedIn(true)
+              synced.setSignedIn(true)
               load()
             })
         } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
-          repo.disconnectRemote()
-          repo.setSignedIn(false)
+          synced.disconnectRemote()
+          synced.setSignedIn(false)
           load()
         }
       }, 0)
     })
     return () => sub.subscription.unsubscribe()
-  }, [load])
+  }, [load, repo])
 
   const refresh = useCallback(() => load(), [load])
 
@@ -173,7 +176,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
         return 'magic-link-sent'
       }
-      const repo = repoRef.current
       if (!repo) return 'local'
       let u = repo.getUser()
       if (!u || u.email !== email) {
@@ -191,7 +193,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       load()
       return 'local'
     },
-    [load],
+    [load, repo],
   )
 
   const signInWithGoogle = useCallback(async () => {
@@ -204,12 +206,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
-    repoRef.current?.setSignedIn(false)
+    repo?.setSignedIn(false)
     load()
-  }, [load])
+  }, [load, repo])
 
   const confirmReset = useCallback(() => {
-    const repo = repoRef.current
     if (!repo || !challenge) return
     // Archive the failed attempt and start a fresh one today with the same rules.
     repo.saveChallenge({ ...challenge, status: 'archived' })
@@ -225,11 +226,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     repo.saveChallenge(fresh)
     setBanner(null)
     load()
-  }, [challenge, user, load])
+  }, [challenge, user, load, repo])
 
   const value: AppValue = {
     loading,
-    repo: repoRef.current as Repository,
+    repo: repo as Repository,
     user,
     challenge,
     dayData,

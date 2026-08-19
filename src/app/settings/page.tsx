@@ -5,34 +5,36 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { buildExport } from '@/lib/export'
+import type { User } from '@/lib/types'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
-  const { loading, user, repo, refresh, signOut, supabaseEnabled } = useApp()
+  const { loading, user } = useApp()
   const router = useRouter()
-  const [reminderOn, setReminderOn] = useState(false)
-  const [reminderTime, setReminderTime] = useState('20:00')
-  const [buffer, setBuffer] = useState(3)
-  const [permission, setPermission] = useState<string>('default')
-  const [exporting, setExporting] = useState(false)
-  const [confirmText, setConfirmText] = useState('')
 
   useEffect(() => {
-    if (loading) return
-    if (!user) {
-      router.replace('/signin')
-      return
-    }
-    setReminderOn(user.reminderTime !== null)
-    setReminderTime(user.reminderTime ?? '20:00')
-    setBuffer(user.lateNightBufferHrs)
-    if (typeof Notification !== 'undefined') setPermission(Notification.permission)
+    if (!loading && !user) router.replace('/signin')
   }, [loading, user, router])
 
   if (loading || !user) return null
+  // Keyed on the user so the form seeds its fields from stored preferences
+  // once, instead of copying them in through an effect on every render.
+  return <SettingsForm key={user.id} user={user} />
+}
+
+function SettingsForm({ user }: { user: User }) {
+  const { repo, refresh, signOut, supabaseEnabled } = useApp()
+  const router = useRouter()
+  const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
+  const [reminderTime, setReminderTime] = useState(user.reminderTime ?? '20:00')
+  const [buffer, setBuffer] = useState(user.lateNightBufferHrs)
+  const [permission, setPermission] = useState<string>(() =>
+    typeof Notification === 'undefined' ? 'default' : Notification.permission,
+  )
+  const [exporting, setExporting] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
 
   async function saveReminders(on: boolean, time: string) {
-    if (!user) return
     if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       const p = await Notification.requestPermission()
       setPermission(p)
@@ -42,7 +44,6 @@ export default function Settings() {
   }
 
   function saveBuffer(hrs: number) {
-    if (!user) return
     setBuffer(hrs)
     repo.saveUser({ ...user, lateNightBufferHrs: hrs })
     refresh()
