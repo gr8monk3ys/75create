@@ -173,4 +173,45 @@ describe('SyncedRepository', () => {
     expect(deletes).toEqual(['day_data', 'challenges', 'profiles'])
     expect(repo.getChallenges()).toEqual([])
   })
+  // PostgREST renders timestamptz in the database's timezone, which need not
+  // be UTC. Comparing those strings against local "…Z" stamps ordered them by
+  // wall-clock text rather than by instant.
+  it('keeps newer local data when an older remote row uses a non-UTC offset', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge({ id: 'c1', medium: 'writing' }))
+    const localStamp = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+      .challenges.c1 as string
+    // One minute earlier, written as +02:00 — lexically greater, actually older.
+    const remoteAt = plusOffset(Date.parse(localStamp) - 60_000, 2)
+
+    state.rows.challenges = [
+      { id: 'c1', data: makeChallenge({ id: 'c1', medium: 'music' }), updated_at: remoteAt },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+
+    expect(repo.getChallenges().find((c) => c.id === 'c1')!.medium).toBe('writing')
+  })
+
+  it('takes a newer remote row that uses a non-UTC offset', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge({ id: 'c1', medium: 'writing' }))
+    const localStamp = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+      .challenges.c1 as string
+    const remoteAt = plusOffset(Date.parse(localStamp) + 60_000, 2)
+
+    state.rows.challenges = [
+      { id: 'c1', data: makeChallenge({ id: 'c1', medium: 'music' }), updated_at: remoteAt },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+
+    expect(repo.getChallenges().find((c) => c.id === 'c1')!.medium).toBe('music')
+  })
 })
+
+/** An instant rendered the way PostgREST renders timestamptz at `offsetHrs`. */
+function plusOffset(epochMs: number, offsetHrs: number): string {
+  const shifted = new Date(epochMs + offsetHrs * 3_600_000).toISOString()
+  const sign = offsetHrs < 0 ? '-' : '+'
+  const hh = String(Math.abs(offsetHrs)).padStart(2, '0')
+  return shifted.replace(/\.(\d{3})Z$/, '.$1456') + `${sign}${hh}:00`
+}

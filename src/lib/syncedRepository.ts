@@ -147,6 +147,22 @@ export class SyncedRepository implements Repository {
     }
   }
 
+  /**
+   * Compare two timestamps for last-write-wins. Parsed to epoch millis rather
+   * than compared as strings: local stamps are `…T16:32:00.123Z`, while
+   * PostgREST renders timestamptz in the database's timezone, which need not be
+   * UTC (`…T18:32:00.123456+02:00`). Lexically that reads as the later instant
+   * even when it is the earlier one, which would overwrite newer local data.
+   */
+  private isNewer(remote: string, local: string | undefined): boolean {
+    if (!local) return true
+    const r = Date.parse(remote)
+    const l = Date.parse(local)
+    if (Number.isNaN(r)) return false
+    if (Number.isNaN(l)) return true
+    return r > l
+  }
+
   /** Pull remote rows newer than the local stamps into the local store. */
   private async hydrate(userId: string): Promise<void> {
     const stamps = this.readJson(STAMPS_KEY, emptyStamps())
@@ -156,8 +172,7 @@ export class SyncedRepository implements Repository {
       .select('id, data, updated_at')
       .eq('user_id', userId)
     for (const row of challenges.data ?? []) {
-      const localStamp = stamps.challenges[row.id]
-      if (!localStamp || row.updated_at > localStamp) {
+      if (this.isNewer(row.updated_at, stamps.challenges[row.id])) {
         this.local.saveChallenge(row.data as Challenge)
         stamps.challenges[row.id] = row.updated_at
       }
@@ -168,8 +183,7 @@ export class SyncedRepository implements Repository {
       .select('challenge_id, data, updated_at')
       .eq('user_id', userId)
     for (const row of dayData.data ?? []) {
-      const localStamp = stamps.dayData[row.challenge_id]
-      if (!localStamp || row.updated_at > localStamp) {
+      if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
         this.local.replaceDayData(row.challenge_id, row.data as DayData)
         stamps.dayData[row.challenge_id] = row.updated_at
       }

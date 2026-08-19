@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DayData, Repository } from '@/lib/repository'
 import { Challenge, MAX_LOG_CHARS } from '@/lib/types'
 import { ArtifactInput } from './ArtifactInput'
@@ -26,12 +26,26 @@ export function DayCard({
   const completed = Boolean(dayData.completions[dayIndex])
   // Seeded from storage once. It is deliberately NOT re-synced from `dayData`:
   // an autosave round-trip re-reads storage, and copying that back into the
-  // textarea can drop characters typed while the save was in flight. The
+  // textarea would drop characters typed while the save was in flight. The
   // dashboard mounts one card per day (`key={dayIndex}`), so a day rollover
   // still picks up the stored log.
   const [log, setLog] = useState(dayData.logs[dayIndex]?.text ?? '')
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** Pending debounced write, run immediately if the card goes away first. */
+  const pendingSave = useRef<(() => void) | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
+
+  // Never lose a log to navigation: flush any debounced save on unmount.
+  useEffect(
+    () => () => {
+      if (saveTimer.current) clearTimeout(saveTimer.current)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      pendingSave.current?.()
+      pendingSave.current = null
+    },
+    [],
+  )
 
   function isChecked(ruleId: string): boolean {
     return dayData.checks[`${dayIndex}:${ruleId}`] === true
@@ -61,15 +75,21 @@ export function DayCard({
   function onLogChange(value: string) {
     const clipped = value.slice(0, MAX_LOG_CHARS)
     setLog(clipped)
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
+    const write = () => {
       repo.saveLog(cid, dayIndex, {
         dayId: `${cid}:${dayIndex}`,
         text: clipped,
         updatedAt: new Date().toISOString(),
       })
+    }
+    pendingSave.current = write
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      write()
+      pendingSave.current = null
       setSavedFlash(true)
-      setTimeout(() => setSavedFlash(false), 1200)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flashTimer.current = setTimeout(() => setSavedFlash(false), 1200)
       refresh()
     }, 600)
   }
