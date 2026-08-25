@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 interface Props {
   show: boolean
@@ -19,19 +19,15 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
 }))
 
 export function Celebration({ show, milestone, onDone }: Props) {
-  const [visible, setVisible] = useState(false)
-
+  // Visibility is the `show` prop itself; the timer just hands control back to
+  // the parent. `onDone` must be referentially stable or the timer restarts.
   useEffect(() => {
     if (!show) return
-    setVisible(true)
-    const t = setTimeout(() => {
-      setVisible(false)
-      onDone()
-    }, 2600)
+    const t = setTimeout(onDone, 2600)
     return () => clearTimeout(t)
   }, [show, onDone])
 
-  if (!visible) return null
+  if (!show) return null
 
   const message = milestone
     ? milestoneMessage(milestone)

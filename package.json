@@ -2,34 +2,47 @@
   "name": "75create",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "bun@1.3.11",
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "trustedDependencies": [
+    "sharp",
+    "unrs-resolver"
+  ],
   "scripts": {
     "dev": "next dev",
-    "prebuild": "node scripts/generate-icons.mjs",
-    "build": "next build",
+    "icons": "bun scripts/generate-icons.mjs",
+    "build": "bun run icons && next build",
     "start": "next start",
-    "lint": "next lint",
-    "test": "vitest run"
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",
+    "jszip": "^3.10.1",
     "next": "^16.2.12",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@happy-dom/global-registrator": "^20.0.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/bun": "^1.3.11",
     "@types/node": "^26.1.1",
-    "@types/pako": "^2.0.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.12",
     "fake-indexeddb": "^6.2.5",
-    "jsdom": "^29.1.1",
-    "jszip": "^3.10.1",
-    "pako": "^3.0.1",
     "postcss": "^8.5.22",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.10"
+    "typescript": "^5.9.3"
   }
 }

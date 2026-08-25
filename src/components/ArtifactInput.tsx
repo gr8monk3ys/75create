@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Repository, newId } from '@/lib/repository'
 import { Artifact } from '@/lib/types'
 import { compressImage } from '@/lib/image'
+import { normalizeArtifactUrl, safeHref } from '@/lib/safeUrl'
 
 interface Props {
   repo: Repository
@@ -53,8 +54,12 @@ export function ArtifactInput({
   }
 
   function addUrl() {
-    const value = url.trim()
-    if (!value) return
+    const value = normalizeArtifactUrl(url)
+    if (!value) {
+      if (url.trim()) setError('That doesn’t look like a web link (http or https).')
+      return
+    }
+    setError(null)
     const artifact: Artifact = {
       id: newId(),
       dayId: `${challengeId}:${dayIndex}`,
@@ -140,7 +145,9 @@ export function ArtifactInput({
           flex-wrap: wrap;
         }
         .small {
-          padding: 0.5rem 0.9rem;
+          /* 44px min height: comfortable thumb target on a phone. */
+          padding: 0.7rem 1rem;
+          min-height: 44px;
           font-size: 0.7rem;
         }
         .or {
@@ -156,7 +163,9 @@ export function ArtifactInput({
         .url-input {
           flex: 1;
           font-family: var(--font-body);
-          font-size: 0.85rem;
+          /* 16px stops iOS Safari zooming the viewport on focus. */
+          font-size: 1rem;
+          min-height: 44px;
           padding: 0.5rem 0.7rem;
           border-radius: 8px;
           border: 1.5px solid var(--line);
@@ -211,9 +220,20 @@ function ArtifactThumb({
         // eslint-disable-next-line @next/next/no-img-element
         src ? <img src={src} alt="Day artifact" /> : <span className="ph">…</span>
       ) : (
-        <a href={artifact.url} target="_blank" rel="noreferrer" className="link font-mono">
-          🔗 link
-        </a>
+        // Re-checked at render: a row synced from another device, or stored
+        // before validation existed, can still carry an unsafe scheme.
+        safeHref(artifact.url) ? (
+          <a
+            href={safeHref(artifact.url)!}
+            target="_blank"
+            rel="noreferrer"
+            className="link font-mono"
+          >
+            🔗 link
+          </a>
+        ) : (
+          <span className="link font-mono">⚠ unsafe link</span>
+        )
       )}
       {onRemove && (
         <button className="x" onClick={onRemove} aria-label="Remove artifact">

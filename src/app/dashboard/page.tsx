@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
@@ -29,6 +29,8 @@ export default function Dashboard() {
   const router = useRouter()
   const [celebrate, setCelebrate] = useState(false)
   const [milestone, setMilestone] = useState<number | null>(null)
+  // Stable identity: Celebration keys its dismiss timer off this callback.
+  const endCelebration = useCallback(() => setCelebrate(false), [])
 
   useEffect(() => {
     if (loading) return
@@ -109,6 +111,7 @@ export default function Dashboard() {
           )}
           {withinWindow && (
             <DayCard
+              key={currentIndex}
               repo={repo}
               challenge={challenge}
               dayIndex={currentIndex}
@@ -145,11 +148,7 @@ export default function Dashboard() {
 
       <PastAttempts />
 
-      <Celebration
-        show={celebrate}
-        milestone={milestone}
-        onDone={() => setCelebrate(false)}
-      />
+      <Celebration show={celebrate} milestone={milestone} onDone={endCelebration} />
 
       <style jsx>{`
         .dash {
@@ -172,7 +171,7 @@ export default function Dashboard() {
         }
         .nav-links {
           display: flex;
-          gap: 1.25rem;
+          gap: 0.35rem;
           font-size: 0.78rem;
           text-transform: uppercase;
           letter-spacing: 0.08em;
@@ -180,6 +179,12 @@ export default function Dashboard() {
         .nav-links :global(a) {
           color: var(--ink-soft);
           text-decoration: none;
+          /* Padded out to a 44px thumb target rather than a 20px text line. */
+          display: inline-flex;
+          align-items: center;
+          min-height: 44px;
+          padding: 0 0.6rem;
+          border-radius: 8px;
         }
         .nav-links :global(a:hover) {
           color: var(--coral);

@@ -5,46 +5,87 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { buildExport } from '@/lib/export'
+import type { User } from '@/lib/types'
+import { detectTimezone } from '@/lib/timezone'
+import {
+  getPushStatus,
+  isPushSupported,
+  subscribeToPush,
+  unsubscribeFromPush,
+  type PushStatus,
+} from '@/lib/push'
+import { supabase } from '@/lib/supabase'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
-  const { loading, user, repo, refresh, signOut, supabaseEnabled } = useApp()
+  const { loading, user } = useApp()
   const router = useRouter()
-  const [reminderOn, setReminderOn] = useState(false)
-  const [reminderTime, setReminderTime] = useState('20:00')
-  const [buffer, setBuffer] = useState(3)
-  const [permission, setPermission] = useState<string>('default')
-  const [exporting, setExporting] = useState(false)
-  const [confirmText, setConfirmText] = useState('')
 
   useEffect(() => {
-    if (loading) return
-    if (!user) {
-      router.replace('/signin')
-      return
-    }
-    setReminderOn(user.reminderTime !== null)
-    setReminderTime(user.reminderTime ?? '20:00')
-    setBuffer(user.lateNightBufferHrs)
-    if (typeof Notification !== 'undefined') setPermission(Notification.permission)
+    if (!loading && !user) router.replace('/signin')
   }, [loading, user, router])
 
   if (loading || !user) return null
+  // Keyed on the user so the form seeds its fields from stored preferences
+  // once, instead of copying them in through an effect on every render.
+  return <SettingsForm key={user.id} user={user} />
+}
+
+function SettingsForm({ user }: { user: User }) {
+  const { repo, refresh, signOut, supabaseEnabled } = useApp()
+  const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
+  const [reminderTime, setReminderTime] = useState(user.reminderTime ?? '20:00')
+  const [buffer, setBuffer] = useState(user.lateNightBufferHrs)
+  const [permission, setPermission] = useState<string>(() =>
+    typeof Notification === 'undefined' ? 'default' : Notification.permission,
+  )
+  const [exporting, setExporting] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const deviceTz = detectTimezone()
+  const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
+
+  useEffect(() => {
+    // Reading the current subscription is async and prompts for nothing.
+    let cancelled = false
+    void getPushStatus().then((s) => {
+      if (!cancelled) setPushStatus(s)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   async function saveReminders(on: boolean, time: string) {
-    if (!user) return
+    repo.saveUser({ ...user, reminderTime: on ? time : null })
+    refresh()
+
+    // Push first where it's available: it's the only reminder that reaches a
+    // phone with the app closed, and the only one that works on iOS at all.
+    if (isPushSupported() && supabase) {
+      const status = on
+        ? await subscribeToPush(supabase, user.id)
+        : (await unsubscribeFromPush(supabase), 'unsubscribed' as const)
+      setPushStatus(status)
+      setPermission(
+        typeof Notification === 'undefined' ? 'default' : Notification.permission,
+      )
+      return
+    }
+
     if (on && typeof Notification !== 'undefined' && Notification.permission === 'default') {
       const p = await Notification.requestPermission()
       setPermission(p)
     }
-    repo.saveUser({ ...user, reminderTime: on ? time : null })
-    refresh()
   }
 
   function saveBuffer(hrs: number) {
-    if (!user) return
     setBuffer(hrs)
     repo.saveUser({ ...user, lateNightBufferHrs: hrs })
+    refresh()
+  }
+
+  function saveTz(tz: string) {
+    repo.saveUser({ ...user, tz })
     refresh()
   }
 
@@ -62,7 +103,10 @@ export default function Settings() {
     if (confirmText !== 'DELETE') return
     await repo.deleteAllData()
     signOut()
-    router.push('/')
+    // A hard navigation, not router.push: signing out re-runs the signed-out
+    // redirect on this page, which raced the push and could land the user on
+    // /signin instead. It also guarantees no wiped state survives in memory.
+    window.location.replace('/')
   }
 
   return (
@@ -110,11 +154,23 @@ export default function Settings() {
             </span>
           </div>
         )}
-        <p className="note font-mono">
-          {supabaseEnabled
-            ? 'Browser notifications fire on this device while the app is open. Email reminders are sent by the server at your reminder time (when the reminder function is deployed).'
-            : 'Prototype note: email reminders need a server backend. For now this fires a browser notification on this device.'}
+        <p className="note font-mono">{reminderChannelNote(supabaseEnabled, pushStatus)}</p>
+      </section>
+
+      <section className="block panel">
+        <h2 className="font-display block-h2">Time zone</h2>
+        <p className="block-sub">
+          Your day rolls over here. It follows this device automatically — change
+          it only if you want your challenge pinned to somewhere else.
         </p>
+        <div className="tz-row">
+          <span className="tz-current font-mono">{user.tz}</span>
+          {deviceTz && deviceTz !== user.tz && (
+            <button className="btn btn-ghost small" onClick={() => saveTz(deviceTz)}>
+              Use {deviceTz}
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="block panel">
@@ -170,7 +226,15 @@ export default function Settings() {
         </div>
       </section>
 
-      <button className="btn btn-ghost signout" onClick={() => { signOut(); router.push('/') }}>
+      <button
+        className="btn btn-ghost signout"
+        onClick={() => {
+          signOut()
+          // Same race as deletion: signing out triggers this page's
+          // signed-out redirect, so leave with a hard navigation.
+          window.location.replace('/')
+        }}
+      >
         Sign out
       </button>
 
@@ -252,6 +316,24 @@ export default function Settings() {
           padding-top: 0.9rem;
           line-height: 1.5;
         }
+        .tz-row {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          flex-wrap: wrap;
+        }
+        .tz-current {
+          font-size: 0.85rem;
+          color: var(--ink);
+          background: var(--paper-3);
+          border-radius: 8px;
+          padding: 0.5rem 0.75rem;
+        }
+        .small {
+          padding: 0.6rem 1rem;
+          min-height: 44px;
+          font-size: 0.7rem;
+        }
         .chips {
           display: flex;
           gap: 0.5rem;
@@ -303,4 +385,18 @@ export default function Settings() {
       `}</style>
     </main>
   )
+}
+
+/** Say plainly which reminder channel this device will actually get. */
+function reminderChannelNote(supabaseEnabled: boolean, pushStatus: PushStatus): string {
+  if (pushStatus === 'subscribed') {
+    return 'Push notifications are on for this device — they arrive even with the app closed.'
+  }
+  if (pushStatus === 'denied') {
+    return 'Notifications are blocked for this site in your browser or system settings. Re-allow them there to get reminders.'
+  }
+  if (supabaseEnabled) {
+    return 'This device gets a browser notification while the app is open. Email reminders are sent by the server at your reminder time, when that function is deployed.'
+  }
+  return 'Prototype note: email and push reminders need the server backend. For now this fires a browser notification on this device, and only while the app is open.'
 }

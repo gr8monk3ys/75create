@@ -11,7 +11,10 @@ export default function SharePage() {
   const [snap, setSnap] = useState<ShareSnapshot | null | undefined>(undefined)
 
   useEffect(() => {
+    // The snapshot lives in the URL fragment, which is never sent to the
+    // server and is unreadable during render — decode it after mount.
     const fragment = window.location.hash.replace(/^#/, '')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSnap(fragment ? decodeSnapshot(fragment) : null)
   }, [])
 

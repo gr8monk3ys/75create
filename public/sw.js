@@ -25,13 +25,31 @@ const PRECACHE = [
   '/icon-512.png',
 ]
 
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
+// cache.addAll() rejects atomically, so a single 404 in the list used to mean
+// the worker never installed at all and offline support silently didn't exist.
+// Each URL is cached independently; whatever succeeds is worth having.
+async function precache() {
+  const cache = await caches.open(CACHE)
+  const results = await Promise.allSettled(
+    PRECACHE.map(async (url) => {
+      const response = await fetch(url, { cache: 'reload' })
+      if (!response.ok) throw new Error(`${url}: ${response.status}`)
+      await cache.put(url, response)
+    })
   )
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length) {
+    console.warn(`[75create sw] ${failed.length}/${PRECACHE.length} precache misses`)
+  }
+}
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(precache().then(() => self.skipWaiting()))
+})
+
+// Lets the page trigger an immediate activation after it sees a new worker.
+self.addEventListener('message', (event) => {
+  if (event.data === 'skip-waiting') self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
@@ -91,4 +109,54 @@ self.addEventListener('fetch', (event) => {
   } else {
     event.respondWith(staleWhileRevalidate(request))
   }
+})
+
+/* ---- Web Push ----------------------------------------------------------
+ * Reminders arrive through the browser's push service, so they work with the
+ * app closed — and on iOS, where the Notification constructor doesn't exist,
+ * this is the only way a reminder reaches the user at all.
+ *
+ * Pushes are sent without a payload: the message is fixed, and going
+ * payload-less means the sender needs no message encryption. showNotification
+ * is mandatory — a push that displays nothing costs the site its permission.
+ */
+self.addEventListener('push', (event) => {
+  let body = 'Make your mark before the day rolls over.'
+  if (event.data) {
+    try {
+      body = event.data.json().body ?? body
+    } catch {
+      body = event.data.text() || body
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification('75 Create', {
+      body,
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      tag: '75create-reminder',
+      renotify: true,
+      data: { url: '/dashboard' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = event.notification.data?.url || '/dashboard'
+
+  // Focus an open tab if there is one rather than piling up new ones.
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        for (const client of clients) {
+          if (new URL(client.url).pathname === target && 'focus' in client) {
+            return client.focus()
+          }
+        }
+        return self.clients.openWindow(target)
+      })
+  )
 })

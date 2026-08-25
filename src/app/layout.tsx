@@ -23,7 +23,16 @@ const spaceMono = Space_Mono({
   display: 'swap',
 })
 
+// Absolute base for Open Graph / Twitter image URLs. Without it Next falls
+// back to http://localhost:3000 and every shared link previews a dead image.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : 'http://localhost:3000')
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: '75 Create — 75 days of creative discipline',
   description:
     'A free, zero-friction tracker for a 75-day creative challenge. One mark a day. Keep the streak, log the work, and walk away with 75 days of proof.',

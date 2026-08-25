@@ -93,6 +93,29 @@ a {
   color: inherit;
 }
 
+/* centred single-message pages (404, and anything else that just needs to
+   say one thing and offer one way out) */
+.page-message {
+  max-width: 34rem;
+  min-height: 80dvh;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.page-message h1 {
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  margin: 0.25rem 0 0.25rem;
+}
+.page-message p {
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin: 0 0 1rem;
+}
+
 /* --- shared primitives --- */
 .panel {
   background: var(--paper-2);

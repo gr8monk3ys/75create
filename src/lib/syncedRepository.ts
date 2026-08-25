@@ -11,6 +11,7 @@ import { Artifact, Challenge, Log, User } from './types'
 import { ARTIFACTS_BUCKET } from './supabase'
 
 const OUTBOX_KEY = '75create.outbox.v1'
+const INFLIGHT_KEY = '75create.inflight.v1'
 const STAMPS_KEY = '75create.stamps.v1'
 const FLUSH_DELAY_MS = 1500
 
@@ -24,6 +25,30 @@ interface Outbox {
 
 function emptyOutbox(): Outbox {
   return { profile: false, challenges: [], dayData: [], uploadBlobs: [], deleteBlobs: [] }
+}
+
+function union(a: string[], b: string[]): string[] {
+  return [...new Set([...a, ...b])]
+}
+
+function mergeOutbox(a: Outbox, b: Outbox): Outbox {
+  return {
+    profile: a.profile || b.profile,
+    challenges: union(a.challenges, b.challenges),
+    dayData: union(a.dayData, b.dayData),
+    uploadBlobs: union(a.uploadBlobs, b.uploadBlobs),
+    deleteBlobs: union(a.deleteBlobs, b.deleteBlobs),
+  }
+}
+
+function isEmptyOutbox(o: Outbox): boolean {
+  return (
+    !o.profile &&
+    o.challenges.length === 0 &&
+    o.dayData.length === 0 &&
+    o.uploadBlobs.length === 0 &&
+    o.deleteBlobs.length === 0
+  )
 }
 
 /** Local updated_at stamps per synced row, for last-write-wins hydration. */
@@ -147,6 +172,22 @@ export class SyncedRepository implements Repository {
     }
   }
 
+  /**
+   * Compare two timestamps for last-write-wins. Parsed to epoch millis rather
+   * than compared as strings: local stamps are `…T16:32:00.123Z`, while
+   * PostgREST renders timestamptz in the database's timezone, which need not be
+   * UTC (`…T18:32:00.123456+02:00`). Lexically that reads as the later instant
+   * even when it is the earlier one, which would overwrite newer local data.
+   */
+  private isNewer(remote: string, local: string | undefined): boolean {
+    if (!local) return true
+    const r = Date.parse(remote)
+    const l = Date.parse(local)
+    if (Number.isNaN(r)) return false
+    if (Number.isNaN(l)) return true
+    return r > l
+  }
+
   /** Pull remote rows newer than the local stamps into the local store. */
   private async hydrate(userId: string): Promise<void> {
     const stamps = this.readJson(STAMPS_KEY, emptyStamps())
@@ -156,8 +197,7 @@ export class SyncedRepository implements Repository {
       .select('id, data, updated_at')
       .eq('user_id', userId)
     for (const row of challenges.data ?? []) {
-      const localStamp = stamps.challenges[row.id]
-      if (!localStamp || row.updated_at > localStamp) {
+      if (this.isNewer(row.updated_at, stamps.challenges[row.id])) {
         this.local.saveChallenge(row.data as Challenge)
         stamps.challenges[row.id] = row.updated_at
       }
@@ -168,8 +208,7 @@ export class SyncedRepository implements Repository {
       .select('challenge_id, data, updated_at')
       .eq('user_id', userId)
     for (const row of dayData.data ?? []) {
-      const localStamp = stamps.dayData[row.challenge_id]
-      if (!localStamp || row.updated_at > localStamp) {
+      if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
         this.local.replaceDayData(row.challenge_id, row.data as DayData)
         stamps.dayData[row.challenge_id] = row.updated_at
       }
@@ -178,35 +217,68 @@ export class SyncedRepository implements Repository {
     this.writeJson(STAMPS_KEY, stamps)
   }
 
+  /**
+   * Claim the queued work: it moves out of the outbox and into an in-flight
+   * record, so a mutation made while the flush is running queues cleanly behind
+   * it instead of being dropped when the flush reports success. The in-flight
+   * record is persisted, so work also survives the tab closing mid-flush — the
+   * next flush picks it back up.
+   */
+  private claimWork(): Outbox {
+    const claimed = mergeOutbox(
+      this.readJson(INFLIGHT_KEY, emptyOutbox()),
+      this.readJson(OUTBOX_KEY, emptyOutbox()),
+    )
+    this.writeJson(INFLIGHT_KEY, claimed)
+    this.writeJson(OUTBOX_KEY, emptyOutbox())
+    return claimed
+  }
+
   /** Push everything in the outbox to Supabase. Safe to call repeatedly. */
   async flush(): Promise<void> {
     if (!this.userId || this.flushing) return
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
-    const outbox = this.readJson(OUTBOX_KEY, emptyOutbox())
-    const hasWork =
-      outbox.profile ||
-      outbox.challenges.length > 0 ||
-      outbox.dayData.length > 0 ||
-      outbox.uploadBlobs.length > 0 ||
-      outbox.deleteBlobs.length > 0
-    if (!hasWork) return
 
     this.flushing = true
-    const now = new Date().toISOString()
+    let outbox: Outbox
+    try {
+      outbox = this.claimWork()
+    } catch {
+      this.flushing = false
+      return
+    }
+    if (isEmptyOutbox(outbox)) {
+      this.writeJson(INFLIGHT_KEY, emptyOutbox())
+      this.flushing = false
+      return
+    }
+
     const done: Partial<Record<keyof Outbox, Set<string> | boolean>> = {}
+    // updated_at is set by a database trigger, not sent from here: a device
+    // with a skewed clock used to win every last-write-wins comparison from
+    // then on. The value the server assigns comes back on each upsert and
+    // becomes the local stamp, so stamps and remote rows are both server time.
+    const serverStamps: { profile?: string; challenges: Record<string, string>; dayData: Record<string, string> } =
+      { challenges: {}, dayData: {} }
     try {
       if (outbox.profile) {
         const user = this.local.getUser()
         if (user) {
-          const res = await this.client.from('profiles').upsert({
-            id: this.userId,
-            email: user.email,
-            tz: user.tz,
-            late_night_buffer_hrs: user.lateNightBufferHrs,
-            reminder_time: user.reminderTime,
-            updated_at: now,
-          })
-          if (!res.error) done.profile = true
+          const res = await this.client
+            .from('profiles')
+            .upsert({
+              id: this.userId,
+              email: user.email,
+              tz: user.tz,
+              late_night_buffer_hrs: user.lateNightBufferHrs,
+              reminder_time: user.reminderTime,
+            })
+            .select('updated_at')
+            .single()
+          if (!res.error) {
+            done.profile = true
+            if (res.data?.updated_at) serverStamps.profile = res.data.updated_at
+          }
         } else {
           done.profile = true
         }
@@ -220,13 +292,15 @@ export class SyncedRepository implements Repository {
           syncedChallenges.add(id)
           continue
         }
-        const res = await this.client.from('challenges').upsert({
-          id,
-          user_id: this.userId,
-          data: challenge,
-          updated_at: now,
-        })
-        if (!res.error) syncedChallenges.add(id)
+        const res = await this.client
+          .from('challenges')
+          .upsert({ id, user_id: this.userId, data: challenge })
+          .select('updated_at')
+          .single()
+        if (!res.error) {
+          syncedChallenges.add(id)
+          if (res.data?.updated_at) serverStamps.challenges[id] = res.data.updated_at
+        }
       }
       done.challenges = syncedChallenges
 
@@ -238,15 +312,17 @@ export class SyncedRepository implements Repository {
         if (challenge && !syncedChallenges.has(id)) {
           await this.client
             .from('challenges')
-            .upsert({ id, user_id: this.userId, data: challenge, updated_at: now })
+            .upsert({ id, user_id: this.userId, data: challenge })
         }
-        const res = await this.client.from('day_data').upsert({
-          challenge_id: id,
-          user_id: this.userId,
-          data: this.local.getDayData(id),
-          updated_at: now,
-        })
-        if (!res.error) syncedDayData.add(id)
+        const res = await this.client
+          .from('day_data')
+          .upsert({ challenge_id: id, user_id: this.userId, data: this.local.getDayData(id) })
+          .select('updated_at')
+          .single()
+        if (!res.error) {
+          syncedDayData.add(id)
+          if (res.data?.updated_at) serverStamps.dayData[id] = res.data.updated_at
+        }
       }
       done.dayData = syncedDayData
 
@@ -273,16 +349,33 @@ export class SyncedRepository implements Repository {
       }
       done.deleteBlobs = removed
     } finally {
-      // Drop only what succeeded; anything else is retried on the next flush.
-      const fresh = this.readJson(OUTBOX_KEY, emptyOutbox())
-      if (done.profile) fresh.profile = false
+      // Whatever failed goes back on the queue, merged with anything that was
+      // queued while this flush ran. Successes simply aren't returned.
       const keep = (list: string[], ok?: Set<string> | boolean) =>
         list.filter((id) => !(ok instanceof Set && ok.has(id)))
-      fresh.challenges = keep(fresh.challenges, done.challenges)
-      fresh.dayData = keep(fresh.dayData, done.dayData)
-      fresh.uploadBlobs = keep(fresh.uploadBlobs, done.uploadBlobs)
-      fresh.deleteBlobs = keep(fresh.deleteBlobs, done.deleteBlobs)
+      const retry: Outbox = {
+        profile: outbox.profile && !done.profile,
+        challenges: keep(outbox.challenges, done.challenges),
+        dayData: keep(outbox.dayData, done.dayData),
+        uploadBlobs: keep(outbox.uploadBlobs, done.uploadBlobs),
+        deleteBlobs: keep(outbox.deleteBlobs, done.deleteBlobs),
+      }
+      const fresh = mergeOutbox(retry, this.readJson(OUTBOX_KEY, emptyOutbox()))
       this.writeJson(OUTBOX_KEY, fresh)
+      this.writeJson(INFLIGHT_KEY, emptyOutbox())
+
+      // Adopt the server's timestamps, but only for rows nothing touched while
+      // the flush was in flight — those carry a newer local stamp that must win.
+      const stamps = this.readJson(STAMPS_KEY, emptyStamps())
+      if (serverStamps.profile && !fresh.profile) stamps.profile = serverStamps.profile
+      for (const [id, at] of Object.entries(serverStamps.challenges)) {
+        if (!fresh.challenges.includes(id)) stamps.challenges[id] = at
+      }
+      for (const [id, at] of Object.entries(serverStamps.dayData)) {
+        if (!fresh.dayData.includes(id)) stamps.dayData[id] = at
+      }
+      this.writeJson(STAMPS_KEY, stamps)
+
       this.flushing = false
     }
   }
@@ -409,9 +502,20 @@ export class SyncedRepository implements Repository {
       await this.client.from('day_data').delete().eq('user_id', this.userId)
       await this.client.from('challenges').delete().eq('user_id', this.userId)
       await this.client.from('profiles').delete().eq('id', this.userId)
+
+      // The rows above are all a user can delete with their own credentials.
+      // Removing the auth account itself needs the service role, which lives in
+      // the delete-account function. If it isn't deployed the data is still
+      // gone; the account would just be able to sign back in to an empty slate.
+      try {
+        await this.client.functions.invoke('delete-account', { method: 'POST' })
+      } catch {
+        // Deliberately non-fatal: never block a deletion the user asked for.
+      }
     }
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem(OUTBOX_KEY)
+      localStorage.removeItem(INFLIGHT_KEY)
       localStorage.removeItem(STAMPS_KEY)
     }
     await this.local.deleteAllData()

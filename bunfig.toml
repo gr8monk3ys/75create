@@ -1,0 +1,6 @@
+[test]
+# Only ./tests holds bun tests. Without this, a bare `bun test` also picks up
+# the Playwright specs in ./e2e, which throw as soon as they call test.describe
+# outside the Playwright runner — CI ran bare `bun test` and failed on them.
+root = "tests"
+preload = ["./tests/setup.ts"]
