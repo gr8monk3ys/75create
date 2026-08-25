@@ -17,8 +17,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "bun test tests/",
-    "test:watch": "bun test tests/ --watch",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "check": "bun run lint && bun run typecheck && bun run test",
     "test:e2e": "playwright test"
   },

@@ -4,10 +4,12 @@ A free, zero-friction tracker for a **75-day creative discipline challenge** —
 75 Hard / 75 Fluent format, adapted for creative work. Do five daily tasks for 75
 days, keep a streak, log the work, and walk away with 75 days of documented output.
 
-This repository is a **local-first MVP**: it runs entirely in the browser with no
-backend, so you can `bun dev` and use it immediately. All persistence goes
-through a `Repository` interface (localStorage + IndexedDB today) that is designed
-to be swapped for Supabase later without touching feature code.
+The app is **local-first**: it runs entirely in the browser with no backend, so
+you can `bun dev` and use it immediately. Persistence goes through a `Repository`
+interface (localStorage + IndexedDB), and setting two env vars swaps in the
+Supabase implementation for real auth and cross-device sync without touching
+feature code — see [Optional server backend](#optional-server-backend-supabase).
+Reads stay local either way, so offline keeps working.
 
 ## Quick start
 
@@ -38,13 +40,16 @@ bun run test:e2e   # Playwright, against a real production build
 - **Miss-policy engine** — Classic / Grace (3 skip tokens) / Extend, applied at day
   rollover per the user's timezone and late-night buffer. Failed attempts are
   archived, never deleted.
-- **Reminders** — opt-in daily browser notification (email needs the future server).
+- **Reminders** — opt-in daily reminder at a chosen local time: Web Push (reaches
+  a closed app, including an installed PWA on iOS), email, or an in-page
+  notification as the no-server fallback.
 - **Recap & certificate** — Day-75 recap with an artifact timeline and a downloadable
   certificate PNG; maintenance mode and new-round options.
 - **Share link** — read-only page that carries a progress snapshot in the URL
   fragment (owner opts into including logs; artifacts are never shared).
 - **Export** — one-click ZIP of logs (JSON + CSV) and artifact images.
-- **Account deletion** — immediate, permanent local wipe.
+- **Account deletion** — immediate and permanent: local storage, remote rows,
+  artifact images, and the auth account itself.
 
 Plus milestone celebrations (days 7/25/50) and the why-note resurfaced on a missed
 day.
@@ -146,7 +151,8 @@ it, errors are logged to the console and nothing leaves the device.
 ## Status
 
 Feature-complete product: web app + installable offline PWA, with an optional
-Supabase backend (auth, sync, email reminders) that activates via env vars.
+Supabase backend (auth, sync, push and email reminders, account deletion) that
+activates via env vars.
 
 Known gaps before this is safe to hand to strangers:
 
