@@ -119,7 +119,7 @@ describe('check-in', () => {
 
   it('optional rules do not gate completion, and unchecking reopens the day', () => {
     completeToday()
-    session.toggleTask(1, 'b')
+    expect(session.toggleTask(1, 'b')).toEqual({ ok: true, justCompleted: false, reopened: true })
     expect(session.read().days[0].state).toBe('today')
     expect(session.read().completedCount).toBe(0)
   })
@@ -175,7 +175,12 @@ describe('evidence rules', () => {
     await session.attachImage(1, new Blob([new Uint8Array([1])], { type: 'image/png' }))
     expect(session.read().days[0].state).toBe('complete')
     const [artifact] = session.read().dayData.artifacts[1]
-    expect(await session.removeArtifact(1, artifact.id)).toEqual({ ok: true, justCompleted: false })
+    expect(session.wouldReopen(1, artifact.id)).toBe(true)
+    expect(await session.removeArtifact(1, artifact.id)).toEqual({
+      ok: true,
+      justCompleted: false,
+      reopened: true,
+    })
     expect(session.read().days[0].state).toBe('today')
     expect(await repo.getArtifactBlob(artifact.blobRef!)).toBeNull()
   })

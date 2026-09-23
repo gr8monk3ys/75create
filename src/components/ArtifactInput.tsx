@@ -15,10 +15,14 @@ interface Props {
   attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
   attachLink: (dayIndex: number, url: string) => ToggleResult
   removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
+  /** Whether removing an artifact would take a completed today off the grid. */
+  wouldReopen: (dayIndex: number, artifactId: string) => boolean
   /** Called with each write's result, so the card can celebrate completion. */
   onResult: (result: ToggleResult) => void
   /** Id of the element that labels this group (the rule or field heading). */
   labelledBy?: string
+  /** Id for the upload button, so a rule label can point at it. */
+  uploadId?: string
 }
 
 export function ArtifactInput({
@@ -28,13 +32,16 @@ export function ArtifactInput({
   attachImage,
   attachLink,
   removeArtifact,
+  wouldReopen,
   onResult,
   labelledBy,
+  uploadId,
 }: Props) {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef<HTMLButtonElement>(null)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -76,7 +83,14 @@ export function ArtifactInput({
               <ArtifactThumb
                 artifact={a}
                 repo={repo}
-                onRemove={async () => onResult(await removeArtifact(dayIndex, a.id))}
+                dayIndex={dayIndex}
+                reopens={wouldReopen(dayIndex, a.id)}
+                onRemove={async () => {
+                  // The thumb (and its button) is about to go: keep focus in
+                  // the group rather than dropping it to the page.
+                  uploadRef.current?.focus()
+                  onResult(await removeArtifact(dayIndex, a.id))
+                }}
               />
             </li>
           ))}
@@ -85,6 +99,8 @@ export function ArtifactInput({
 
       <div className="controls">
         <button
+          ref={uploadRef}
+          id={uploadId}
           type="button"
           className="btn btn-ghost small"
           onClick={() => fileRef.current?.click()}
@@ -203,11 +219,16 @@ export function ArtifactThumb({
   artifact,
   repo,
   onRemove,
+  dayIndex,
+  reopens = false,
   size = 84,
 }: {
   artifact: Artifact
   repo: Repository
   onRemove?: () => void
+  dayIndex?: number
+  /** Removing this would take a completed day back off the grid. */
+  reopens?: boolean
   size?: number
 }) {
   const [src, setSrc] = useState<string | null>(null)
@@ -240,33 +261,45 @@ export function ArtifactThumb({
   // validation existed, can still carry an unsafe scheme.
   const href = artifact.kind === 'url' ? safeHref(artifact.url) : null
   const what = artifact.kind === 'image' ? 'image' : `link to ${href ? hostOf(href) : 'an unsafe address'}`
+  const alt = dayIndex ? `Day ${dayIndex} image` : 'Artifact image'
+  const confirm = reopens ? 'Remove? Day reopens' : 'Remove?'
 
   return (
     <div className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
-      {artifact.kind === 'image' ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        src ? <img src={src} alt="Artifact image" /> : <span className="ph" aria-label="Loading image" />
-      ) : href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="link">
-          <Icon name="link" size={20} />
-          <span className="host">{hostOf(href)}</span>
-        </a>
-      ) : (
-        <span className="link unsafe">Unsafe link hidden</span>
-      )}
+      <div className="frame">
+        {artifact.kind === 'image' ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          src ? <img src={src} alt={alt} /> : <span className="ph" aria-label="Loading image" />
+        ) : href ? (
+          <a href={href} target="_blank" rel="noreferrer" className="link">
+            <Icon name="link" size={20} />
+            <span className="host">{hostOf(href)}</span>
+          </a>
+        ) : (
+          <span className="link unsafe">Unsafe link hidden</span>
+        )}
+      </div>
       {onRemove && (
         <button
           type="button"
           className="x"
           onClick={() => (armed ? onRemove() : setArmed(true))}
-          aria-label={armed ? `Confirm: remove this ${what}` : `Remove this ${what}`}
+          aria-label={
+            armed
+              ? `Confirm: remove this ${what}${reopens ? '. Today will no longer be complete' : ''}`
+              : `Remove this ${what}`
+          }
         >
-          {armed ? <span className="confirm">Remove?</span> : <Icon name="close" size={16} />}
+          {armed ? <span className="confirm">{confirm}</span> : <Icon name="close" size={16} />}
         </button>
       )}
       <style jsx>{`
         .thumb {
           position: relative;
+        }
+        .frame {
+          width: 100%;
+          height: 100%;
           border-radius: 10px;
           overflow: hidden;
           border: 1.5px solid var(--line);
@@ -274,7 +307,7 @@ export function ArtifactThumb({
           display: grid;
           place-items: center;
         }
-        .thumb.armed {
+        .thumb.armed .frame {
           border-color: var(--coral);
         }
         .thumb :global(img) {
@@ -342,6 +375,7 @@ export function ArtifactThumb({
         .confirm {
           font-family: var(--font-mono);
           font-size: 0.72rem;
+          white-space: nowrap;
           padding: 0.3rem 0.5rem;
           background: var(--coral-ink);
           color: #fff;

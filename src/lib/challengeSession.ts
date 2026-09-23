@@ -99,8 +99,9 @@ export interface ChallengeDraft {
 }
 
 export type ToggleResult =
-  /** The write was saved. `justCompleted` is true when it finished the day. */
-  | { ok: true; justCompleted: boolean }
+  /** The write was saved. `justCompleted` is true when it finished the day;
+   *  `reopened` is set when it took a completed day back off the grid. */
+  | { ok: true; justCompleted: boolean; reopened?: true }
   /** The day on screen is no longer today, check-ins are closed, or the rule
    *  is met by evidence rather than a tick. */
   | { ok: false }
@@ -120,6 +121,8 @@ export interface ChallengeSession {
   attachLink(dayIndex: number, url: string): ToggleResult
   /** Remove one of today's artifacts (and its stored image). */
   removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult>
+  /** Whether removing that artifact would reopen a completed today. */
+  wouldReopen(dayIndex: number, artifactId: string): boolean
   /** Begin a new challenge. Throws if the draft is invalid or one is running. */
   start(draft: ChallengeDraft): Challenge
   /** Archive the ended attempt and restart at Day 1 today, same rules. */
@@ -276,8 +279,24 @@ export function createChallengeSession(
       repo.saveDayCompletion(challenge.id, dayIndex, clock().toISOString())
       return { ok: true, justCompleted: true }
     }
-    if (!complete && wasComplete) repo.saveDayCompletion(challenge.id, dayIndex, null)
+    if (!complete && wasComplete) {
+      repo.saveDayCompletion(challenge.id, dayIndex, null)
+      return { ok: true, justCompleted: false, reopened: true }
+    }
     return { ok: true, justCompleted: false }
+  }
+
+  /** Whether removing this artifact would take today back off the grid. */
+  function wouldReopen(dayIndex: number, artifactId: string): boolean {
+    const challenge = openDay(dayIndex)
+    if (!challenge) return false
+    const dd = repo.getDayData(challenge.id)
+    if (!dd.completions[dayIndex]) return false
+    const without: DayData = {
+      ...dd,
+      artifacts: { ...dd.artifacts, [dayIndex]: (dd.artifacts[dayIndex] ?? []).filter((a) => a.id !== artifactId) },
+    }
+    return !completionRules(challenge).every((r) => ruleMet(r, without, dayIndex))
   }
 
   function toggleTask(dayIndex: number, ruleId: string): ToggleResult {
@@ -404,6 +423,7 @@ export function createChallengeSession(
     attachImage,
     attachLink,
     removeArtifact,
+    wouldReopen,
     start,
     confirmReset,
     enterMaintenance,

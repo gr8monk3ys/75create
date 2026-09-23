@@ -68,7 +68,7 @@ export function DayCard({
   maintenance = false,
   onComplete,
 }: Props) {
-  const { toggleTask, saveLog, attachImage, attachLink, removeArtifact } = useApp()
+  const { toggleTask, saveLog, attachImage, attachLink, removeArtifact, wouldReopen } = useApp()
   const completed = !maintenance && Boolean(dayData.completions[dayIndex])
   // Seeded from storage once. It is deliberately NOT re-synced from `dayData`:
   // an autosave round-trip re-reads storage, and copying that back into the
@@ -85,6 +85,17 @@ export function DayCard({
   const [savedFlash, setSavedFlash] = useState(false)
   const [announce, setAnnounce] = useState('')
   const [notesShown, toggleNotes] = useRuleNotes(dayIndex)
+  const howRef = useRef<HTMLDetailsElement>(null)
+
+  // The header's policy label links here: open the explainer on arrival.
+  useEffect(() => {
+    const open = () => {
+      if (window.location.hash === '#how-today' && howRef.current) howRef.current.open = true
+    }
+    open()
+    window.addEventListener('hashchange', open)
+    return () => window.removeEventListener('hashchange', open)
+  }, [])
 
   const rules = useMemo(() => (maintenance ? [] : challenge.rules), [maintenance, challenge.rules])
   const logRule = rules.find((r) => evidenceOf(r) === 'log')
@@ -104,12 +115,13 @@ export function DayCard({
     [],
   )
 
+  // Completion is announced by the celebration itself; this region covers
+  // everything else, including a day that just came back off the grid.
   const handle = useCallback(
     (result: ToggleResult) => {
-      if (result.ok && result.justCompleted) {
-        setAnnounce(`Day ${dayIndex} complete.`)
-        onComplete(dayIndex)
-      }
+      if (!result.ok) return
+      if (result.justCompleted) onComplete(dayIndex)
+      else if (result.reopened) setAnnounce(`Day ${dayIndex} is no longer complete.`)
     },
     [dayIndex, onComplete],
   )
@@ -123,7 +135,9 @@ export function DayCard({
       }
       const was = dayData.checks[`${dayIndex}:${rule.id}`] === true
       const result = toggleTask(dayIndex, rule.id)
-      if (result.ok && !result.justCompleted) setAnnounce(`${rule.name}: ${was ? 'unchecked' : 'done'}.`)
+      if (result.ok && !result.justCompleted && !result.reopened) {
+        setAnnounce(`${rule.name}: ${was ? 'unchecked' : 'done'}.`)
+      }
       handle(result)
     },
     [dayData.checks, dayIndex, handle, toggleTask],
@@ -133,6 +147,11 @@ export function DayCard({
   // N jumps to the log.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape' && isTyping(e.target)) {
+        // Leave the field so the shortcuts work again (the text is saved).
+        ;(e.target as HTMLElement).blur()
+        return
+      }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
       const n = Number(e.key)
       if (Number.isInteger(n) && n >= 1 && n <= rules.length) {
@@ -166,7 +185,7 @@ export function DayCard({
   const artifacts = dayData.artifacts[dayIndex] ?? []
   const closes = clockTime(dayCloses)
 
-  const logField = (labelId: string) => (
+  const logField = (labelId: string, statusId?: string) => (
     <div className="field">
       <textarea
         ref={logRef}
@@ -176,7 +195,7 @@ export function DayCard({
         value={log}
         maxLength={MAX_LOG_CHARS}
         aria-labelledby={labelId}
-        aria-describedby={`log-count-${dayIndex}`}
+        aria-describedby={[statusId, `log-count-${dayIndex}`].filter(Boolean).join(' ')}
         placeholder="What did you make or learn today?"
         onChange={(e) => onLogChange(e.target.value)}
       />
@@ -200,8 +219,10 @@ export function DayCard({
       attachImage={attachImage}
       attachLink={attachLink}
       removeArtifact={removeArtifact}
+      wouldReopen={wouldReopen}
       onResult={handle}
       labelledBy={labelId}
+      uploadId={`upload-${dayIndex}`}
     />
   )
 
@@ -273,6 +294,7 @@ export function DayCard({
                   </li>
                 )
               }
+              const statusId = `${labelId}-status`
               return (
                 <li key={r.id}>
                   <div
@@ -281,14 +303,26 @@ export function DayCard({
                       ruleRefs.current[r.id] = el
                     }}
                   >
-                    <div className="evidence-head">
+                    <label
+                      className="evidence-head"
+                      htmlFor={evidence === 'log' ? `log-${dayIndex}` : `upload-${dayIndex}`}
+                    >
                       {box}
-                      {body}
-                      <span className="status">
-                        {met ? 'Done' : evidence === 'log' ? 'Write a line' : 'Add one'}
+                      <span className="check-body">
+                        <span className="check-name" id={labelId}>
+                          {r.name}
+                          {!r.required && <span className="opt"> · optional</span>}
+                        </span>
+                        <span className="status" id={statusId}>
+                          {met ? 'Done' : evidence === 'log' ? 'Write a line below' : 'Add an image or a link'}
+                        </span>
+                        {notesShown && r.description && (
+                          <span className="check-desc">{r.description}</span>
+                        )}
                       </span>
-                    </div>
-                    {evidence === 'log' ? logField(labelId) : artifactField(labelId)}
+                      {i < 9 && <kbd className="key" aria-hidden>{i + 1}</kbd>}
+                    </label>
+                    {evidence === 'log' ? logField(labelId, statusId) : artifactField(labelId)}
                   </div>
                 </li>
               )
@@ -299,7 +333,8 @@ export function DayCard({
               {notesShown ? 'Hide rule notes' : 'Show rule notes'}
             </button>
             <span className="hint">
-              Keys: <kbd>1</kbd>–<kbd>{Math.min(rules.length, 9)}</kbd> tick · <kbd>N</kbd> log
+              Keys: <kbd>1</kbd>–<kbd>{Math.min(rules.length, 9)}</kbd> rules · <kbd>N</kbd> log ·{' '}
+              <kbd>Esc</kbd> leave a field
             </span>
           </div>
         </>
@@ -326,7 +361,7 @@ export function DayCard({
       )}
 
       {!maintenance && (
-        <details className="howto">
+        <details className="howto" id="how-today" ref={howRef}>
           <summary>
             <Icon name="info" size={18} />
             How today works
@@ -446,16 +481,12 @@ export function DayCard({
           gap: 0.85rem;
           align-items: flex-start;
           width: 100%;
+          cursor: pointer;
         }
         .status {
-          margin-left: auto;
-          flex: none;
           font-family: var(--font-mono);
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+          font-size: 0.75rem;
           color: var(--muted);
-          padding-top: 0.2rem;
         }
         .check.on .status {
           color: var(--cobalt);
@@ -505,6 +536,7 @@ export function DayCard({
           align-self: center;
           opacity: 0.8;
         }
+
         .daycard :global(.field) {
           position: relative;
           width: 100%;
@@ -518,10 +550,9 @@ export function DayCard({
           font-weight: 600;
         }
         .daycard :global(.count) {
-          position: absolute;
-          right: 0.7rem;
-          bottom: 0.55rem;
-          display: inline-flex;
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 0.35rem;
           align-items: center;
           gap: 0.2rem;
           font-family: var(--font-mono);
@@ -538,7 +569,7 @@ export function DayCard({
           font-family: var(--font-body);
           font-size: 1rem;
           line-height: 1.5;
-          padding: 0.8rem 1rem 1.8rem;
+          padding: 0.8rem 1rem;
           border-radius: 10px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);

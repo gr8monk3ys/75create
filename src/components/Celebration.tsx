@@ -117,9 +117,10 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
         .bit {
           position: absolute;
           top: -16px;
-          width: 9px;
-          height: 14px;
-          border-radius: 2px;
+          /* Little pigment stamps, the same marks the grid is made of. */
+          width: 11px;
+          height: 11px;
+          border-radius: 2.5px;
           transform: rotate(var(--r));
           animation: fall 2.4s cubic-bezier(0.3, 0.1, 0.6, 1) forwards;
         }

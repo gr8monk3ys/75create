@@ -56,8 +56,10 @@ test.describe('mobile', () => {
   test('the grid stays visible and legible', async ({ page }) => {
     await startChallenge(page, 'mobile-grid@75create.test')
 
-    const cells = page.locator('.cell')
+    const cells = page.locator('.grid-panel .cell')
     await expect(cells).toHaveCount(75)
+    // A compact copy of the grid sits up top on phones, where the app opens.
+    await expect(page.locator('.mini-grid .cell')).toHaveCount(75)
     const box = await cells.first().boundingBox()
     expect(box!.width).toBeGreaterThan(8)
   })

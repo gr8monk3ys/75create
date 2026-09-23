@@ -12,6 +12,8 @@ interface Props {
   phase?: Phase
   stakes?: Stakes | null
   missedDay?: number | null
+  /** Days completed, shown once the challenge is finished. */
+  made?: number
 }
 
 /**
@@ -27,6 +29,7 @@ export function StreakHeader({
   phase,
   stakes,
   missedDay,
+  made,
 }: Props) {
   const day = Math.min(Math.max(dayIndex, 0), totalDays)
   const ended = phase === 'reset-pending'
@@ -44,8 +47,8 @@ export function StreakHeader({
             </>
           ) : after ? (
             <>
-              {totalDays}
-              <span className="denom">/{totalDays}</span>
+              {made ?? totalDays}
+              <span className="denom">/{totalDays} made</span>
             </>
           ) : (
             <>
@@ -120,7 +123,8 @@ export function StreakHeader({
           font-variant-numeric: tabular-nums;
         }
         .unit {
-          font-size: 0.34em;
+          /* Never below the 11px floor, however small the number gets. */
+          font-size: max(0.75rem, 0.34em);
           font-family: var(--font-mono);
           text-transform: uppercase;
           letter-spacing: 0.1em;
@@ -138,8 +142,12 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
   if (stakes.policy === 'grace') {
     const left = stakes.tokensLeft ?? 0
     return (
-      <div className="stat">
-        <dt>Grace</dt>
+      <div className="stat stakes">
+        <dt>
+          <a href="#how-today" className="policy-link">
+            Grace
+          </a>
+        </dt>
         <dd className="tokens">
           <span className="pips" aria-hidden>
             {Array.from({ length: MAX_SKIP_TOKENS }, (_, i) => (
@@ -195,6 +203,25 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
             font-size: 0.8rem;
             color: var(--ink-soft);
           }
+          .policy-link {
+            color: inherit;
+            text-decoration: underline dotted;
+            text-underline-offset: 0.3em;
+          }
+          @media (max-width: 520px) {
+            .stakes {
+              flex: 1 0 100%;
+              flex-direction: row;
+              align-items: center;
+              gap: 0.75rem;
+            }
+            .tokens {
+              min-height: 0;
+              flex-direction: row;
+              align-items: center;
+              gap: 0.6rem;
+            }
+          }
         `}</style>
       </div>
     )
@@ -206,8 +233,12 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
         ? `${totalDays} days (+${stakes.extraDays})`
         : 'A miss adds a day'
   return (
-    <div className="stat">
-      <dt>{stakes.policy === 'classic' ? 'Classic' : 'Extend'}</dt>
+    <div className="stat stakes">
+      <dt>
+        <a href="#how-today" className="policy-link">
+          {stakes.policy === 'classic' ? 'Classic' : 'Extend'}
+        </a>
+      </dt>
       <dd className="line">{line}</dd>
       <style jsx>{`
         .stat {
@@ -230,6 +261,22 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
           min-height: 2.6rem;
           display: flex;
           align-items: flex-end;
+        }
+        .policy-link {
+          color: inherit;
+          text-decoration: underline dotted;
+          text-underline-offset: 0.3em;
+        }
+        @media (max-width: 520px) {
+          .stakes {
+            flex: 1 0 100%;
+            flex-direction: row;
+            align-items: center;
+            gap: 0.75rem;
+          }
+          .line {
+            min-height: 0;
+          }
         }
       `}</style>
     </div>

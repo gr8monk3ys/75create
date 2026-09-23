@@ -26,6 +26,14 @@ describe('normalizeArtifactUrl', () => {
     }
   })
 
+  it('rejects words that only look like a host once https:// is added', () => {
+    expect(normalizeArtifactUrl('did some sketching')).toBeNull()
+    expect(normalizeArtifactUrl('sketching')).toBeNull()
+    expect(normalizeArtifactUrl('https://my site.com')).toBeNull()
+    expect(normalizeArtifactUrl('http://localhost:3000/a')).toBe('http://localhost:3000/a')
+    expect(normalizeArtifactUrl('https://[::1]/a')).toBe('https://[::1]/a')
+  })
+
   it('rejects empty and hostless input', () => {
     expect(normalizeArtifactUrl('')).toBeNull()
     expect(normalizeArtifactUrl('   ')).toBeNull()

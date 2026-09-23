@@ -29,7 +29,8 @@
   --cell-complete: var(--cobalt);
   --cell-today: var(--coral);
   --cell-skipped: var(--marigold);
-  --cell-missed: #cdbfa6;
+  /* ≥3:1 on the grid panel: a miss is a fact, not an absence. */
+  --cell-missed: #7d7463;
   --cell-future: transparent;
 
   --font-display: var(--font-bricolage), 'Trebuchet MS', sans-serif;
@@ -49,7 +50,7 @@
     --cobalt: #6f85ff;
     --coral-ink: #ff7a63;
     --marigold-ink: #f0b04a;
-    --cell-missed: #3a3526;
+    --cell-missed: #7a7362;
   }
 }
 
@@ -152,7 +153,7 @@ kbd {
   font-size: 0.78em;
   padding: 0.1em 0.45em;
   border: 1px solid var(--line);
-  border-bottom-width: 2px;
+  box-shadow: 0 1px 0 var(--line);
   border-radius: 5px;
   background: var(--paper);
   color: var(--ink);
@@ -225,7 +226,7 @@ kbd {
   box-shadow: 4px 6px 0 var(--cobalt);
 }
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.55;
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -371,11 +372,11 @@ main {
   background: repeating-linear-gradient(
     -45deg,
     var(--cell-missed),
-    var(--cell-missed) 2px,
-    transparent 2px,
+    var(--cell-missed) 1.5px,
+    transparent 1.5px,
     transparent 4px
   );
-  box-shadow: inset 0 0 0 1px var(--cell-missed);
+  box-shadow: inset 0 0 0 1.5px var(--cell-missed);
 }
 .sw-t {
   border: 2px solid var(--cell-today);

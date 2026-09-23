@@ -7,7 +7,7 @@ import { useApp } from '@/components/AppProvider'
 import { StreakHeader } from '@/components/StreakHeader'
 import { Grid } from '@/components/Grid'
 import { DayCard } from '@/components/DayCard'
-import { DayDetail } from '@/components/DayDetail'
+import { DAY_DETAIL_ID, DayDetail } from '@/components/DayDetail'
 import { Celebration } from '@/components/Celebration'
 import { MissPolicyBanner } from '@/components/MissPolicyBanner'
 import { PastAttempts } from '@/components/PastAttempts'
@@ -38,6 +38,7 @@ export default function Dashboard() {
   const [celebratedDay, setCelebratedDay] = useState(0)
   const [milestone, setMilestone] = useState<number | null>(null)
   const [openDay, setOpenDay] = useState<number | null>(null)
+  const [refocus, setRefocus] = useState<{ day: number | null; key: number }>({ day: null, key: 0 })
   // Each day celebrates once per visit: un-ticking and re-ticking a rule
   // shouldn't replay the moment.
   const celebrated = useRef(new Set<number>())
@@ -83,6 +84,24 @@ export default function Dashboard() {
       ? derived.days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))
       : derived.days
   const opened = openDay ? gridDays.find((d) => d.index === openDay) : undefined
+  // Past days you can browse: everything settled before today.
+  const pastDays = gridDays.filter((d) => d.state !== 'future' && d.state !== 'today').map((d) => d.index)
+  const legend = (
+    [
+      ['complete', 'sw-c', 'made'],
+      ['today', 'sw-t', 'today'],
+      ['skipped', 'sw-s', 'skipped'],
+      ['missed', 'sw-m', 'missed'],
+      ['future', 'sw-f', 'to come'],
+    ] as const
+  ).filter(([state]) => gridDays.some((d) => d.state === state))
+  const afterDays =
+    phase === 'maintenance'
+      ? Object.entries(dayData.logs)
+          .map(([i, l]) => ({ day: Number(i), text: l.text.trim() }))
+          .filter((l) => l.day > totalDays && l.text)
+          .sort((a, b) => b.day - a.day)
+      : []
 
   function onOpenDay(index: number) {
     if (index === currentIndex && checkInOpen) {
@@ -91,6 +110,25 @@ export default function Dashboard() {
       return
     }
     setOpenDay(openDay === index ? null : index)
+  }
+
+  function closeDay() {
+    const from = openDay
+    setOpenDay(null)
+    setRefocus((r) => ({ day: from, key: r.key + 1 }))
+  }
+
+  function stepDay(delta: -1 | 1) {
+    if (openDay == null) return
+    const at = pastDays.indexOf(openDay)
+    const next = pastDays[at + delta]
+    if (next != null) setOpenDay(next)
+  }
+
+  function dismissNotice() {
+    dismissBanner()
+    // The banner and its button are gone: land on the check-in, not the page.
+    document.getElementById('check-in')?.focus({ preventScroll: true })
   }
 
   const heading =
@@ -131,7 +169,14 @@ export default function Dashboard() {
           phase={phase}
           stakes={stakes}
           missedDay={missedDay}
+          made={derived.completedCount}
         />
+
+        {/* On a phone the full grid sits below the check-in: show the mark
+            itself up top, where the app opens. */}
+        <div className="mini-grid" aria-hidden>
+          <Grid days={gridDays} compact />
+        </div>
 
         {phase === 'reset-pending' && resetMessage && (
           <div className="banner-slot">
@@ -150,7 +195,7 @@ export default function Dashboard() {
               banner={banner}
               whyNote={challenge.whyNote}
               onConfirmReset={confirmReset}
-              onDismiss={dismissBanner}
+              onDismiss={dismissNotice}
             />
           </div>
         )}
@@ -214,10 +259,7 @@ export default function Dashboard() {
                 <h2 id="ended-title" className="font-display">
                   Day 1 starts when you do.
                 </h2>
-                <p>
-                  Starting again keeps your {challenge.rules.length} rules and your reason for
-                  starting. This attempt’s grid and logs move to past attempts below.
-                </p>
+                <p>This attempt’s grid and every log you wrote move to past attempts below.</p>
               </section>
             )}
           </div>
@@ -229,28 +271,57 @@ export default function Dashboard() {
                   The grid
                 </h2>
                 <span className="grid-legend font-mono" aria-hidden>
-                  <span>
-                    <i className="sw sw-c" /> made
-                  </span>
-                  <span>
-                    <i className="sw sw-t" /> today
-                  </span>
-                  <span>
-                    <i className="sw sw-s" /> skipped
-                  </span>
-                  <span>
-                    <i className="sw sw-m" /> missed
-                  </span>
-                  <span>
-                    <i className="sw sw-f" /> to come
-                  </span>
+                  {legend.map(([state, sw, label]) => (
+                    <span key={state}>
+                      <i className={`sw ${sw}`} /> {label}
+                    </span>
+                  ))}
                 </span>
               </div>
-              <Grid days={gridDays} onOpenDay={onOpenDay} selected={openDay} />
+              <Grid
+                days={gridDays}
+                onOpenDay={onOpenDay}
+                selected={openDay}
+                detailId={DAY_DETAIL_ID}
+                refocus={refocus.day}
+                focusKey={refocus.key}
+              />
               {opened ? (
-                <DayDetail day={opened} dayData={dayData} repo={repo} onClose={() => setOpenDay(null)} />
-              ) : (
-                <p className="grid-hint">Tap a past day to see what you made.</p>
+                <DayDetail
+                  day={opened}
+                  dayData={dayData}
+                  repo={repo}
+                  onClose={closeDay}
+                  onStep={stepDay}
+                  hasPrev={pastDays.indexOf(opened.index) > 0}
+                  hasNext={pastDays.indexOf(opened.index) < pastDays.length - 1}
+                />
+              ) : pastDays.length > 0 ? (
+                <div className="grid-foot">
+                  <p className="grid-hint">Choose a day to see what you made.</p>
+                  <button
+                    type="button"
+                    className="btn btn-ghost small"
+                    onClick={() => setOpenDay(pastDays[pastDays.length - 1])}
+                  >
+                    Browse past days
+                  </button>
+                </div>
+              ) : null}
+              {afterDays.length > 0 && (
+                <section className="after" aria-labelledby="after-title">
+                  <h3 id="after-title" className="font-display after-h3">
+                    Since Day {totalDays}
+                  </h3>
+                  <ol className="after-list">
+                    {afterDays.slice(0, 7).map((l) => (
+                      <li key={l.day}>
+                        <span className="after-day font-mono">Day {l.day}</span>
+                        <span>{l.text}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
               )}
             </section>
           </div>
@@ -348,10 +419,55 @@ export default function Dashboard() {
             font-size: 1.1rem;
             margin: 0;
           }
+          .grid-foot {
+            margin-top: 0.9rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem 1rem;
+            flex-wrap: wrap;
+          }
           .grid-hint {
-            margin: 0.9rem 0 0;
+            margin: 0;
             font-size: 0.85rem;
             color: var(--muted);
+          }
+          .grid-foot .small {
+            min-height: 44px;
+            padding: 0.5rem 1rem;
+            font-size: 0.75rem;
+          }
+          .mini-grid {
+            display: none;
+          }
+          .after {
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1.5px dashed var(--line);
+          }
+          .after-h3 {
+            font-size: 1.1rem;
+            margin: 0 0 0.6rem;
+          }
+          .after-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            font-size: 0.92rem;
+            line-height: 1.45;
+          }
+          .after-list li {
+            display: grid;
+            grid-template-columns: 4.5rem 1fr;
+            gap: 0.6rem;
+          }
+          .after-day {
+            color: var(--muted);
+            font-size: 0.78rem;
+            padding-top: 0.1rem;
           }
           .prestart {
             padding: 1.75rem;
@@ -367,6 +483,11 @@ export default function Dashboard() {
             line-height: 1.5;
           }
           @media (max-width: 860px) {
+            .mini-grid {
+              display: block;
+              margin-top: 1.25rem;
+              max-width: 22rem;
+            }
             .main-cols {
               grid-template-columns: minmax(0, 1fr);
             }

@@ -70,6 +70,7 @@ interface AppValue {
   attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
   attachLink: (dayIndex: number, url: string) => ToggleResult
   removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
+  wouldReopen: (dayIndex: number, artifactId: string) => boolean
   startChallenge: (draft: ChallengeDraft) => Challenge
   confirmReset: () => void
   enterMaintenance: () => void
@@ -288,6 +289,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const result = await session.removeArtifact(dayIndex, artifactId)
         sync()
         return result
+      },
+      wouldReopen(dayIndex: number, artifactId: string): boolean {
+        return session ? session.wouldReopen(dayIndex, artifactId) : false
       },
       startChallenge(draft: ChallengeDraft): Challenge {
         if (!session) throw new Error('Storage is unavailable.')

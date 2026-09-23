@@ -6,6 +6,8 @@ import { Day } from '@/lib/types'
 import { ArtifactThumb } from './ArtifactInput'
 import { Icon } from './Icon'
 
+export const DAY_DETAIL_ID = 'day-detail'
+
 const STATE_LINE: Record<Day['state'], string> = {
   complete: 'Made',
   skipped: 'Covered by a skip token',
@@ -14,68 +16,92 @@ const STATE_LINE: Record<Day['state'], string> = {
   future: 'Upcoming',
 }
 
-/** A past day, opened from the grid: what was written and kept that day. */
+/**
+ * A past day, opened from the grid: what was written and kept that day.
+ * Previous / next step through the days with full-size targets, so browsing
+ * never depends on hitting a small grid cell on a phone.
+ */
 export function DayDetail({
   day,
   dayData,
   repo,
   onClose,
+  onStep,
+  hasPrev,
+  hasNext,
 }: {
   day: Day
   dayData: DayData
   repo: Repository
   onClose: () => void
+  onStep: (delta: -1 | 1) => void
+  hasPrev: boolean
+  hasNext: boolean
 }) {
   const ref = useRef<HTMLElement>(null)
   const log = dayData.logs[day.index]?.text.trim()
   const artifacts = dayData.artifacts[day.index] ?? []
 
   useEffect(() => {
-    ref.current?.focus()
+    ref.current?.focus({ preventScroll: true })
   }, [day.index])
 
   return (
     <section
       ref={ref}
+      id={DAY_DETAIL_ID}
       className="detail"
       tabIndex={-1}
       aria-labelledby="detail-title"
-      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') onClose()
+      }}
     >
       <header className="d-head">
         <h3 id="detail-title" className="font-display d-title">
           Day {day.index}
           <span className={`d-state st-${day.state}`}>{STATE_LINE[day.state]}</span>
         </h3>
-        <button type="button" className="close" onClick={onClose} aria-label={`Close Day ${day.index}`}>
-          <Icon name="close" size={18} />
-        </button>
+        <div className="d-nav">
+          <button type="button" className="icon-btn" onClick={() => onStep(-1)} disabled={!hasPrev} aria-label="Previous day">
+            <Icon name="chevron" size={18} className="flip" />
+          </button>
+          <button type="button" className="icon-btn" onClick={() => onStep(1)} disabled={!hasNext} aria-label="Next day">
+            <Icon name="chevron" size={18} />
+          </button>
+          <button type="button" className="icon-btn" onClick={onClose} aria-label={`Close Day ${day.index}`}>
+            <Icon name="close" size={18} />
+          </button>
+        </div>
       </header>
       {log ? <p className="d-log">{log}</p> : <p className="d-empty">No log that day.</p>}
       {artifacts.length > 0 && (
         <ul className="d-thumbs" aria-label={`Day ${day.index} artifacts`}>
           {artifacts.map((a) => (
             <li key={a.id}>
-              <ArtifactThumb artifact={a} repo={repo} size={72} />
+              <ArtifactThumb artifact={a} repo={repo} size={72} dayIndex={day.index} />
             </li>
           ))}
         </ul>
       )}
       <style jsx>{`
         .detail {
-          margin-top: 1rem;
-          padding: 1rem 1.1rem;
-          border-radius: 10px;
-          background: var(--paper);
-          border: 1.5px solid var(--line);
+          margin-top: 1.1rem;
+          padding-top: 0.9rem;
+          border-top: 1.5px dashed var(--line);
         }
-        .detail:focus-visible {
-          outline: 3px solid var(--cobalt);
+        .detail:focus {
+          outline: none;
+        }
+        .detail:focus-visible .d-title {
+          text-decoration: underline;
+          text-decoration-color: var(--cobalt);
+          text-underline-offset: 0.2em;
         }
         .d-head {
           display: flex;
           justify-content: space-between;
-          align-items: flex-start;
+          align-items: center;
           gap: 0.75rem;
         }
         .d-title {
@@ -100,11 +126,14 @@ export function DayDetail({
         .st-skipped {
           color: var(--marigold-ink);
         }
-        .close {
+        .d-nav {
+          display: flex;
           flex: none;
+          margin-right: -0.6rem;
+        }
+        .icon-btn {
           width: 44px;
           height: 44px;
-          margin: -0.6rem -0.6rem 0 0;
           display: grid;
           place-items: center;
           border: 0;
@@ -113,16 +142,25 @@ export function DayDetail({
           color: var(--ink-soft);
           cursor: pointer;
         }
-        .close:hover {
-          background: var(--paper-2);
+        .icon-btn:hover:not(:disabled) {
+          background: var(--paper);
+          color: var(--ink);
+        }
+        .icon-btn:disabled {
+          color: var(--line);
+          cursor: default;
+        }
+        .icon-btn :global(.flip) {
+          transform: scaleX(-1);
         }
         .d-log {
-          margin: 0.6rem 0 0;
+          margin: 0.5rem 0 0;
           line-height: 1.55;
           white-space: pre-wrap;
+          overflow-wrap: anywhere;
         }
         .d-empty {
-          margin: 0.6rem 0 0;
+          margin: 0.5rem 0 0;
           color: var(--muted);
         }
         .d-thumbs {
