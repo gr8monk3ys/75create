@@ -43,7 +43,7 @@ export const StreakHeader = memo(function StreakHeader({
   return (
     <dl className="head">
       <div className="stat stat-day">
-        <dt>{ended && missedDay ? 'Ended on day' : after ? 'Finished' : 'Day'}</dt>
+        <dt>{ended && missedDay ? 'Ended on day' : after ? 'Finished' : day === 0 ? 'Before day' : 'Day'}</dt>
         <dd className="big font-display">
           {ended && missedDay ? (
             <>
@@ -57,7 +57,7 @@ export const StreakHeader = memo(function StreakHeader({
             </>
           ) : (
             <>
-              {day}
+              {Math.max(day, 1)}
               <span className="denom">/{totalDays}</span>
             </>
           )}

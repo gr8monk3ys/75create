@@ -132,6 +132,35 @@ test.describe('artifact links', () => {
   })
 })
 
+test.describe('the last day', () => {
+  test.use({ timezoneId: 'UTC' })
+
+  test('making Day 75 ends on the way to the recap', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-23T12:00:00Z'))
+    await startChallenge(page, 'finish@75create.test')
+    // Seventy-four days made: the challenge started on 11 July.
+    await page.evaluate(() => {
+      const key = '75create.v1'
+      const root = JSON.parse(localStorage.getItem(key)!)
+      const c = root.challenges[0]
+      c.startDate = '2026-07-11'
+      const dd = root.dayData[c.id] ?? { completions: {}, checks: {}, logs: {}, artifacts: {}, skips: [], actionedMisses: [] }
+      for (let d = 1; d <= 74; d++) dd.completions[d] = '2026-07-11T20:00:00.000Z'
+      root.dayData[c.id] = dd
+      localStorage.setItem(key, JSON.stringify(root))
+    })
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 1, name: 'Day 75 of 75' })).toBeAttached()
+
+    await completeToday(page)
+    const finish = page.locator('#finish')
+    await expect(finish).toContainText('See your recap')
+    // Once the moment passes, the finish panel is on screen and focused.
+    await expect(finish).toBeFocused({ timeout: 8000 })
+    await expect(finish).toBeInViewport()
+  })
+})
+
 test.describe('settings', () => {
   // A buffer change can be refused in the small hours (it must never decide a
   // day), so the clock is pinned where each test needs it.

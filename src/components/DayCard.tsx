@@ -322,6 +322,9 @@ export function DayCard({
       id="check-in"
       className={`daycard panel ${completed ? 'done' : ''}`}
       aria-labelledby={`dc-title-${dayIndex}`}
+      // Wherever focus lands on the card (a reset, maintenance, the skip
+      // link), it says which day and what's left, not just the date.
+      aria-describedby={`dc-meta-${dayIndex}`}
       tabIndex={-1}
     >
       <header className="daycard-head">
@@ -329,12 +332,12 @@ export function DayCard({
           <h2 id={`dc-title-${dayIndex}`} className="font-display dc-h2">
             {longDay(creativeToday)}
           </h2>
-          <p className="dc-meta">
+          <p id={`dc-meta-${dayIndex}`} className="dc-meta">
             {maintenance
               ? `Day ${dayIndex} · maintenance: log what you made, no rules`
               : completed
                 ? `Day ${dayIndex} is on the grid`
-                : `${metCount} of ${needed.length} done · open until ${closes}`}
+                : <><span className="sr-only">Day {dayIndex}: </span>{metCount} of {needed.length} done · open until {closes}</>}
           </p>
         </div>
         {completed && (
@@ -544,6 +547,10 @@ export function DayCard({
           }
           .daycard :global(.check) {
             padding: min(0.7rem, 3vw) min(0.75rem, 3vw);
+            gap: min(0.6rem, 2.5vw);
+          }
+          /* Evidence rows line up with the plain rules above them. */
+          .daycard .evidence-head {
             gap: min(0.6rem, 2.5vw);
           }
         }

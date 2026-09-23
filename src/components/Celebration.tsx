@@ -34,11 +34,17 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
   useEffect(() => {
     if (!show) return
     const t = setTimeout(onDone, 3200)
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onDone()
-    document.addEventListener('keydown', onKey)
+    // Captured first and kept: Esc here closes the moment and nothing else
+    // (not also stepping out of the field the person is in).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onDone()
+    }
+    document.addEventListener('keydown', onKey, true)
     return () => {
       clearTimeout(t)
-      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('keydown', onKey, true)
     }
   }, [show, onDone])
 

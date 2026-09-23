@@ -210,6 +210,9 @@ export const Grid = memo(function Grid({
         }
         .cell {
           aspect-ratio: 1;
+          /* The mark is sized from the cell, not the text size: at large
+             text it would otherwise outgrow the cell and warp the grid. */
+          container-type: inline-size;
           border-radius: ${compact ? '2px' : '4px'};
           display: grid;
           place-items: center;
@@ -280,7 +283,7 @@ export const Grid = memo(function Grid({
         .cell-mark {
           font-family: var(--font-mono);
           font-weight: 700;
-          font-size: 0.875rem;
+          font-size: min(0.875rem, 62cqi);
           color: var(--ink);
           line-height: 1;
         }
@@ -309,7 +312,7 @@ export const Grid = memo(function Grid({
             gap: ${compact ? '3px' : '4px'};
           }
           .cell-mark {
-            font-size: 0.7rem;
+            font-size: min(0.7rem, 62cqi);
           }
         }
         @media (prefers-reduced-motion: reduce) {

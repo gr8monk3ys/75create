@@ -42,8 +42,20 @@ export default function Dashboard() {
   // Each day celebrates once per visit: un-ticking and re-ticking a rule
   // shouldn't replay the moment.
   const celebrated = useRef(new Set<number>())
+  // Day 75's moment ends on the way forward: the finish panel, with the
+  // recap, which sits above the card (off-screen on a phone).
+  const finalPending = useRef(false)
   // Stable identity: Celebration keys its dismiss timer off this callback.
-  const endCelebration = useCallback(() => setCelebrate(false), [])
+  const endCelebration = useCallback(() => {
+    setCelebrate(false)
+    if (!finalPending.current) return
+    finalPending.current = false
+    requestAnimationFrame(() => {
+      const panel = document.getElementById('finish')
+      panel?.scrollIntoView({ block: 'center' })
+      panel?.focus({ preventScroll: true })
+    })
+  }, [])
 
   useEffect(() => {
     if (loading) return
@@ -57,6 +69,7 @@ export default function Dashboard() {
       if (celebrated.current.has(dayIndex)) return
       celebrated.current.add(dayIndex)
       const m = milestoneAt(dayIndex, totalDays)
+      finalPending.current = m === 'final'
       setMilestone(m ? milestoneCopy(m, dayIndex, totalDays) : null)
       setCelebratedDay(dayIndex)
       setCelebrate(true)
@@ -190,7 +203,12 @@ export default function Dashboard() {
         {/* On a phone the full grid sits below the check-in: show the mark
             itself up top, where the app opens, as a way down to the grid. */}
         <a href="#grid" className="mini-grid" aria-label="Jump to the grid">
-          <Grid days={gridDays} compact today={checkInOpen ? currentIndex : null} />
+          <Grid
+            days={gridDays}
+            compact
+            today={checkInOpen ? currentIndex : null}
+            endedOn={phase === 'reset-pending' ? missedDay : null}
+          />
         </a>
 
         {phase === 'reset-pending' && resetMessage && (
@@ -216,7 +234,7 @@ export default function Dashboard() {
         )}
 
         {phase === 'finished' && (
-          <section className="finish panel" aria-labelledby="finish-title">
+          <section id="finish" className="finish panel" aria-labelledby="finish-title" tabIndex={-1}>
             <div>
               <h2 id="finish-title" className="font-display finish-h2">
                 {finish.title}
@@ -307,7 +325,7 @@ export default function Dashboard() {
                 <DayDetail
                   day={opened}
                   dayData={dayData}
-                    onClose={closeDay}
+                  onClose={closeDay}
                   onStep={stepDay}
                   hasPrev={pastDays.indexOf(opened.index) > 0}
                   hasNext={pastDays.indexOf(opened.index) < pastDays.length - 1}
@@ -413,6 +431,9 @@ export default function Dashboard() {
           }
           .banner-slot {
             margin-top: 1.5rem;
+          }
+          .finish:focus:not(:focus-visible) {
+            outline: none;
           }
           .finish {
             margin-top: 1.5rem;
@@ -561,7 +582,7 @@ export default function Dashboard() {
               position: static;
             }
           }
-  
+
         `}</style>
       </main>
     </>
