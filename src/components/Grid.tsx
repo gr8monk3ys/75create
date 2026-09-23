@@ -131,8 +131,9 @@ export const Grid = memo(function Grid({
                 type="button"
                 className={cls}
                 style={style}
+                // The title is the name (and the hover tooltip); an
+                // aria-label too would have it read twice, as a description.
                 title={title}
-                aria-label={title}
                 aria-expanded={selected === d.index}
                 aria-controls={selected === d.index ? detailId : undefined}
                 tabIndex={d.index === current ? 0 : -1}

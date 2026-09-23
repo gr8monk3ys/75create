@@ -71,7 +71,9 @@ export const StreakHeader = memo(function StreakHeader({
           </dd>
         </div>
       )}
-      {(after || ended || current !== longest || current === 0) && (
+      {/* Longest adds nothing when it equals the streak, or when both are
+          zero on a fresh Day 1. */}
+      {(after || ended || (longest > 0 && current !== longest)) && (
         <div className="stat">
           <dt>Longest</dt>
           <dd className="num font-display">
@@ -80,13 +82,14 @@ export const StreakHeader = memo(function StreakHeader({
           </dd>
         </div>
       )}
-      {stakes && !after && (
+      {/* Once the last day is made there is nothing left to miss. */}
+      {stakes && !after && phase !== 'finished' && (
         <StakesStat
           stakes={stakes}
           totalDays={totalDays}
           // "How today works" lives in the check-in card: link to it only
           // when there is one on the page.
-          explained={phase === 'active' || phase === 'finished'}
+          explained={phase === 'active'}
         />
       )}
       {!stakes && totalDays > TOTAL_DAYS && (

@@ -242,7 +242,13 @@ kbd {
   background: transparent;
   color: var(--ink);
 }
-.btn:disabled {
+/* aria-disabled buttons look disabled but stay focusable, so focus never
+   drops to the page when a button turns off under the keyboard. Listed
+   after hover and active so they win over both. */
+.btn:disabled,
+.btn[aria-disabled='true'],
+.btn[aria-disabled='true']:hover,
+.btn[aria-disabled='true']:active {
   opacity: 0.55;
   cursor: not-allowed;
   transform: none;

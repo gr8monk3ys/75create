@@ -5,6 +5,7 @@ import { DayData, Repository } from '@/lib/repository'
 import { Challenge, MAX_LOG_CHARS, Rule } from '@/lib/types'
 import { Stakes, ToggleResult, completionRules, evidenceOf, ruleMet } from '@/lib/challengeSession'
 import { POLICY_LINES, POLICY_NAMES, clockTime, longDay } from '@/lib/format'
+import Link from 'next/link'
 import { useApp } from './AppProvider'
 import { ArtifactInput } from './ArtifactInput'
 import { Icon } from './Icon'
@@ -56,6 +57,9 @@ function isTyping(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
   return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
 }
+
+/** How long a writer pauses, after the log completed the day, before the moment plays. */
+const CELEBRATION_PAUSE_MS = 1500
 
 export function DayCard({
   repo,
@@ -157,7 +161,7 @@ export function DayCard({
         if (document.activeElement === logRef.current) {
           heldCelebration.current = true
           if (holdTimer.current) clearTimeout(holdTimer.current)
-          holdTimer.current = setTimeout(releaseCelebration, 4000)
+          holdTimer.current = setTimeout(releaseCelebration, CELEBRATION_PAUSE_MS)
         } else onComplete(dayIndex)
         return true
       }
@@ -229,7 +233,7 @@ export function DayCard({
     // Still writing: the held celebration waits for the next pause.
     if (heldCelebration.current && holdTimer.current) {
       clearTimeout(holdTimer.current)
-      holdTimer.current = setTimeout(releaseCelebration, 4000)
+      holdTimer.current = setTimeout(releaseCelebration, CELEBRATION_PAUSE_MS)
     }
     const write = () => {
       knownLog.current = clipped
@@ -288,6 +292,7 @@ export function DayCard({
       removeArtifact={removeArtifact}
       wouldReopen={wouldReopen}
       onResult={handle}
+      onAnnounce={setAnnounce}
       labelledBy={labelId}
       describedBy={describedBy}
       uploadId={`upload-${dayIndex}`}
@@ -480,8 +485,11 @@ export function DayCard({
               {artifactRule && ' Adding an image or link meets “' + artifactRule.name + '”.'}
             </li>
             <li>
-              Today stays open until {closes}, so late-night work still counts. Change the cut-off in
-              Settings.
+              Today stays open until {closes}, so late-night work still counts. Change the cut-off in{' '}
+              <Link href="/settings" className="inline-link">
+                Settings
+              </Link>
+              .
             </li>
             {stakes && (
               <li>
@@ -622,6 +630,17 @@ export function DayCard({
           place-items: center;
           color: var(--paper);
           margin-top: 1px;
+        }
+        /* A 44px hit area around an inline link, without moving the text. */
+        .daycard :global(.inline-link) {
+          display: inline-block;
+          padding: 0.75rem 0.25rem;
+          margin: -0.75rem -0.25rem;
+        }
+        /* The tick grows with its box at large text sizes. */
+        .box :global(svg) {
+          width: 70%;
+          height: 70%;
         }
         .evidence .box {
           border-style: dashed;

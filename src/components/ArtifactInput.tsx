@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Repository } from '@/lib/repository'
 import { Artifact } from '@/lib/types'
-import { compressImage } from '@/lib/image'
+import { ImageError, compressImage } from '@/lib/image'
 import { normalizeArtifactUrl, safeHref } from '@/lib/safeUrl'
 import { ToggleResult } from '@/lib/challengeSession'
 import { Icon } from './Icon'
@@ -17,8 +17,11 @@ interface Props {
   removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
   /** Whether removing an artifact would take a completed today off the grid. */
   wouldReopen: (dayIndex: number, artifactId: string) => boolean
-  /** Called with each write's result, so the card can celebrate completion. */
-  onResult: (result: ToggleResult) => void
+  /** Called with each write's result, so the card can celebrate completion.
+   *  Returns true when it announced something itself (completion, reopening). */
+  onResult: (result: ToggleResult) => boolean | void
+  /** Says a short confirmation through the card's live region. */
+  onAnnounce?: (message: string) => void
   /** Id of the element that labels this group (the rule or field heading). */
   labelledBy?: string
   /** The rule's note, when shown. */
@@ -36,6 +39,7 @@ export function ArtifactInput({
   removeArtifact,
   wouldReopen,
   onResult,
+  onAnnounce,
   labelledBy,
   describedBy,
   uploadId,
@@ -46,6 +50,12 @@ export function ArtifactInput({
   const fileRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLButtonElement>(null)
 
+  /** Report a write: the card speaks for completion; otherwise say what was kept. */
+  function report(result: ToggleResult, added: string) {
+    const spoke = onResult(result)
+    if (result.ok && !spoke) onAnnounce?.(added)
+  }
+
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -53,13 +63,10 @@ export function ArtifactInput({
     setBusy(true)
     try {
       const { blob } = await compressImage(file)
-      onResult(await attachImage(dayIndex, blob))
+      report(await attachImage(dayIndex, blob), 'Image added.')
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? `${err.message} Try a JPEG or PNG under 5 MB, or paste a link instead.`
-          : 'That upload didn’t work. Try a JPEG or PNG under 5 MB, or paste a link instead.',
-      )
+      const why = err instanceof ImageError ? err.message : 'That upload didn’t work.'
+      setError(`${why} Try a JPEG or PNG under 5 MB, or paste a link instead.`)
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -73,7 +80,7 @@ export function ArtifactInput({
       return
     }
     setError(null)
-    onResult(attachLink(dayIndex, value))
+    report(attachLink(dayIndex, value), `Link to ${hostOf(value)} added.`)
     setUrl('')
   }
 
@@ -92,7 +99,10 @@ export function ArtifactInput({
                   // The thumb (and its button) is about to go: keep focus in
                   // the group rather than dropping it to the page.
                   uploadRef.current?.focus()
-                  onResult(await removeArtifact(dayIndex, a.id))
+                  report(
+                    await removeArtifact(dayIndex, a.id),
+                    a.kind === 'url' ? `Link to ${hostOf(a.url ?? '')} removed.` : 'Image removed.',
+                  )
                 }}
               />
             </li>
@@ -106,8 +116,10 @@ export function ArtifactInput({
           id={uploadId}
           type="button"
           className="btn btn-ghost small"
-          onClick={() => fileRef.current?.click()}
-          disabled={busy}
+          // aria-disabled, not disabled: the button keeps focus while the
+          // image compresses, so the keyboard stays in the card.
+          onClick={() => !busy && fileRef.current?.click()}
+          aria-disabled={busy}
           aria-busy={busy}
         >
           <Icon name="image" size={18} />
@@ -132,7 +144,13 @@ export function ArtifactInput({
             }}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
           />
-          <button type="button" className="btn btn-ghost small" onClick={addUrl} disabled={!url.trim()}>
+          <button
+            type="button"
+            className="btn btn-ghost small"
+            onClick={addUrl}
+            // Stays focusable once the field clears after adding.
+            aria-disabled={!url.trim()}
+          >
             Add link
           </button>
         </div>
@@ -170,21 +188,21 @@ export function ArtifactInput({
           flex: 1 1 14rem;
           min-width: 0;
         }
-        @media (max-width: 360px) {
-          /* One-handed on a small phone: the link gets the full width, and
-             Add link its own line. */
+        .url-input {
+          flex: 1;
+          width: auto;
+          min-width: 0;
+        }
+        /* After the base rule, so it wins: on a small phone (or at large
+           text) the link gets the full width and Add link its own line. */
+        @media (max-width: 26em) {
           .url-row {
             flex-basis: 100%;
             flex-wrap: wrap;
           }
           .url-input {
-            flex-basis: 100%;
+            flex: 1 1 100%;
           }
-        }
-        .url-input {
-          flex: 1;
-          width: auto;
-          min-width: 0;
         }
         .err {
           font-size: 0.8rem;

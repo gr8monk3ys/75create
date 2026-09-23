@@ -505,7 +505,8 @@ export default function Dashboard() {
             margin: 0;
             line-height: 1.5;
           }
-          @media (max-width: 860px) {
+          @media (max-width: 54em) {
+            /* In em, so large text also gets the single column. */
             .mini-grid {
               display: block;
               margin-top: 1.25rem;

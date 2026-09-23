@@ -126,6 +126,9 @@ test.describe('artifact links', () => {
       'href',
       'https://example.com/study.png',
     )
+    // Said, not only shown, and the keyboard stays on the button it used.
+    await expect(page.locator('#check-in [role=status]')).toHaveText('Link to example.com added.')
+    await expect(add).toBeFocused()
   })
 })
 
