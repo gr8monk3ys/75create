@@ -247,6 +247,7 @@ export function ArtifactThumb({
   const { repo } = useApp()
   const [src, setSrc] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
+  const removeRef = useRef<HTMLButtonElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   // A finished recap can hold 75+ images: read and decode each one only when
   // it scrolls near the viewport, not all at once on mount.
@@ -291,9 +292,13 @@ export function ArtifactThumb({
     // re-decode it for nothing.
   }, [artifact.blobRef, artifact.kind, repo, near])
 
+  // An armed remove stands down after 4s, unless focus is still on it: a
+  // screen-reader user takes longer than that to hear the prompt and act.
   useEffect(() => {
     if (!armed) return
-    const t = setTimeout(() => setArmed(false), 4000)
+    const t = setTimeout(() => {
+      if (document.activeElement !== removeRef.current) setArmed(false)
+    }, 4000)
     return () => clearTimeout(t)
   }, [armed])
 
@@ -317,7 +322,8 @@ export function ArtifactThumb({
         ) : href ? (
           <a href={href} target="_blank" rel="noreferrer" className="link" title={href}>
             <Icon name="link" size={20} />
-            <span className="host">{hostOf(href)}</span>
+            {/* Breaks only after a dot, so a host wraps as "behance. / net". */}
+            <span className="host">{hostOf(href).replace(/\./g, '.\u200b')}</span>
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
@@ -326,6 +332,7 @@ export function ArtifactThumb({
       </div>
       {onRemove && (
         <button
+          ref={removeRef}
           type="button"
           className="x"
           onClick={() => {

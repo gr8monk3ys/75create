@@ -111,7 +111,8 @@ export default function Dashboard() {
     phase === 'maintenance'
       ? Object.entries(dayData.logs)
           .map(([i, l]) => ({ day: Number(i), text: l.text.trim() }))
-          .filter((l) => l.day > totalDays && hasLog(dayData, l.day))
+          // Today's log is in the card above; the list is the days before it.
+          .filter((l) => l.day > totalDays && l.day !== currentIndex && hasLog(dayData, l.day))
           .sort((a, b) => b.day - a.day)
       : []
 
@@ -132,6 +133,18 @@ export default function Dashboard() {
     confirmReset()
     // The banner and panel go; Day 1's check-in takes their place.
     requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
+  }
+
+  function startMaintenance() {
+    enterMaintenance()
+    // The next-step panel goes; today's maintenance card takes its place,
+    // and landing on it says what the new mode is.
+    requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
+  }
+
+  function startNewRound() {
+    closeForNewRound()
+    router.push('/setup')
   }
 
   function dismissNotice() {
@@ -263,16 +276,10 @@ export default function Dashboard() {
                   Or start a fresh 75, with new rules if you like.
                 </p>
                 <div className="next-actions">
-                  <button className="btn btn-ghost" onClick={enterMaintenance}>
+                  <button className="btn btn-ghost" onClick={startMaintenance}>
                     Maintenance mode
                   </button>
-                  <button
-                    className="btn"
-                    onClick={() => {
-                      closeForNewRound()
-                      router.push('/setup')
-                    }}
-                  >
+                  <button className="btn" onClick={startNewRound}>
                     Start a new round
                   </button>
                 </div>
@@ -333,6 +340,15 @@ export default function Dashboard() {
                   </button>
                 </div>
               ) : null}
+              {phase === 'maintenance' && (
+                // Maintenance is optional; a fresh 75 is always one step away.
+                <div className="round-foot">
+                  <p className="grid-hint">Ready for another 75?</p>
+                  <button type="button" className="btn btn-ghost small" onClick={startNewRound}>
+                    Start a new round
+                  </button>
+                </div>
+              )}
               {afterDays.length > 0 && (
                 <section className="after" aria-labelledby="after-title">
                   <h3 id="after-title" className="font-display after-h3">
@@ -519,6 +535,16 @@ export default function Dashboard() {
           }
           .state-panel {
             padding: 1.75rem;
+          }
+          .round-foot {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.6rem;
+            margin-top: 1.25rem;
+            padding-top: 1rem;
+            border-top: 1.5px dashed var(--line);
           }
           .next-actions {
             display: flex;

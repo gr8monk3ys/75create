@@ -99,6 +99,12 @@ export const Grid = memo(function Grid({
   }
 
   function onKeyDown(e: React.KeyboardEvent, index: number) {
+    // Esc on the open day's own cell closes it, as it does inside the detail.
+    if (e.key === 'Escape' && selected === index) {
+      e.preventDefault()
+      onOpenDay?.(index)
+      return
+    }
     const step: Record<string, number> = {
       ArrowRight: 1,
       ArrowLeft: -1,

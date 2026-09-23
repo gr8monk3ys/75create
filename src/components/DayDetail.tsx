@@ -162,7 +162,9 @@ export function DayDetail({
           color: var(--ink);
         }
         .icon-btn[aria-disabled='true'] {
-          color: var(--line);
+          /* Faint but there: the end of the range is visible, not a gap. */
+          color: var(--muted);
+          opacity: 0.45;
           cursor: default;
         }
         .icon-btn :global(.flip) {

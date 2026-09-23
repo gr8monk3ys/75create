@@ -149,7 +149,10 @@ button {
 .skip-link {
   position: absolute;
   left: 1rem;
-  top: -4rem;
+  /* Hidden by its own height, not a fixed offset, so a label that wraps at
+     large text can't peek into view. */
+  top: 0;
+  transform: translateY(-110%);
   z-index: 60;
   padding: 0.75rem 1.1rem;
   min-height: 44px;
@@ -164,6 +167,7 @@ button {
 }
 .skip-link:focus {
   top: 1rem;
+  transform: none;
 }
 
 kbd {
