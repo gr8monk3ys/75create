@@ -23,5 +23,7 @@ next-env.d.ts
 .env*.local
 .env
 
-# Agent skills are installed per machine, not vendored
-.claude/
+# Agent skills are installed per machine, not vendored (project settings
+# under .claude/ can still be committed)
+.claude/skills/
+.claude/agents/

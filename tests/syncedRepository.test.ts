@@ -214,6 +214,36 @@ describe('SyncedRepository', () => {
     expect(Object.keys((pushed.data as { completions: object }).completions).sort()).toEqual(['2', '3'])
   })
 
+  it('keeps which missed days a pull found made, once, on this device only', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    // This device rolled over and spent a token on Day 2...
+    repo.addSkip('c1', 2)
+    repo.addActionedMiss('c1', 2)
+    // ...but the laptop made it.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: { 2: '2026-01-02T20:00:00.000Z' },
+          logs: {},
+          checks: {},
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.pull()
+    expect(repo.getDayData('c1').skips).toEqual([])
+    expect(repo.takeRestoredMisses('c1')).toEqual([2])
+    expect(repo.takeRestoredMisses('c1')).toEqual([])
+    // Never pushed: the other device has nothing to be told.
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    expect(JSON.stringify(pushed)).not.toContain('restored')
+  })
+
   it('never erases remote work on push, even when the local stamp reads newer', async () => {
     await repo.connectRemote('uid-1', 'a@b.com')
     repo.saveChallenge(makeChallenge())

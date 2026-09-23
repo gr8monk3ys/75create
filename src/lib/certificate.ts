@@ -20,7 +20,7 @@ export interface CertData {
 }
 
 // The light printing of the tokens in globals.css: a certificate is paper.
-const C = {
+const PALETTE = {
   paper: '#efe9dc',
   ink: '#1b1a17',
   sub: '#625b4e',
@@ -73,11 +73,11 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
   canvas.height = H
   const ctx = canvas.getContext('2d')!
 
-  ctx.fillStyle = C.paper
+  ctx.fillStyle = PALETTE.paper
   ctx.fillRect(0, 0, W, H)
 
   // The sketchbook dot grid.
-  ctx.fillStyle = C.line
+  ctx.fillStyle = PALETTE.line
   for (let y = 22; y < H; y += 26) {
     for (let x = 22; x < W; x += 26) {
       ctx.beginPath()
@@ -86,16 +86,16 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
     }
   }
 
-  ctx.strokeStyle = C.ink
+  ctx.strokeStyle = PALETTE.ink
   ctx.lineWidth = 3
   ctx.strokeRect(30, 30, W - 60, H - 60)
 
   // The title leads; no label line above it.
-  ctx.fillStyle = C.ink
+  ctx.fillStyle = PALETTE.ink
   ctx.font = fonts.title
   ctx.fillText(data.title, MARGIN - 2, 150)
 
-  ctx.fillStyle = C.sub
+  ctx.fillStyle = PALETTE.sub
   ctx.font = fonts.sub
   ctx.fillText(`A ${data.dayStates.length}-day ${data.medium} challenge, started ${data.startDate}.`, MARGIN, 200)
 
@@ -108,10 +108,10 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
   ]
   stats.forEach(([big, label], i) => {
     const sx = MARGIN + i * 265
-    ctx.fillStyle = C.cobalt
+    ctx.fillStyle = PALETTE.cobalt
     ctx.font = fonts.stat
     ctx.fillText(big, sx, 300)
-    ctx.fillStyle = C.sub
+    ctx.fillStyle = PALETTE.sub
     ctx.font = fonts.label
     ctx.fillText(label.toUpperCase(), sx, 332)
   })
@@ -127,15 +127,15 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
     ctx.translate(x + CELL / 2, y + CELL / 2)
     if (state === 'complete' || state === 'skipped') {
       ctx.rotate((stampRotation(i + 1) * Math.PI) / 180)
-      ctx.fillStyle = state === 'complete' ? C.cobalt : C.marigold
+      ctx.fillStyle = state === 'complete' ? PALETTE.cobalt : PALETTE.marigold
       roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
       ctx.fill()
-      if (state === 'skipped') mark(ctx, '–', C.onMarigold, fonts.mark)
+      if (state === 'skipped') mark(ctx, '–', PALETTE.onMarigold, fonts.mark)
     } else if (state === 'missed') {
       roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
       ctx.save()
       ctx.clip()
-      ctx.strokeStyle = C.missed
+      ctx.strokeStyle = PALETTE.missed
       ctx.lineWidth = 2
       for (let d = -CELL; d < CELL * 2; d += 6) {
         ctx.beginPath()
@@ -144,16 +144,16 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
         ctx.stroke()
       }
       ctx.restore()
-      ctx.strokeStyle = C.missed
+      ctx.strokeStyle = PALETTE.missed
       ctx.lineWidth = 2
       roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
       ctx.stroke()
-      ctx.fillStyle = C.paper
+      ctx.fillStyle = PALETTE.paper
       ctx.fillRect(-9, -11, 18, 22)
-      mark(ctx, '×', C.ink, fonts.mark)
+      mark(ctx, '×', PALETTE.ink, fonts.mark)
     } else {
       ctx.setLineDash([2, 3])
-      ctx.strokeStyle = C.missed
+      ctx.strokeStyle = PALETTE.missed
       ctx.lineWidth = 1.5
       roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
       ctx.stroke()
@@ -162,7 +162,7 @@ export async function generateCertificate(data: CertData): Promise<Blob> {
   })
 
   // Signed at the foot, in the wordmark's face.
-  ctx.fillStyle = C.ink
+  ctx.fillStyle = PALETTE.ink
   ctx.font = fonts.brand
   ctx.textAlign = 'right'
   ctx.fillText('75 Create', W - MARGIN, H - 62)

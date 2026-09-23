@@ -98,28 +98,6 @@ const AppContext = createContext<AppValue | null>(null)
 
 const EMPTY: Snapshot = emptySnapshot()
 
-// A skip or extension notice stays until dismissed, not until the next reload:
-// it is the only place the user learns a token was spent while they were away.
-const NOTICE_KEY = '75create.notice.v1'
-
-function readNotice(): Banner | null {
-  try {
-    const raw = localStorage.getItem(NOTICE_KEY)
-    return raw ? (JSON.parse(raw) as Banner) : null
-  } catch {
-    return null
-  }
-}
-
-function writeNotice(banner: Banner | null) {
-  try {
-    if (banner) localStorage.setItem(NOTICE_KEY, JSON.stringify(banner))
-    else localStorage.removeItem(NOTICE_KEY)
-  } catch {
-    /* storage unavailable: the notice just won't survive a reload */
-  }
-}
-
 interface Stack {
   repo: Repository
   session: ChallengeSession
@@ -195,15 +173,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       days: sameDays(prev.days, snapshot.days) ? prev.days : snapshot.days,
       stakes: sameStakes(prev.stakes, snapshot.stakes) ? prev.stakes : snapshot.stakes,
     }))
-    if (told) {
-      const notice: Banner = { kind: told.kind, message: told.message, count: told.days.length }
-      writeNotice(notice)
-      setBanner(notice)
-    } else if (snapshot.phase === 'signed-out') {
-      setBanner(null)
-    } else {
-      setBanner((b) => b ?? readNotice())
-    }
+    // A skip or extension notice stays until dismissed, not until the next
+    // reload (the session keeps it, per account): it is the only place the
+    // person learns a token was spent while they were away.
+    const pending = snapshot.phase === 'signed-out' ? null : (told ?? session.pendingNotice())
+    setBanner(pending ? { kind: pending.kind, message: pending.message, count: pending.days.length } : null)
     setLoading(false)
   }, [session])
 
@@ -330,7 +304,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
     repo?.setSignedIn(false)
-    writeNotice(null)
     setBanner(null)
     sync()
   }, [sync, repo, supabase])
@@ -386,14 +359,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       confirmReset: write((s) => {
         s.confirmReset()
-        writeNotice(null)
         setBanner(null)
       }, undefined),
       enterMaintenance: write((s) => s.enterMaintenance(), undefined),
       closeForNewRound: write((s) => s.closeForNewRound(), undefined),
       endAttempt: write((s) => {
         s.endAttempt()
-        writeNotice(null)
         setBanner(null)
       }, undefined),
       history: () => session?.history() ?? [],
@@ -401,9 +372,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [session, sync])
 
   const dismissBanner = useCallback(() => {
-    writeNotice(null)
+    session?.dismissNotice()
     setBanner(null)
-  }, [])
+  }, [session])
 
   // Stable while the day states and numbers are (sync keeps equal `days`
   // and `stakes` objects from one snapshot to the next).

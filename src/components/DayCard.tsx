@@ -60,7 +60,10 @@ function useRuleNotes(dayIndex: number): [boolean, () => void] {
   return [shown, toggle]
 }
 
-function isTyping(el: EventTarget | null): boolean {
+/** The check-in card's id: the skip link, and where focus lands after a state change. */
+export const CHECK_IN_ID = 'check-in'
+
+export function isTyping(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false
   return el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)
 }
@@ -319,7 +322,7 @@ export function DayCard({
   return (
     <section
       ref={cardRef}
-      id="check-in"
+      id={CHECK_IN_ID}
       className={`daycard panel ${completed ? 'done' : ''}`}
       aria-labelledby={`dc-title-${dayIndex}`}
       // Wherever focus lands on the card (a reset, maintenance, the skip

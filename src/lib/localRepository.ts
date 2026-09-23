@@ -4,6 +4,7 @@
 import {
   DayData,
   checkKey,
+  PendingNotice,
   Repository,
   emptyDayData,
   newId,
@@ -29,6 +30,10 @@ interface Root {
   challenges: Challenge[]
   dayData: Record<string, DayData>
   signedIn: boolean
+  /** Per challenge, restored misses not yet told (see takeRestoredMisses). */
+  restored?: Record<string, number[]>
+  /** The notice waiting to be dismissed (see pendingNotice). */
+  notice?: PendingNotice | null
 }
 
 /** Record when a tick or completion changed, for merges (see mergeDayData). */
@@ -257,11 +262,48 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
-  /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
+  /**
+   * Overwrite a challenge's entire day-data blob with a merged copy (sync).
+   * A miss this device had actioned that the new copy shows made is kept as
+   * restored, for the session to tell (takeRestoredMisses): this is the one
+   * place that still knows what the merge dropped.
+   */
   replaceDayData(challengeId: string, data: DayData): void {
     const root = this.read()
-    root.dayData[challengeId] = { ...emptyDayData(), ...data }
+    const before = this.dayDataFor(root, challengeId)
+    const next = { ...emptyDayData(), ...data }
+    const still = new Set([...next.skips, ...next.actionedMisses])
+    const restored = [...new Set([...before.skips, ...before.actionedMisses])].filter(
+      (d) => next.completions[d] && !still.has(d),
+    )
+    if (restored.length > 0) {
+      const told = root.restored?.[challengeId] ?? []
+      root.restored = {
+        ...root.restored,
+        [challengeId]: [...new Set([...told, ...restored])].sort((a, b) => a - b),
+      }
+    }
+    root.dayData[challengeId] = next
     this.write(root)
+  }
+
+  pendingNotice(): PendingNotice | null {
+    return this.read().notice ?? null
+  }
+
+  setPendingNotice(notice: PendingNotice | null): void {
+    const root = this.read()
+    root.notice = notice
+    this.write(root)
+  }
+
+  takeRestoredMisses(challengeId: string): number[] {
+    const root = this.read()
+    const days = root.restored?.[challengeId] ?? []
+    if (days.length === 0) return []
+    delete root.restored![challengeId]
+    this.write(root)
+    return days
   }
 
   // ---- IndexedDB blobs ----

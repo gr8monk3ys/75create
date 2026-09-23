@@ -122,6 +122,13 @@ export function newUser(id: string, email: string, now: Date = new Date()): User
   }
 }
 
+/** A consequence the person was told about, kept until they dismiss it. */
+export interface PendingNotice {
+  kind: 'skip' | 'extend' | 'restore'
+  message: string
+  days: number[]
+}
+
 export interface Repository {
   // --- user / session ---
   getUser(): User | null
@@ -166,6 +173,19 @@ export interface Repository {
   addActionedMiss(challengeId: string, dayIndex: number): void
   /** Undo a miss's consequence for a day that turned out to be made. */
   clearMiss(challengeId: string, dayIndex: number): void
+  /**
+   * The days a sync found made that this device had actioned as missed (the
+   * merge dropped their skip or miss), each returned once so the person is
+   * told once. Kept on this device only, across reloads.
+   */
+  takeRestoredMisses(challengeId: string): number[]
+  /**
+   * The notice waiting to be dismissed: it's the only place a person learns a
+   * token was spent while they were away, so it outlasts a reload. Per
+   * account, on this device only (never pushed).
+   */
+  pendingNotice(): PendingNotice | null
+  setPendingNotice(notice: PendingNotice | null): void
 
   // --- artifact blobs (IndexedDB) ---
   saveArtifactBlob(blob: Blob): Promise<string>

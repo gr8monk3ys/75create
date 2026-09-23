@@ -223,7 +223,7 @@ One ramp, nothing between its steps:
 ### Named Rules
 **The No Kicker Rule.** No small label sits above a heading. The heading carries its own weight. Mono labels name stats and fields, never sections.
 
-**The 11px Floor Rule.** Nothing on screen is smaller than 0.7rem, and multi-line notes are at least 0.8rem.
+**The 11px Floor Rule.** Nothing on screen is smaller than 0.7rem, and multi-line notes are at least 0.8rem. The one exception is the grid's × and – marks: they are decorative (hidden from assistive tech; every state also has its own fill, hatch or ring and a spoken name), and they are sized from their cell so they can never outgrow it, which on the narrowest phones or at large text takes them under the floor.
 
 **The One Ramp Rule.** A size that isn't on the ramp above is a mistake, not a nuance: round it to the nearest step.
 

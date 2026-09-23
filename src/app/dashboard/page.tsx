@@ -6,13 +6,17 @@ import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { StreakHeader } from '@/components/StreakHeader'
 import { Grid, GridLegend } from '@/components/Grid'
-import { DayCard } from '@/components/DayCard'
+import { CHECK_IN_ID, DayCard, isTyping } from '@/components/DayCard'
 import { DAY_DETAIL_ID, DayDetail } from '@/components/DayDetail'
 import { Celebration } from '@/components/Celebration'
 import { MissPolicyBanner } from '@/components/MissPolicyBanner'
 import { PastAttempts } from '@/components/PastAttempts'
 import { hasLog, milestoneAt } from '@/lib/challengeSession'
 import { finishLine, longDay, milestoneCopy } from '@/lib/format'
+
+/** Where focus can land when the card isn't there (see dismissNotice). */
+const FINISH_ID = 'finish'
+const GRID_ID = 'grid'
 
 export default function Dashboard() {
   const {
@@ -51,7 +55,10 @@ export default function Dashboard() {
     if (!finalPending.current) return
     finalPending.current = false
     requestAnimationFrame(() => {
-      const panel = document.getElementById('finish')
+      // Not while the person is typing (the log can be the last rule, and
+      // they may keep writing after the moment): focus stays with them.
+      if (isTyping(document.activeElement)) return
+      const panel = document.getElementById(FINISH_ID)
       panel?.scrollIntoView({ block: 'center' })
       panel?.focus({ preventScroll: true })
     })
@@ -83,8 +90,8 @@ export default function Dashboard() {
   const onOpenDay = useCallback(
     (index: number) => {
       if (index === currentIndex && checkInOpen) {
-        document.getElementById('check-in')?.focus()
-        document.getElementById('check-in')?.scrollIntoView({ block: 'start' })
+        document.getElementById(CHECK_IN_ID)?.focus()
+        document.getElementById(CHECK_IN_ID)?.scrollIntoView({ block: 'start' })
         return
       }
       setOpenDay((open) => (open === index ? null : index))
@@ -135,14 +142,14 @@ export default function Dashboard() {
   function confirmResetAndFocus() {
     confirmReset()
     // The banner and panel go; Day 1's check-in takes their place.
-    requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
+    requestAnimationFrame(() => document.getElementById(CHECK_IN_ID)?.focus({ preventScroll: true }))
   }
 
   function startMaintenance() {
     enterMaintenance()
     // The next-step panel goes; today's maintenance card takes its place,
     // and landing on it says what the new mode is.
-    requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
+    requestAnimationFrame(() => document.getElementById(CHECK_IN_ID)?.focus({ preventScroll: true }))
   }
 
   function startNewRound() {
@@ -154,7 +161,7 @@ export default function Dashboard() {
     dismissBanner()
     // The banner and its button are gone: land on the check-in, not the
     // page, or (past the last day, with no check-in) the finish or the grid.
-    const to = ['check-in', 'finish', 'grid'].map((id) => document.getElementById(id)).find(Boolean)
+    const to = [CHECK_IN_ID, FINISH_ID, GRID_ID].map((id) => document.getElementById(id)).find(Boolean)
     to?.focus({ preventScroll: true })
   }
 
@@ -173,7 +180,7 @@ export default function Dashboard() {
   return (
     <>
       {checkInOpen || phase === 'maintenance' ? (
-        <a href="#check-in" className="skip-link">
+        <a href={`#${CHECK_IN_ID}`} className="skip-link">
           Skip to today’s check-in
         </a>
       ) : null}
@@ -204,7 +211,7 @@ export default function Dashboard() {
 
         {/* On a phone the full grid sits below the check-in: show the mark
             itself up top, where the app opens, as a way down to the grid. */}
-        <a href="#grid" className="mini-grid" aria-label="Jump to the grid">
+        <a href={`#${GRID_ID}`} className="mini-grid" aria-label="Jump to the grid">
           <Grid
             days={gridDays}
             compact
@@ -236,7 +243,7 @@ export default function Dashboard() {
         )}
 
         {phase === 'finished' && (
-          <section id="finish" className="finish panel" aria-labelledby="finish-title" tabIndex={-1}>
+          <section id={FINISH_ID} className="finish panel" aria-labelledby="finish-title" tabIndex={-1}>
             <div>
               <h2 id="finish-title" className="font-display finish-h2">
                 {finish.title}
@@ -306,7 +313,7 @@ export default function Dashboard() {
           </div>
 
           <div className="col-grid">
-            <section id="grid" tabIndex={-1} className="grid-panel panel" aria-labelledby="grid-title">
+            <section id={GRID_ID} tabIndex={-1} className="grid-panel panel" aria-labelledby="grid-title">
               <div className="grid-caption">
                 <h2 id="grid-title" className="grid-title font-display">
                   The grid

@@ -2,8 +2,7 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import { Day } from '@/lib/types'
-import { stampRotation as rotation } from '@/lib/stamp'
-
+import { stampRotation } from '@/lib/stamp'
 
 const COLS = 15
 
@@ -159,7 +158,7 @@ export const Grid = memo(function Grid({
           const madeToday = d.index === today && d.state === 'complete'
           const title = `Day ${d.index}, ${madeToday ? 'made today' : LABELS[d.state]}`
           const cls = `cell cell-${d.state} ${madeToday ? 'made-today' : ''} ${selected === d.index ? 'sel' : ''} ${stamp === d.index ? 'stamp' : ''}`
-          const style = { '--rot': `${rotation(d.index)}deg` } as React.CSSProperties
+          const style = { '--rot': `${stampRotation(d.index)}deg` } as React.CSSProperties
           const mark =
             // The mark is drawn, not read: the cell's name is its day and state.
             d.state === 'skipped' ? <span className="cell-mark" aria-hidden>–</span>
@@ -280,7 +279,7 @@ export const Grid = memo(function Grid({
         .cell-mark {
           font-family: var(--font-mono);
           font-weight: 700;
-          font-size: min(0.875rem, 62cqi);
+          font-size: min(0.875rem, 70cqi);
           color: var(--ink);
           line-height: 1;
         }
@@ -309,7 +308,7 @@ export const Grid = memo(function Grid({
             gap: ${compact ? '3px' : '4px'};
           }
           .cell-mark {
-            font-size: min(0.7rem, 62cqi);
+            font-size: min(0.7rem, 70cqi);
           }
         }
         @media (prefers-reduced-motion: reduce) {

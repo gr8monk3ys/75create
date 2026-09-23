@@ -6,7 +6,7 @@
 // device made can be erased by another's copy.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DayData, Repository, emptyDayData, mergeDayData, newUser } from './repository'
+import { DayData, PendingNotice, Repository, emptyDayData, mergeDayData, newUser } from './repository'
 import { LocalRepository, PARK_PREFIX } from './localRepository'
 import { Artifact, Challenge, Log, User } from './types'
 import { ARTIFACTS_BUCKET } from './supabase'
@@ -580,6 +580,18 @@ export class SyncedRepository implements Repository {
   clearMiss(challengeId: string, dayIndex: number): void {
     this.local.clearMiss(challengeId, dayIndex)
     this.dirtyDay(challengeId)
+  }
+
+  takeRestoredMisses(challengeId: string): number[] {
+    return this.local.takeRestoredMisses(challengeId)
+  }
+
+  pendingNotice(): PendingNotice | null {
+    return this.local.pendingNotice()
+  }
+
+  setPendingNotice(notice: PendingNotice | null): void {
+    this.local.setPendingNotice(notice)
   }
 
   // ---- Repository: artifact blobs ----

@@ -527,7 +527,7 @@ describe('reconcile after sync', () => {
     expect(session.sync().notice).toBeNull()
   })
 
-  it('still tells a fresh session, without the day it can’t know', () => {
+  it('still tells a fresh session (a reload), with the day', () => {
     session.start(draft({ missPolicy: 'extend' }))
     completeToday()
     at(3)
@@ -540,8 +540,26 @@ describe('reconcile after sync', () => {
     const fresh = createChallengeSession(repo, () => now)
     const { snapshot, notice } = fresh.sync()
     expect(snapshot.totalDays).toBe(75)
-    expect(notice).toMatchObject({ kind: 'restore', days: [] })
-    expect(notice!.message).toMatch(/made on another device, so the challenge is back to 75 days/)
+    expect(notice).toMatchObject({ kind: 'restore', days: [2] })
+    expect(notice!.message).toMatch(/Day 2 was made on another device, so the challenge is shorter again/)
+  })
+
+  it('tells the device that made the day nothing, when the other device’s count arrives', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(2)
+    completeToday() // Day 2 made here
+    at(3)
+    session.sync()
+    const c = repo.getActiveChallenge()!
+    // The phone missed Day 2 and its newer challenge row (a token spent)
+    // arrives, with its day data carrying the stale skip.
+    repo.saveChallenge({ ...c, skipTokensUsed: 1 })
+    const remote = { ...repo.getDayData(c.id), skips: [2], actionedMisses: [2] }
+    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    const { notice } = session.sync()
+    expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
+    expect(notice).toBeNull()
   })
 
   it('shortens an Extend challenge again when the missed day was made', () => {
@@ -639,5 +657,37 @@ describe('one notice per sync', () => {
     expect(notice?.message).toMatch(/Day 2 was made on another device/)
     expect(notice?.message).toMatch(/Day 4 was missed/)
     expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(1)
+  })
+  it('keeps the notice until it is dismissed, across a reload', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    expect(session.sync().notice?.kind).toBe('skip')
+    // A reload: a new session, and a sync with nothing new to say.
+    const again = createChallengeSession(repo, () => now)
+    expect(again.sync().notice).toBeNull()
+    expect(again.pendingNotice()?.message).toMatch(/Day 2 was missed/)
+    again.dismissNotice()
+    expect(createChallengeSession(repo, () => now).pendingNotice()).toBeNull()
+  })
+
+  it('keeps a notice with its own account', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync()
+    repo.switchUser({ ...USER, id: 'u2', email: 'c@d.com' })
+    expect(session.pendingNotice()).toBeNull()
+    repo.switchUser(USER)
+    expect(session.pendingNotice()?.kind).toBe('skip')
+  })
+
+  it('drops the notice when the attempt it was about ends', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync()
+    session.endAttempt()
+    expect(session.pendingNotice()).toBeNull()
   })
 })
