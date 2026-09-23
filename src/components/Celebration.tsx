@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Day } from '@/lib/types'
 import { Grid } from './Grid'
 
@@ -48,13 +48,18 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
     }
   }, [show, onDone])
 
-  if (!show) return null
-
   // Clear of whatever has focus (the button that made the day, the field
   // still being typed in): the card sits in the half of the screen it isn't.
-  const focused = typeof document !== 'undefined' ? document.activeElement : null
-  const r = focused && focused !== document.body ? focused.getBoundingClientRect() : null
-  const place = r && r.top + r.height / 2 < window.innerHeight / 2 ? 'low' : 'high'
+  // Decided once as the moment starts, so an autosave re-render or a scroll
+  // never makes the card jump.
+  const place = useMemo(() => {
+    if (!show || typeof document === 'undefined') return 'high'
+    const focused = document.activeElement
+    const r = focused && focused !== document.body ? focused.getBoundingClientRect() : null
+    return r && r.top + r.height / 2 < window.innerHeight / 2 ? 'low' : 'high'
+  }, [show])
+
+  if (!show) return null
 
   const message = milestone ?? { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
@@ -94,6 +99,8 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
           place-items: center;
           padding: 1rem;
           background: color-mix(in srgb, var(--paper) 55%, transparent);
+          /* Never in the way: the next tap still reaches the page. */
+          pointer-events: none;
         }
         .cel.high {
           align-items: start;
@@ -102,8 +109,6 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
         .cel.low {
           align-items: end;
           padding-bottom: max(1rem, 12vh);
-          /* Never in the way: the next tap still reaches the page. */
-          pointer-events: none;
         }
         .card {
           width: min(100%, 22rem);

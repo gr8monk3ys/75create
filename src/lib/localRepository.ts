@@ -7,6 +7,7 @@ import {
   PendingNotice,
   Repository,
   emptyDayData,
+  mergeDayData,
   newId,
 } from './repository'
 import { Artifact, Challenge, Log, User } from './types'
@@ -263,15 +264,16 @@ export class LocalRepository implements Repository {
   }
 
   /**
-   * Overwrite a challenge's entire day-data blob with a merged copy (sync).
-   * A miss this device had actioned that the new copy shows made is kept as
-   * restored, for the session to tell (takeRestoredMisses): this is the one
-   * place that still knows what the merge dropped.
+   * Merge another device's copy of a challenge's day data into this one
+   * (sync), and return the result. A miss this device had actioned that the
+   * merge shows made is kept as restored, for the session to tell
+   * (takeRestoredMisses): this is the one place that still knows what the
+   * merge dropped.
    */
-  replaceDayData(challengeId: string, data: DayData): void {
+  mergeRemoteDayData(challengeId: string, remote: DayData): DayData {
     const root = this.read()
     const before = this.dayDataFor(root, challengeId)
-    const next = { ...emptyDayData(), ...data }
+    const next = mergeDayData(before, { ...emptyDayData(), ...remote })
     const still = new Set([...next.skips, ...next.actionedMisses])
     const restored = [...new Set([...before.skips, ...before.actionedMisses])].filter(
       (d) => next.completions[d] && !still.has(d),
@@ -285,6 +287,7 @@ export class LocalRepository implements Repository {
     }
     root.dayData[challengeId] = next
     this.write(root)
+    return next
   }
 
   pendingNotice(): PendingNotice | null {

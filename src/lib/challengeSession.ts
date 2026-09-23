@@ -82,6 +82,13 @@ export interface Snapshot {
    * when there's nothing to end (finished rounds close with a new round).
    */
   ending: Ending | null
+  /**
+   * The notice not yet dismissed, for this attempt only (kept across
+   * reloads, per account): the only place a person learns a token was spent
+   * while they were away. Null when signed out or when it was about an
+   * attempt that has since ended.
+   */
+  notice: RolloverEvent | null
 }
 
 export type Ending = { kind: 'redo' } | { kind: 'stop'; day: number }
@@ -155,12 +162,7 @@ export interface ChallengeSession {
    * message (a restore and a newly spent token together, say), or null.
    */
   sync(): { snapshot: Snapshot; events: RolloverEvent[]; notice: RolloverEvent | null }
-  /**
-   * The last notice not yet dismissed (kept across reloads, per account), or
-   * null. A new sync's notice replaces it.
-   */
-  pendingNotice(): RolloverEvent | null
-  /** The person has read the notice. */
+  /** The person has read the snapshot's notice. */
   dismissNotice(): void
   /** Read without writing anything. */
   read(): Snapshot
@@ -287,6 +289,7 @@ export function createChallengeSession(
       creativeToday,
       dayCloses: closesAt(user.lateNightBufferHrs),
       ending,
+      notice: noticeFor(challenge),
       stakes: {
         policy: challenge.missPolicy,
         tokensLeft:
@@ -294,6 +297,12 @@ export function createChallengeSession(
         extraDays: challenge.extraDays ?? 0,
       },
     }
+  }
+
+  function noticeFor(challenge: Challenge): RolloverEvent | null {
+    const n = repo.pendingNotice()
+    if (!n || n.challengeId !== challenge.id) return null
+    return { kind: n.kind, message: n.message, days: n.days }
   }
 
   function statesOf(challenge: Challenge, dayData: DayData, user: User, now: Date) {
@@ -349,7 +358,7 @@ export function createChallengeSession(
 
     const told = challenge ? summarize(events, challenge) : []
     const notice = noticeOf(told)
-    if (notice) repo.setPendingNotice(notice)
+    if (notice && challenge) repo.setPendingNotice({ ...notice, challengeId: challenge.id })
     return { snapshot: snapshotOf(user, challenge, now), events: told, notice }
   }
 
@@ -556,7 +565,6 @@ export function createChallengeSession(
     const snap = read()
     const { challenge, user } = snap
     if (snap.phase !== 'reset-pending' || !challenge || !user) return
-    repo.setPendingNotice(null) // about the attempt that just ended
     repo.saveChallenge({
       ...challenge,
       status: 'archived',
@@ -589,7 +597,6 @@ export function createChallengeSession(
   function endAttempt(): void {
     const { challenge, ending, phase } = read()
     if (!challenge || !ending) return // finished rounds close with closeForNewRound
-    repo.setPendingNotice(null) // about the attempt that just ended
     repo.saveChallenge({
       ...challenge,
       status: 'archived',
@@ -623,7 +630,6 @@ export function createChallengeSession(
 
   return {
     sync,
-    pendingNotice: () => repo.pendingNotice(),
     dismissNotice: () => repo.setPendingNotice(null),
     read,
     toggleRule,
@@ -662,6 +668,7 @@ export function emptySnapshot(): Snapshot {
     dayCloses: '00:00',
     stakes: null,
     ending: null,
+    notice: null,
   }
 }
 

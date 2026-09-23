@@ -153,6 +153,8 @@ test.describe('the last day', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Day 75 of 75' })).toBeAttached()
 
     await completeToday(page)
+    // The moment never takes a tap from the page.
+    await expect(page.locator('.cel')).toHaveCSS('pointer-events', 'none')
     const finish = page.locator('#finish')
     await expect(finish).toContainText('See your recap')
     // Once the moment passes, the finish panel is on screen and focused.

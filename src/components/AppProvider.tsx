@@ -159,12 +159,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // to /signin.
   const [authKnown, setAuthKnown] = useState(!supabaseConfigured)
   const [snap, setSnap] = useState<Snapshot>(EMPTY)
-  const [banner, setBanner] = useState<Banner | null>(null)
 
   /** Apply rollover consequences and re-read. Surfaces any new consequence. */
   const sync = useCallback(() => {
     if (!session) return
-    const { snapshot, notice: told } = session.sync()
+    const { snapshot } = session.sync()
     // The day states and stakes only change at rollover or completion, not
     // on every autosave: keep the previous values while they're equal, so
     // the memoized grids and header don't re-render while someone types.
@@ -173,11 +172,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       days: sameDays(prev.days, snapshot.days) ? prev.days : snapshot.days,
       stakes: sameStakes(prev.stakes, snapshot.stakes) ? prev.stakes : snapshot.stakes,
     }))
-    // A skip or extension notice stays until dismissed, not until the next
-    // reload (the session keeps it, per account): it is the only place the
-    // person learns a token was spent while they were away.
-    const pending = snapshot.phase === 'signed-out' ? null : (told ?? session.pendingNotice())
-    setBanner(pending ? { kind: pending.kind, message: pending.message, count: pending.days.length } : null)
     setLoading(false)
   }, [session])
 
@@ -304,7 +298,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
     repo?.setSignedIn(false)
-    setBanner(null)
     sync()
   }, [sync, repo, supabase])
 
@@ -357,24 +350,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sync()
         return challenge
       },
-      confirmReset: write((s) => {
-        s.confirmReset()
-        setBanner(null)
-      }, undefined),
+      confirmReset: write((s) => s.confirmReset(), undefined),
       enterMaintenance: write((s) => s.enterMaintenance(), undefined),
       closeForNewRound: write((s) => s.closeForNewRound(), undefined),
-      endAttempt: write((s) => {
-        s.endAttempt()
-        setBanner(null)
-      }, undefined),
+      endAttempt: write((s) => s.endAttempt(), undefined),
       history: () => session?.history() ?? [],
     }
   }, [session, sync])
 
   const dismissBanner = useCallback(() => {
     session?.dismissNotice()
-    setBanner(null)
+    setSnap((prev) => ({ ...prev, notice: null }))
   }, [session])
+
+  // The session's notice (kept until dismissed, for this attempt only), in
+  // the banner's terms.
+  const banner = useMemo<Banner | null>(
+    () =>
+      snap.notice ? { kind: snap.notice.kind, message: snap.notice.message, count: snap.notice.days.length } : null,
+    [snap.notice],
+  )
 
   // Stable while the day states and numbers are (sync keeps equal `days`
   // and `stakes` objects from one snapshot to the next).

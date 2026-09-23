@@ -69,7 +69,7 @@ export default function SharePage() {
       </h1>
       <p className="sv-sub">
         {snap.takenAt
-          ? `A snapshot from ${longDay(snap.takenAt)}, read only. The owner chose to share it.`
+          ? `A snapshot from ${longDay(snap.takenAt)}${snap.takenAt.slice(0, 4) === String(new Date().getFullYear()) ? '' : ` ${snap.takenAt.slice(0, 4)}`}, read only. The owner chose to share it.`
           : 'Shared progress, read only. The owner chose to share this snapshot.'}
       </p>
 

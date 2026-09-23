@@ -8,7 +8,6 @@ import {
   createChallengeSession,
 } from '@/lib/challengeSession'
 import { DEFAULT_RULES, Rule, User } from '@/lib/types'
-import { mergeDayData } from '@/lib/repository'
 
 // The session is exercised through its interface only: a real LocalRepository
 // (happy-dom localStorage) and a clock the test moves forward.
@@ -517,7 +516,7 @@ describe('reconcile after sync', () => {
     // the stale skip before the session sees it.
     const remote = { ...repo.getDayData(c.id), skips: [], actionedMisses: [] }
     remote.completions = { ...remote.completions, 2: '2026-01-02T20:00:00.000Z' }
-    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    repo.mergeRemoteDayData(c.id, remote)
     expect(repo.getDayData(c.id).skips).toEqual([])
     const { events, notice } = session.sync()
     expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
@@ -535,7 +534,7 @@ describe('reconcile after sync', () => {
     const c = repo.getActiveChallenge()!
     const remote = { ...repo.getDayData(c.id), skips: [], actionedMisses: [] }
     remote.completions = { ...remote.completions, 2: '2026-01-02T20:00:00.000Z' }
-    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    repo.mergeRemoteDayData(c.id, remote)
     // A reload: the session that saw Day 2 missed is gone.
     const fresh = createChallengeSession(repo, () => now)
     const { snapshot, notice } = fresh.sync()
@@ -556,7 +555,7 @@ describe('reconcile after sync', () => {
     // arrives, with its day data carrying the stale skip.
     repo.saveChallenge({ ...c, skipTokensUsed: 1 })
     const remote = { ...repo.getDayData(c.id), skips: [2], actionedMisses: [2] }
-    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    repo.mergeRemoteDayData(c.id, remote)
     const { notice } = session.sync()
     expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
     expect(notice).toBeNull()
@@ -666,9 +665,9 @@ describe('one notice per sync', () => {
     // A reload: a new session, and a sync with nothing new to say.
     const again = createChallengeSession(repo, () => now)
     expect(again.sync().notice).toBeNull()
-    expect(again.pendingNotice()?.message).toMatch(/Day 2 was missed/)
+    expect(again.read().notice?.message).toMatch(/Day 2 was missed/)
     again.dismissNotice()
-    expect(createChallengeSession(repo, () => now).pendingNotice()).toBeNull()
+    expect(createChallengeSession(repo, () => now).read().notice).toBeNull()
   })
 
   it('keeps a notice with its own account', () => {
@@ -677,9 +676,14 @@ describe('one notice per sync', () => {
     at(3)
     session.sync()
     repo.switchUser({ ...USER, id: 'u2', email: 'c@d.com' })
-    expect(session.pendingNotice()).toBeNull()
+    repo.setSignedIn(true)
+    expect(session.read().notice).toBeNull()
     repo.switchUser(USER)
-    expect(session.pendingNotice()?.kind).toBe('skip')
+    repo.setSignedIn(true)
+    expect(session.read().notice?.kind).toBe('skip')
+    // Signed out, nothing shows.
+    repo.setSignedIn(false)
+    expect(session.read().notice).toBeNull()
   })
 
   it('drops the notice when the attempt it was about ends', () => {
@@ -688,6 +692,19 @@ describe('one notice per sync', () => {
     at(3)
     session.sync()
     session.endAttempt()
-    expect(session.pendingNotice()).toBeNull()
+    expect(session.read().notice).toBeNull()
+  })
+
+  it('never shows a notice on an attempt it wasn’t about', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync() // "Day 2 was missed…"
+    // The attempt is archived elsewhere (another device, or a new round) and
+    // a fresh one starts here.
+    const old = repo.getActiveChallenge()!
+    repo.saveChallenge({ ...old, status: 'archived', endedOnDay: 3, endedBy: 'person' })
+    session.start(draft({ missPolicy: 'grace' }))
+    expect(session.sync().snapshot.notice).toBeNull()
   })
 })

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
-import { RuleEditor, ruleNameId } from '@/components/RuleEditor'
+import { RuleEditor, ruleNameId, ruleRequiredId } from '@/components/RuleEditor'
 import { Icon } from '@/components/Icon'
 import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
 import { addDays } from '@/lib/creativeDay'
@@ -89,6 +89,7 @@ export default function Setup() {
     const nameless = rules.find((r) => r.name.trim() === '')
     const target =
       nameless ? document.getElementById(ruleNameId(nameless))
+      : !rules.some((r) => r.required) && rules[0] ? document.getElementById(ruleRequiredId(rules[0]))
       : step === 2 && startChoice === 'future' && !futureDate ? dateRef.current
       : null
     target?.focus()
@@ -301,8 +302,12 @@ export default function Setup() {
               </li>
               {dayCloses && (
                 <li>
-                  Each day stays open until {clockTime(dayCloses)}, so late-night work counts
-                  {startChoice === 'today' ? ' (today included)' : ''}
+                  {dayCloses === '00:00'
+                    ? 'Each day closes at midnight (Settings can give late-night work a few hours past it)'
+                    : <>
+                        Each day stays open until {clockTime(dayCloses)}, so late-night work counts
+                        {startChoice === 'today' ? ' (today included)' : ''}
+                      </>}
                 </li>
               )}
             </ul>

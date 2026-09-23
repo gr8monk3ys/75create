@@ -306,8 +306,7 @@ export class SyncedRepository implements Repository {
       // and honours the later undo), and whatever it adds goes back up so
       // both copies converge.
       const remote = { ...emptyDayData(), ...(row.data as DayData) }
-      const merged = mergeDayData(this.local.getDayData(row.challenge_id), remote)
-      this.local.replaceDayData(row.challenge_id, merged)
+      const merged = this.local.mergeRemoteDayData(row.challenge_id, remote)
       if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
         stamps.dayData[row.challenge_id] = row.updated_at
       }
@@ -428,13 +427,7 @@ export class SyncedRepository implements Repository {
           .maybeSingle()
         // Couldn't read what's there: don't write blind; retry next flush.
         if (current.error) continue
-        if (current.data?.data) {
-          const merged = mergeDayData(this.local.getDayData(id), {
-            ...emptyDayData(),
-            ...(current.data.data as DayData),
-          })
-          this.local.replaceDayData(id, merged)
-        }
+        if (current.data?.data) this.local.mergeRemoteDayData(id, current.data.data as DayData)
         const res = await this.client
           .from('day_data')
           .upsert({ challenge_id: id, user_id: this.userId, data: this.local.getDayData(id) })

@@ -14,6 +14,11 @@ export function ruleNameId(rule: Rule): string {
   return `rule-name-${rule.id}`
 }
 
+/** The id of a rule's "required" checkbox, for focusing it from outside. */
+export function ruleRequiredId(rule: Rule): string {
+  return `rule-required-${rule.id}`
+}
+
 /**
  * Grows a field to its content, so a rule is read in full before it locks
  * (CSS field-sizing does this where supported; this covers the rest).
@@ -36,7 +41,7 @@ export function RuleEditor({ rules, onChange }: Props) {
     // The button that had focus is gone: land on the rule that took its
     // place (or the one before it), so keyboard users stay in the list.
     const next = rest[Math.min(at, rest.length - 1)]
-    requestAnimationFrame(() => document.getElementById(`rule-name-${next.id}`)?.focus())
+    requestAnimationFrame(() => document.getElementById(ruleNameId(next))?.focus())
   }
   function add() {
     if (rules.length >= MAX_RULES) return
@@ -45,7 +50,7 @@ export function RuleEditor({ rules, onChange }: Props) {
     // Straight into naming it: the placeholder name is selected, so typing
     // replaces it.
     requestAnimationFrame(() => {
-      const input = document.getElementById(`rule-name-${rule.id}`) as HTMLTextAreaElement | null
+      const input = document.getElementById(ruleNameId(rule)) as HTMLTextAreaElement | null
       input?.focus()
       input?.select()
     })
@@ -59,7 +64,7 @@ export function RuleEditor({ rules, onChange }: Props) {
             <span className="idx font-mono">{String(i + 1).padStart(2, '0')}</span>
             {/* A one-line field that wraps: a long name is read whole. */}
             <textarea
-              id={`rule-name-${r.id}`}
+              id={ruleNameId(r)}
               ref={fit}
               rows={1}
               className="name-input font-display"
@@ -114,6 +119,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           />
           <label className="req-toggle font-mono">
             <input
+              id={ruleRequiredId(r)}
               type="checkbox"
               checked={r.required}
               onChange={(e) => update(r.id, { required: e.target.checked })}
@@ -232,6 +238,14 @@ export function RuleEditor({ rules, onChange }: Props) {
         }
         .add {
           align-self: flex-start;
+        }
+        /* Without field-sizing the height is set from script; if the width
+           changes after that (rotation, a late font), scroll, never clip. */
+        @supports not (field-sizing: content) {
+          .name-input,
+          .desc-input {
+            overflow-y: auto;
+          }
         }
       `}</style>
     </div>

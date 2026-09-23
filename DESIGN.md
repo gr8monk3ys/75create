@@ -253,7 +253,7 @@ One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, ch
 ### Buttons
 - **Shape:** full pill (999px), 44px minimum height.
 - **Primary:** ink fill with paper text, Space Mono uppercase 0.875rem with 0.04em tracking (0.85rem 1.4rem padding). Labels wrap inside the button at large text rather than widening the page.
-- **Disabled:** 55% opacity, no hover offset. A control that turns off under the keyboard (Add link once the field clears, Upload while compressing, Previous/Next at either end) uses `aria-disabled` so it keeps focus; `disabled` is only for controls that were never reachable.
+- **Disabled:** dimmed by colour (the ink mixed 42% into the paper), not opacity, so a focus ring on it keeps full strength; no hover offset. A control that turns off under the keyboard (Add link once the field clears, Upload while compressing, Previous/Next at either end) uses `aria-disabled` so it keeps focus; `disabled` is only for controls that were never reachable.
 - **Hover / Focus:** hover lifts 2px with a coral misregistration offset (hover devices only). Focus is a 3px cobalt outline with a 2px offset.
 - **Ghost:** transparent with an ink border; its hover offset is cobalt.
 - **Danger:** a coral-ink fill with white text (dark: paper text), used only for the two acts that can't be taken back: deleting the account, and confirming the end of a running challenge.

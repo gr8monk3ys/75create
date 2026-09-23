@@ -167,7 +167,7 @@ export default function Recap() {
         ) : (
           <ol className="timeline">
             {artifactDays.map(({ day, artifacts }) => (
-              <li key={day} id={`day-${day}`} className="tl-day">
+              <li key={day} className="tl-day">
                 <h3 className="tl-num font-mono">Day {day}</h3>
                 <div className="tl-arts">
                   {artifacts.map((a) => (

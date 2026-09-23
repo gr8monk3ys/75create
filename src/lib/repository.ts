@@ -124,6 +124,8 @@ export function newUser(id: string, email: string, now: Date = new Date()): User
 
 /** A consequence the person was told about, kept until they dismiss it. */
 export interface PendingNotice {
+  /** The attempt it's about: it's never shown for another one. */
+  challengeId: string
   kind: 'skip' | 'extend' | 'restore'
   message: string
   days: number[]
