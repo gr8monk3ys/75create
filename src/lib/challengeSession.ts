@@ -15,7 +15,7 @@ import {
   missConsequence,
   streaks,
 } from './challengeEngine'
-import { creativeDate } from './creativeDay'
+import { creativeDate, daysBetween, localDate, localTime } from './creativeDay'
 import { clockTime, longDay } from './format'
 import {
   Artifact,
@@ -74,6 +74,8 @@ export interface Snapshot {
   creativeToday: string
   /** Local wall-clock time ("HH:MM") at which today's creative day closes. */
   dayCloses: string
+  /** The instant (ISO) today's creative day closes, for a countdown. '' when signed out. */
+  dayClosesAt: string
   /** What a miss costs, so the dashboard can keep the stakes visible. */
   stakes: Stakes | null
   /**
@@ -240,6 +242,7 @@ export function createChallengeSession(
       user,
       creativeToday,
       dayCloses: user ? closesAt(user.lateNightBufferHrs) : '00:00',
+      dayClosesAt: user ? closingInstant(now, user.tz, user.lateNightBufferHrs, creativeToday) : '',
     }
     if (!user || !challenge) return empty
 
@@ -288,6 +291,7 @@ export function createChallengeSession(
       missedDay: phase === 'reset-pending' ? pending!.index : null,
       creativeToday,
       dayCloses: closesAt(user.lateNightBufferHrs),
+      dayClosesAt: closingInstant(now, user.tz, user.lateNightBufferHrs, creativeToday),
       ending,
       notice: noticeFor(challenge),
       stakes: {
@@ -667,6 +671,7 @@ export function emptySnapshot(): Snapshot {
     creativeToday: '',
     dayCloses: '00:00',
     stakes: null,
+    dayClosesAt: '',
     ending: null,
     notice: null,
   }
@@ -797,6 +802,20 @@ function firstPendingMiss(days: Day[], dayData: DayData): Day | undefined {
 function isFinished(days: Day[], currentIndex: number): boolean {
   const last = days[days.length - 1]
   return currentIndex > days.length || last?.state === 'complete'
+}
+
+/**
+ * When the creative day `creativeToday` closes: the local midnight after it,
+ * plus the buffer. Counted from the local wall clock (a DST shift that night
+ * moves it by the hour it moves the clock).
+ */
+function closingInstant(now: Date, tz: string, bufferHrs: number, creativeToday: string): string {
+  const [h, m] = localTime(now, tz).split(':').map(Number)
+  const intoNextDay = daysBetween(creativeToday, localDate(now, tz)) // 0 before midnight, 1 after
+  const minutesLeft = (1 - intoNextDay) * 1440 + Math.round(bufferHrs) * 60 - (h * 60 + m)
+  const at = new Date(now.getTime() + minutesLeft * 60_000)
+  at.setSeconds(0, 0)
+  return at.toISOString()
 }
 
 /** The local time the creative day closes: midnight plus the buffer. */

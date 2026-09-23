@@ -237,6 +237,18 @@ test.describe('settings', () => {
   })
 })
 
+test.describe('the clock', () => {
+  test.use({ timezoneId: 'UTC' })
+
+  test('the last hour of an unmade day says how long is left', async ({ page }) => {
+    // 02:50 on the 24th is still the 23rd under the default 3h buffer.
+    await page.clock.setFixedTime(new Date('2026-09-24T02:50:00Z'))
+    await startChallenge(page, 'late@75create.test')
+    await expect(page.locator('#check-in .dc-meta')).toContainText('closes in 10 minutes')
+    await expect(page.locator('#check-in [role=status]')).toHaveText('Today closes in 10 minutes.')
+  })
+})
+
 test.describe('setup', () => {
   test('a blocked Next goes to what blocks it', async ({ page }) => {
     await page.goto('/signin')
@@ -259,6 +271,9 @@ test.describe('setup', () => {
     await expect(page.getByRole('heading', { name: 'Your daily rules' })).toBeVisible()
 
     await first.fill('Draw for 30 minutes')
+    // A reload keeps the draft.
+    await page.reload()
+    await expect(page.getByLabel('Rule 1 name')).toHaveValue('Draw for 30 minutes')
     await next.click()
     await expect(page.getByRole('heading', { name: 'Set your stakes' })).toBeVisible()
     // The lock-in lists the rules themselves, and the real dates.

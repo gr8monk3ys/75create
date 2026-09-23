@@ -242,7 +242,7 @@ function SettingsForm({ user }: { user: User }) {
         <h2 className="font-display block-h2">Time zone</h2>
         <p className="block-sub">
           Your day rolls over in this time zone. It was set from this device when
-          you signed up; if you travel or move, switch it here.
+          you signed up; if you travel or move, this page offers the new one.
         </p>
         <div className="tz-row">
           <span className="tz-current font-mono">{user.tz}</span>
@@ -421,11 +421,11 @@ function SettingsForm({ user }: { user: User }) {
           flex-wrap: wrap;
         }
         .tz-current {
+          /* A value, not a control: plain text, so it isn't mistaken for a
+             chip to press. */
           font-size: 0.875rem;
+          font-weight: 700;
           color: var(--ink);
-          background: var(--paper-3);
-          border-radius: 10px;
-          padding: 0.5rem 0.75rem;
         }
         .chips {
           display: flex;

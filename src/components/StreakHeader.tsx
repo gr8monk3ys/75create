@@ -63,8 +63,9 @@ export const StreakHeader = memo(function StreakHeader({
           )}
         </dd>
       </div>
-      {/* No streak before Day 1: a zero for a challenge not yet begun. */}
-      {!after && !ended && day > 0 && (
+      {/* No streak before there's one to show: not before Day 1, and not
+          as a zero on a Day 1 still to make. */}
+      {!after && !ended && day > 0 && (current > 0 || longest > 0) && (
         <div className="stat">
           <dt>Streak</dt>
           <dd className="num font-display">
@@ -155,6 +156,26 @@ export const StreakHeader = memo(function StreakHeader({
         }
         .stat-day {
           margin-right: auto;
+        }
+        @media (max-width: 30em) {
+          /* A phone: the status is one tight block, so the check-in starts
+             on the first screen. The day and the streak share a row. */
+          .head {
+            gap: 0.5rem 1.25rem;
+            align-items: baseline;
+          }
+          .stat {
+            gap: 0.15rem;
+          }
+          .stat-day {
+            margin-right: 0;
+          }
+          .big {
+            font-size: clamp(2rem, 11vw, 2.8rem);
+          }
+          .num {
+            font-size: clamp(1.25rem, 6vw, 1.8rem);
+          }
         }
       `}</style>
     </dl>

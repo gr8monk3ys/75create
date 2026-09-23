@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
+import { Grid } from '@/components/Grid'
 import { encodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 
 export default function ShareGenerator() {
@@ -112,9 +113,19 @@ export default function ShareGenerator() {
       <h1 className="font-display sg-h1">Share a read-only link to your grid.</h1>
       <p className="sg-sub">
         Anyone with the link sees your grid, streak and medium — nothing else, no account
-        needed. The link carries a snapshot from right now; generate a fresh one to
-        update it.
+        needed. The link carries a snapshot from today; come back here for a fresh
+        one when you want to share where you are then.
       </p>
+
+      {/* What they'll see: the grid as of today, the day open now drawn as
+          still to come (the viewer shows no live "today"). */}
+      <figure className="sg-preview panel">
+        <Grid
+          days={derived.days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))}
+          compact
+        />
+        <figcaption className="font-mono sg-cap">What they’ll see, as of today</figcaption>
+      </figure>
 
       <label className="toggle">
         <input
@@ -175,6 +186,16 @@ export default function ShareGenerator() {
           color: var(--ink-soft);
           line-height: 1.55;
           margin: 0 0 2rem;
+        }
+        .sg-preview {
+          margin: 0 0 1.5rem;
+          padding: 1rem;
+          max-width: 24rem;
+        }
+        .sg-cap {
+          margin-top: 0.6rem;
+          font-size: 0.75rem;
+          color: var(--muted);
         }
         .toggle {
           display: flex;

@@ -64,6 +64,8 @@ interface AppValue {
   creativeToday: string
   /** Local "HH:MM" at which today's creative day closes. */
   dayCloses: string
+  /** The instant (ISO) today closes, for the last-hour countdown. */
+  dayClosesAt: string
   stakes: Stakes | null
   /** What ending the challenge now would do, or null (see Snapshot.ending). */
   ending: Ending | null
@@ -414,6 +416,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       missedDay: snap.missedDay,
       creativeToday: snap.creativeToday,
       dayCloses: snap.dayCloses,
+      dayClosesAt: snap.dayClosesAt,
       stakes: snap.stakes,
       ending: snap.ending,
       banner,

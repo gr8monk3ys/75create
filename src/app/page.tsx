@@ -1,10 +1,11 @@
-import Link from 'next/link'
 import { Grid } from '@/components/Grid'
-import { AccountLink } from '@/components/AccountLink'
+import { AccountLink, StartLink } from '@/components/AccountLink'
 import { DEFAULT_RULES, Day, TOTAL_DAYS } from '@/lib/types'
 import { POLICY_NAMES, POLICY_PITCHES } from '@/lib/format'
 
 // A deterministic mid-challenge sample so the landing shows the brand in motion.
+// A state the rules can produce: a Grace run on Day 34 with two skip tokens
+// spent (under Grace a miss only comes once the tokens are gone, and ends it).
 function sampleDays(): Day[] {
   const days: Day[] = []
   const today = 34
@@ -13,7 +14,6 @@ function sampleDays(): Day[] {
     if (i === today) state = 'today'
     else if (i > today) state = 'future'
     else if (i === 12 || i === 27) state = 'skipped'
-    else if (i === 19) state = 'missed'
     else state = 'complete'
     days.push({ challengeId: 'demo', index: i, state, completedAt: null })
   }
@@ -50,9 +50,7 @@ export default function Home() {
               you walk away with 75 days of proof you made something.
             </p>
             <div className="cta-row">
-              <Link href="/signin" className="btn">
-                Start my 75
-              </Link>
+              <StartLink />
               <span className="free-note font-mono">
                 Free. No ads. Private by default.
               </span>
@@ -61,7 +59,7 @@ export default function Home() {
 
           <div className="hero-grid panel">
             <div className="grid-caption">
-              <span className="grid-sample font-mono">Example grid · day 34 of 75</span>
+              <span className="grid-sample font-mono">Example grid · Grace, 1 skip left · day 34 of 75</span>
               <span className="grid-legend font-mono" aria-hidden>
                 <span>
                   <i className="sw sw-c" /> made
@@ -123,9 +121,7 @@ export default function Home() {
 
         <section className="closer">
           <h2 className="font-display sec-h2">Start the grid.</h2>
-          <Link href="/signin" className="btn">
-            Start my 75
-          </Link>
+          <StartLink />
         </section>
 
       </main>

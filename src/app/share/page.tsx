@@ -13,10 +13,15 @@ export default function SharePage() {
 
   useEffect(() => {
     // The snapshot lives in the URL fragment, which is never sent to the
-    // server and is unreadable during render — decode it after mount.
-    const fragment = window.location.hash.replace(/^#/, '')
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSnap(fragment ? decodeSnapshot(fragment) : null)
+    // server and is unreadable during render — decode it after mount, and
+    // again whenever another link is opened in this tab.
+    const read = () => {
+      const fragment = window.location.hash.replace(/^#/, '')
+      setSnap(fragment ? decodeSnapshot(fragment) : null)
+    }
+    read()
+    window.addEventListener('hashchange', read)
+    return () => window.removeEventListener('hashchange', read)
   }, [])
 
   if (snap === undefined) {

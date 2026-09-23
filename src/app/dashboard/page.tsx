@@ -582,12 +582,15 @@ export default function Dashboard() {
             /* In em, so large text also gets the single column. */
             .mini-grid {
               display: block;
-              margin-top: 1.25rem;
-              max-width: 22rem;
+              margin-top: 1rem;
+              /* The mark, not a second full grid: small enough that the
+                 check-in starts on the first screen. */
+              max-width: min(15rem, 100%);
               border-radius: 10px;
             }
             .main-cols {
               grid-template-columns: minmax(0, 1fr);
+              margin-top: 1.25rem;
             }
             .grid-panel {
               position: static;

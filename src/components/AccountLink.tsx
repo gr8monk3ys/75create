@@ -13,3 +13,14 @@ export function AccountLink() {
     </Link>
   )
 }
+
+/** The landing's main call to action: starting one, or back to the one running. */
+export function StartLink() {
+  const { loading, user, challenge } = useApp()
+  const running = !loading && user !== null && challenge !== null
+  return (
+    <Link href={running ? '/dashboard' : '/signin'} className="btn">
+      {running ? 'Back to your grid' : 'Start my 75'}
+    </Link>
+  )
+}

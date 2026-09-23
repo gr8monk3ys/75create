@@ -66,7 +66,6 @@ export default function SignIn() {
                 autoCapitalize="none"
                 spellCheck={false}
                 required
-                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@studio.com"

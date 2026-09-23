@@ -73,6 +73,18 @@ const CELEBRATION_PAUSE_MS = 1500
 /** How long typing pauses before the log is saved. */
 const LOG_SAVE_DELAY_MS = 600
 
+/** Whole minutes until `iso`, refreshed every 20s; null when it's unknown or passed. */
+function useMinutesLeft(iso: string): number | null {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 20_000)
+    return () => clearInterval(t)
+  }, [])
+  const at = Date.parse(iso)
+  if (!iso || Number.isNaN(at) || at <= now) return null
+  return Math.ceil((at - now) / 60_000)
+}
+
 export function DayCard({
   challenge,
   dayIndex,
@@ -83,7 +95,7 @@ export function DayCard({
   maintenance = false,
   onComplete,
 }: Props) {
-  const { toggleRule, saveLog, derived, supabaseEnabled } = useApp()
+  const { toggleRule, saveLog, derived, supabaseEnabled, dayClosesAt } = useApp()
   const totalDays = derived.totalDays
   const completed = !maintenance && Boolean(dayData.completions[dayIndex])
   // The log's draft (see lib/logDraft): seeded from storage, saved after a
@@ -279,6 +291,16 @@ export function DayCard({
 
   const artifacts = dayData.artifacts[dayIndex] ?? []
   const closes = clockTime(dayCloses)
+  const closingIn = useMinutesLeft(dayClosesAt)
+  // The last hour of an unmade day is the one moment a glance should change
+  // what someone does: say how long is left, plainly, once.
+  const closing = !completed && !maintenance && closingIn !== null && closingIn <= 60
+  const toldClosing = useRef(false)
+  useEffect(() => {
+    if (!closing || toldClosing.current) return
+    toldClosing.current = true
+    setAnnounce(`Today closes in ${closingIn} ${closingIn === 1 ? 'minute' : 'minutes'}.`)
+  }, [closing, closingIn])
 
   const logField = (labelId: string, statusId?: string) => (
     <div className="field">
@@ -340,7 +362,17 @@ export function DayCard({
               ? `Day ${dayIndex} · maintenance: log what you made, no rules`
               : completed
                 ? `Day ${dayIndex} is on the grid`
-                : <><span className="sr-only">Day {dayIndex}: </span>{metCount} of {needed.length} done · open until {closes}</>}
+                : <>
+                    <span className="sr-only">Day {dayIndex}: </span>
+                    {metCount} of {needed.length} done ·{' '}
+                    {closing ? (
+                      <span className="closing">
+                        closes in {closingIn} {closingIn === 1 ? 'minute' : 'minutes'}
+                      </span>
+                    ) : (
+                      `open until ${closes}`
+                    )}
+                  </>}
           </p>
         </div>
         {completed && (
@@ -585,6 +617,11 @@ export function DayCard({
           font-family: var(--font-mono);
           font-size: 0.8rem;
           color: var(--ink-soft);
+        }
+        /* A stake, so coral-ink: stated, not flashing. */
+        .closing {
+          color: var(--coral-ink);
+          font-weight: 700;
         }
         .stamp {
           /* Pressed onto the card's corner, over its edge like a rubber stamp,

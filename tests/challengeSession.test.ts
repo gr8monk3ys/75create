@@ -75,6 +75,17 @@ describe('phases', () => {
     expect(s.stakes).toEqual({ policy: 'classic', tokensLeft: null, extraDays: 0 })
   })
 
+  it('says the instant today closes, before and after midnight', () => {
+    session.start(draft())
+    // Noon on Day 1: it closes at 03:00 the next morning.
+    expect(session.read().dayClosesAt).toBe('2026-01-02T03:00:00.000Z')
+    // 02:50 on Jan 2 is still Day 1 under the 3h buffer: ten minutes left.
+    at(2, 2)
+    now = new Date(Date.UTC(2026, 0, 2, 2, 50, 30))
+    expect(session.read().currentIndex).toBe(1)
+    expect(session.read().dayClosesAt).toBe('2026-01-02T03:00:00.000Z')
+  })
+
   it('is prestart until a future start date arrives', () => {
     session.start(draft({ start: '2026-01-05' }))
     expect(session.read().phase).toBe('prestart')

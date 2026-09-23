@@ -29,6 +29,39 @@ const MEDIA: { id: Medium; label: string }[] = [
 
 const POLICY_ORDER: MissPolicy[] = ['classic', 'grace', 'extend']
 
+const DRAFT_KEY = '75create.setupDraft'
+
+interface SetupDraft {
+  step: number
+  medium: Medium
+  rules: Rule[]
+  policy: MissPolicy
+  startChoice: 'today' | 'future'
+  futureDate: string
+  why: string
+}
+
+function readDraft(): SetupDraft | null {
+  try {
+    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as SetupDraft | null
+    // Only a draft of the expected shape: anything else starts fresh.
+    if (!d || !Array.isArray(d.rules) || !MEDIA.some((m) => m.id === d.medium)) return null
+    if (!POLICY_ORDER.includes(d.policy) || ![0, 1, 2].includes(d.step)) return null
+    return d
+  } catch {
+    return null
+  }
+}
+
+function writeDraft(d: SetupDraft | null) {
+  try {
+    if (d) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d))
+    else sessionStorage.removeItem(DRAFT_KEY)
+  } catch {
+    /* storage unavailable: the draft just won't survive a reload */
+  }
+}
+
 export default function Setup() {
   const { user, challenge, creativeToday, dayCloses, startChallenge, loading } = useApp()
   const router = useRouter()
@@ -46,6 +79,28 @@ export default function Setup() {
   const [why, setWhy] = useState('')
 
   const [error, setError] = useState<string | null>(null)
+
+  // The draft outlives a reload or an evicted tab (setup is the most typing
+  // in the app, often on a phone): kept for this tab until Start.
+  const [restored, setRestored] = useState(false)
+  useEffect(() => {
+    const d = readDraft()
+    if (d) {
+      /* eslint-disable react-hooks/set-state-in-effect -- restoring a saved draft once, after mount */
+      setStep(d.step)
+      setMedium(d.medium)
+      setRules(d.rules)
+      setPolicy(d.policy)
+      setStartChoice(d.startChoice)
+      setFutureDate(d.futureDate)
+      setWhy(d.why)
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+    setRestored(true)
+  }, [])
+  useEffect(() => {
+    if (restored) writeDraft({ step, medium, rules, policy, startChoice, futureDate, why })
+  }, [restored, step, medium, rules, policy, startChoice, futureDate, why])
 
   useEffect(() => {
     if (loading) return
@@ -103,6 +158,7 @@ export default function Setup() {
     if (!canFinish) return showProblem()
     try {
       startChallenge(draft)
+      writeDraft(null)
       router.push('/dashboard')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the challenge.')
