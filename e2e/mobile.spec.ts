@@ -53,6 +53,41 @@ test.describe('mobile', () => {
     expect(small).toEqual([])
   })
 
+  test('controls on settings, setup and the grid foot are thumb-sized', async ({ page }) => {
+    await startChallenge(page, 'mobile-targets-2@75create.test')
+
+    const tooSmall = (selector: string) =>
+      page.evaluate((sel) => {
+        const out: string[] = []
+        for (const el of document.querySelectorAll(sel)) {
+          const r = el.getBoundingClientRect()
+          if (r.width === 0 || r.height === 0) continue
+          if (r.height < 44) out.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 24)}" ${Math.round(r.height)}px`)
+        }
+        return out
+      }, selector)
+
+    await page.goto('/settings')
+    await page.locator('input[type=checkbox]').first().check()
+    expect(await tooSmall('main button, main input:not([type=checkbox]), main a.back-link')).toEqual([])
+
+    // Setup is only reachable without a running challenge: close this one.
+    await page.goto('/dashboard')
+    expect(await tooSmall('.grid-foot button, .detail button')).toEqual([])
+
+    await page.evaluate(() => {
+      const root = JSON.parse(localStorage.getItem('75create.v1')!)
+      root.challenges = []
+      localStorage.setItem('75create.v1', JSON.stringify(root))
+    })
+    await page.goto('/setup')
+    expect(await tooSmall('main button, main input, main textarea')).toEqual([])
+    await page.getByRole('button', { name: 'Next: rules' }).click()
+    expect(
+      await tooSmall('main button, main input:not([type=checkbox]), .req-toggle'),
+    ).toEqual([])
+  })
+
   test('the grid stays visible and legible', async ({ page }) => {
     await startChallenge(page, 'mobile-grid@75create.test')
 

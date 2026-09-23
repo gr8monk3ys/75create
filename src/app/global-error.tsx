@@ -36,18 +36,6 @@ export default function GlobalError({
         }}
       >
         <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
-          <p
-            style={{
-              fontFamily: 'ui-monospace, monospace',
-              fontSize: '0.72rem',
-              letterSpacing: '0.24em',
-              textTransform: 'uppercase',
-              color: '#8a8274',
-              margin: 0,
-            }}
-          >
-            Something broke
-          </p>
           <h1 style={{ fontSize: '2.2rem', margin: '0.5rem 0 0.75rem', lineHeight: 1.05 }}>
             75 Create couldn’t start.
           </h1>

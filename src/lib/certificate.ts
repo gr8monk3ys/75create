@@ -7,8 +7,12 @@ export interface CertData {
   dayStates: DayState[]
   longest: number
   completedDays: number
-  totalMinutes: number
+  /** Days with a written log. */
+  logsWritten: number
+  /** Images and links kept. */
+  artifactsKept: number
   medium: string
+  /** Already formatted for reading, e.g. "23 Sep 2026". */
   startDate: string
 }
 
@@ -16,12 +20,12 @@ const COLORS: Record<string, { paper: string; ink: string; sub: string; line: st
   light: {
     paper: '#efe9dc',
     ink: '#1b1a17',
-    sub: '#8a8274',
+    sub: '#625b4e',
     line: '#d6ccb8',
     cobalt: '#2340d8',
     coral: '#f5462d',
     marigold: '#e0910f',
-    missed: '#cdbfa6',
+    missed: '#7d7463',
   },
 }
 
@@ -61,7 +65,12 @@ export function generateCertificate(data: CertData): Promise<Blob> {
   // title
   ctx.fillStyle = c.ink
   ctx.font = '800 88px sans-serif'
-  ctx.fillText('75 days, made.', 68, 190)
+  const total = data.dayStates.length
+  ctx.fillText(
+    data.completedDays >= total ? `${total} days, made.` : `${data.completedDays} days, made.`,
+    68,
+    190,
+  )
 
   // subtitle
   ctx.fillStyle = c.sub
@@ -73,10 +82,12 @@ export function generateCertificate(data: CertData): Promise<Blob> {
   )
 
   // stats
+  // Only what was recorded: the app never measures time, so no minutes.
   const stats: [string, string][] = [
-    [String(data.completedDays), 'days completed'],
+    [String(data.completedDays), 'days made'],
     [String(data.longest), 'longest streak'],
-    [`${data.totalMinutes.toLocaleString()}+`, 'minutes created'],
+    [String(data.logsWritten), 'logs written'],
+    [String(data.artifactsKept), 'pieces kept'],
   ]
   let sx = 70
   stats.forEach(([big, label]) => {
@@ -86,7 +97,7 @@ export function generateCertificate(data: CertData): Promise<Blob> {
     ctx.fillStyle = c.sub
     ctx.font = '600 18px monospace'
     ctx.fillText(label.toUpperCase(), sx, 372)
-    sx += 320
+    sx += 265
   })
 
   // the grid mosaic

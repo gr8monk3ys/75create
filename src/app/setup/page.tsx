@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
 import { RuleEditor } from '@/components/RuleEditor'
@@ -61,8 +61,23 @@ export default function Setup() {
     start: startChoice === 'today' || !futureDate ? 'today' : futureDate,
     whyNote: why,
   }
-  const problem = draftProblem(draft)
+  const problem =
+    step === 2 && startChoice === 'future' && !futureDate
+      ? 'Pick a start date, or choose Today.'
+      : draftProblem(draft)
   const canFinish = problem === null
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // Each step replaces the last: move focus to its heading so keyboard and
+  // screen-reader users land at the top of the new step, not on the page.
+  const [moved, setMoved] = useState(false)
+  useEffect(() => {
+    if (moved) headingRef.current?.focus()
+  }, [step, moved])
+  function go(to: number) {
+    setMoved(true)
+    setStep(to)
+  }
 
   // A picked start date is tomorrow at the earliest, in the user's creative day.
   const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
@@ -93,7 +108,9 @@ export default function Setup() {
 
       {step === 0 && (
         <section className="pane">
-          <h1 className="font-display setup-h1">What are you making?</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            What are you making?
+          </h1>
           <p className="sub">This just tailors the wording. You can mix media freely.</p>
           <div className="media-grid">
             {MEDIA.map((m) => (
@@ -111,7 +128,7 @@ export default function Setup() {
           </div>
           <div className="nav-row">
             <span />
-            <button className="btn" onClick={() => setStep(1)}>
+            <button className="btn" onClick={() => go(1)}>
               Next: rules
             </button>
           </div>
@@ -120,17 +137,19 @@ export default function Setup() {
 
       {step === 1 && (
         <section className="pane">
-          <h1 className="font-display setup-h1">Your daily rules</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            Your daily rules
+          </h1>
           <p className="sub">
             Start from the default five or make them yours — 3 to 7 tasks. These
             lock once you begin.
           </p>
           <RuleEditor rules={rules} onChange={setRules} />
           <div className="nav-row">
-            <button className="btn btn-ghost" onClick={() => setStep(0)}>
+            <button className="btn btn-ghost" onClick={() => go(0)}>
               Back
             </button>
-            <button className="btn" onClick={() => setStep(2)} disabled={!canFinish}>
+            <button className="btn" onClick={() => go(2)} disabled={!canFinish}>
               Next: stakes
             </button>
           </div>
@@ -144,7 +163,9 @@ export default function Setup() {
 
       {step === 2 && (
         <section className="pane">
-          <h1 className="font-display setup-h1">Set your stakes</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            Set your stakes
+          </h1>
 
           <div className="policy-choices">
             {POLICIES.map((p) => (
@@ -163,7 +184,7 @@ export default function Setup() {
           <p className="lock-note font-mono">This choice locks when you start. Choose honestly.</p>
 
           <div className="start-block">
-            <span className="field-label font-mono" id="start-label">Start date</span>
+            <span className="field-label" id="start-label">Start date</span>
             <div className="start-row" role="group" aria-labelledby="start-label">
               <button
                 type="button"
@@ -184,7 +205,7 @@ export default function Setup() {
               {startChoice === 'future' && (
                 <input
                   type="date"
-                  className="date"
+                  className="field-input date"
                   aria-label="Start date"
                   value={futureDate}
                   min={tomorrow}
@@ -195,7 +216,7 @@ export default function Setup() {
           </div>
 
           <div className="why-block">
-            <label className="field-label font-mono" htmlFor="why">
+            <label className="field-label" htmlFor="why">
               Why are you starting?
             </label>
             <p className="why-hint" id="why-hint">
@@ -204,7 +225,7 @@ export default function Setup() {
             <textarea
               id="why"
               aria-describedby="why-hint"
-              className="why-input"
+              className="field-input why-input"
               rows={3}
               value={why}
               onChange={(e) => setWhy(e.target.value)}
@@ -213,7 +234,7 @@ export default function Setup() {
           </div>
 
           <div className="nav-row">
-            <button className="btn btn-ghost" onClick={() => setStep(1)}>
+            <button className="btn btn-ghost" onClick={() => go(1)}>
               Back
             </button>
             <button className="btn" onClick={finish} disabled={!canFinish}>
@@ -256,6 +277,12 @@ export default function Setup() {
         }
         .step.done {
           color: var(--ink);
+        }
+        .date {
+          width: auto;
+        }
+        .setup-h1:focus {
+          outline: none;
         }
         .setup-h1 {
           font-size: clamp(2rem, 6vw, 3rem);
@@ -339,16 +366,9 @@ export default function Setup() {
           font-size: 0.92rem;
         }
         .lock-note {
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin: 0.9rem 0 2rem;
-        }
-        .field-label {
-          font-size: 0.7rem;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: var(--muted);
-          display: block;
         }
         .start-row {
           display: flex;
@@ -356,31 +376,6 @@ export default function Setup() {
           margin-top: 0.6rem;
           flex-wrap: wrap;
           align-items: center;
-        }
-        .chip {
-          min-height: 44px;
-          padding: 0.55rem 1.1rem;
-          border-radius: 999px;
-          border: 1.5px solid var(--line);
-          background: var(--paper-2);
-          color: var(--ink);
-          cursor: pointer;
-          font-family: var(--font-mono);
-          font-size: 0.8rem;
-        }
-        .chip.sel {
-          border-color: var(--cobalt);
-          background: color-mix(in srgb, var(--cobalt) 12%, var(--paper-2));
-        }
-        .date {
-          font-family: var(--font-body);
-          font-size: 1rem;
-          min-height: 44px;
-          padding: 0.5rem 0.75rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
         }
         .start-block,
         .why-block {
@@ -390,20 +385,6 @@ export default function Setup() {
           color: var(--ink-soft);
           font-size: 0.85rem;
           margin: 0.4rem 0 0.7rem;
-        }
-        .why-input {
-          width: 100%;
-          font-family: var(--font-body);
-          font-size: 1rem;
-          padding: 0.85rem 1rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-          resize: vertical;
-        }
-        .why-input:focus {
-          border-color: var(--cobalt);
         }
       `}</style>
     </main>

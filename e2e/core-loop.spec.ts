@@ -45,6 +45,12 @@ test.describe('core loop', () => {
     test.skip(isMobile, 'keyboard shortcuts are a desktop accelerator')
     await startChallenge(page, 'keys@75create.test')
 
+    // Outside the card the keys do nothing: a stray digit can't change data.
+    await page.locator('body').click({ position: { x: 5, y: 5 } })
+    await page.keyboard.press('1')
+    await expect(page.locator('button.check').first()).toHaveAttribute('aria-pressed', 'false')
+
+    await page.locator('#check-in').focus()
     await page.keyboard.press('1')
     await expect(page.locator('button.check').first()).toHaveAttribute('aria-pressed', 'true')
     await page.keyboard.press('n')
@@ -150,7 +156,7 @@ test.describe('sharing', () => {
     await expect(page.locator('.count').first()).toHaveText(/Saved/)
 
     await page.goto('/dashboard/share')
-    const link = (await page.locator('code.link').innerText()).trim()
+    const link = (await page.locator('#share-link').inputValue()).trim()
     expect(link).toContain('#')
 
     await page.goto(link.slice(link.indexOf('/share')))

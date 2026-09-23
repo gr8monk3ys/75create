@@ -52,8 +52,15 @@ export function RuleEditor({ rules, onChange }: Props) {
               <Icon name="close" size={18} />
             </button>
           </div>
+          {r.evidence && (
+            <p className="evidence-note">
+              {r.evidence === 'log'
+                ? 'Met by writing the day’s log.'
+                : 'Met by adding an image or a link.'}
+            </p>
+          )}
           <textarea
-            className="desc-input"
+            className="field-input desc-input"
             value={r.description}
             onChange={(e) => update(r.id, { description: e.target.value })}
             placeholder="Describe what counts…"
@@ -65,6 +72,7 @@ export function RuleEditor({ rules, onChange }: Props) {
               type="checkbox"
               checked={r.required}
               onChange={(e) => update(r.id, { required: e.target.checked })}
+              aria-label={`Task ${i + 1} (${r.name.trim() || 'unnamed'}) is required to complete the day`}
             />
             Required to complete the day
           </label>
@@ -103,10 +111,14 @@ export function RuleEditor({ rules, onChange }: Props) {
         }
         .name-input {
           flex: 1;
+          /* Without this the input's intrinsic width pushes the remove
+             button off a 320px screen. */
+          min-width: 0;
+          min-height: 44px;
           font-size: 1.15rem;
           background: transparent;
           border: none;
-          border-bottom: 1.5px solid transparent;
+          border-bottom: 1.5px dashed var(--field-border);
           color: var(--ink);
           padding: 0.15rem 0;
         }
@@ -134,23 +146,21 @@ export function RuleEditor({ rules, onChange }: Props) {
           cursor: not-allowed;
         }
         .desc-input {
-          font-family: var(--font-body);
-          font-size: 0.9rem;
-          background: var(--paper);
-          border: 1.5px solid var(--line);
-          border-radius: 8px;
-          padding: 0.6rem 0.75rem;
+          font-size: 0.92rem;
           color: var(--ink-soft);
-          resize: vertical;
         }
-        .desc-input:focus {
-          border-color: var(--cobalt);
+        .evidence-note {
+          margin: 0;
+          font-size: 0.85rem;
+          color: var(--ink-soft);
         }
         .req-toggle {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-size: 0.72rem;
+          gap: 0.6rem;
+          min-height: 44px;
+          cursor: pointer;
+          font-size: 0.78rem;
           color: var(--muted);
           text-transform: uppercase;
           letter-spacing: 0.06em;

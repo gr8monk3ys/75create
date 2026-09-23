@@ -1,6 +1,6 @@
 // One-click export of all logs and artifacts as a ZIP (design spec §6, F9).
 
-import JSZip from 'jszip'
+import type JSZip from 'jszip'
 import { Repository } from './repository'
 import { Challenge } from './types'
 
@@ -10,6 +10,8 @@ function csvEscape(value: string): string {
 }
 
 export async function buildExport(repo: Repository): Promise<Blob> {
+  // Loaded on the click, not with the page: most visits never export.
+  const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
   const user = repo.getUser()
   const challenges = repo.getChallenges()

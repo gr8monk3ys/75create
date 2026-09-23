@@ -170,7 +170,7 @@ export function Grid({
           transform: rotate(var(--rot)) scale(1.12);
         }
         .cell-future {
-          border: 1.5px dotted var(--line);
+          border: 1.5px dotted color-mix(in srgb, var(--field-border) 70%, transparent);
           background: color-mix(in srgb, var(--paper-3) 30%, transparent);
         }
         .cell-complete {
@@ -210,6 +210,10 @@ export function Grid({
           font-size: 0.85rem;
           color: var(--ink);
           line-height: 1;
+        }
+        .cell-skipped .cell-mark {
+          /* Marigold is light in both themes: always dark ink on it. */
+          color: #1b1a17;
         }
         .cell-missed .cell-mark {
           background: var(--paper-2);

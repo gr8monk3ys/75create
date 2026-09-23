@@ -7,6 +7,11 @@ describe('format', () => {
     expect(shortDate('2026-01-01')).toBe('1 Jan 2026')
   })
 
+  it('never throws on corrupt dates', () => {
+    expect(longDay('not-a-date')).toBe('not-a-date')
+    expect(shortDate('')).toBe('')
+  })
+
   it('formats clock times the way people say them', () => {
     expect(clockTime('03:00')).toBe('3:00 am')
     expect(clockTime('00:00')).toBe('midnight')

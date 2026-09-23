@@ -60,6 +60,7 @@ export function DayDetail({
       <header className="d-head">
         <h3 id="detail-title" className="font-display d-title">
           Day {day.index}
+          <span className="sr-only">, </span>
           <span className={`d-state st-${day.state}`}>{STATE_LINE[day.state]}</span>
         </h3>
         <div className="d-nav">

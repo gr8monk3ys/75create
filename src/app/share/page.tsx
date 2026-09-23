@@ -115,55 +115,55 @@ function Styles() {
         gap: 1rem;
         text-align: center;
       }
-      .sv-nav {
+      .share-view .sv-nav {
         display: flex;
         justify-content: space-between;
         align-items: center;
         padding: 0.5rem 0 2rem;
       }
-      .sv-nav .small {
+      .share-view .sv-nav .small {
         min-height: 44px;
         padding: 0.5rem 0.95rem;
         font-size: 0.75rem;
       }
-      .sv-h1 {
+      .share-view .sv-h1 {
         font-size: clamp(2rem, 6vw, 3rem);
         margin: 0.5rem 0 0.5rem;
         text-wrap: balance;
       }
-      .sv-sub {
+      .share-view .sv-sub {
         margin: 0 0 1.75rem;
         color: var(--ink-soft);
       }
-      .logs-h2 {
+      .share-view .logs-h2 {
         font-size: 1.4rem;
         margin: 0;
       }
-      .grid-panel {
+      .share-view .grid-panel {
         padding: 1.5rem;
       }
-      .muted {
+      .share-view .muted {
         color: var(--muted);
       }
-      .logs {
+      .share-view .logs {
         margin-top: 2.5rem;
       }
-      .log-list {
+      .share-view .log-list {
         display: flex;
         flex-direction: column;
         gap: 0.75rem;
         margin-top: 1rem;
       }
-      .log-row {
+      .share-view .log-row {
         display: grid;
         grid-template-columns: 70px 1fr;
         gap: 0.75rem;
       }
-      .log-day {
+      .share-view .log-day {
         color: var(--muted);
         font-size: 0.78rem;
       }
-      .log-text {
+      .share-view .log-text {
         color: var(--ink-soft);
         line-height: 1.5;
       }

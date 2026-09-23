@@ -9,8 +9,9 @@ import {
   useState,
 } from 'react'
 import { LocalRepository } from '@/lib/localRepository'
-import { SyncedRepository } from '@/lib/syncedRepository'
-import { isSupabaseConfigured, supabase } from '@/lib/supabase'
+import type { SyncedRepository } from '@/lib/syncedRepository'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabaseConfigured } from '@/lib/backend'
 import { DayData, Repository, emptyDayData, newId, newUser } from '@/lib/repository'
 import {
   ChallengeDraft,
@@ -118,20 +119,44 @@ function writeNotice(banner: Banner | null) {
   }
 }
 
+interface Stack {
+  repo: Repository
+  session: ChallengeSession
+  client: SupabaseClient | null
+}
+
 /** How often to check whether the creative day has rolled over. */
 const TICK_MS = 60_000
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  // Built once, lazily, and only in the browser: both implementations touch
-  // localStorage/IndexedDB, which don't exist during server rendering.
-  const [repo] = useState<Repository | null>(() => {
-    if (typeof window === 'undefined') return null
-    const local = new LocalRepository()
-    return supabase ? new SyncedRepository(local, supabase) : local
+  // Built once and only in the browser: both repositories touch
+  // localStorage/IndexedDB, which don't exist during server rendering. With no
+  // backend configured the local stack is ready on first render; with one, the
+  // Supabase SDK and the sync layer are fetched first, so a local-only build
+  // never downloads them.
+  const [stack, setStack] = useState<Stack | null>(() => {
+    if (typeof window === 'undefined' || supabaseConfigured) return null
+    const repo = new LocalRepository()
+    return { repo, session: createChallengeSession(repo), client: null }
   })
-  const [session] = useState<ChallengeSession | null>(() =>
-    repo ? createChallengeSession(repo) : null,
-  )
+  const repo = stack?.repo ?? null
+  const session = stack?.session ?? null
+  const supabase = stack?.client ?? null
+
+  useEffect(() => {
+    if (!supabaseConfigured || stack) return
+    let cancelled = false
+    void Promise.all([import('@/lib/supabase'), import('@/lib/syncedRepository')]).then(
+      ([{ supabase: client }, { SyncedRepository: Synced }]) => {
+        if (cancelled || !client) return
+        const repo = new Synced(new LocalRepository(), client)
+        setStack({ repo, session: createChallengeSession(repo), client })
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [stack])
 
   const [loading, setLoading] = useState(true)
   const [snap, setSnap] = useState<Snapshot>(EMPTY)
@@ -212,7 +237,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }, 0)
     })
     return () => sub.subscription.unsubscribe()
-  }, [sync, repo])
+  }, [sync, repo, supabase])
 
   const signIn = useCallback(
     async (email: string): Promise<'local' | 'magic-link-sent'> => {
@@ -236,7 +261,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       sync()
       return 'local'
     },
-    [sync, repo],
+    [sync, repo, supabase],
   )
 
   const signInWithGoogle = useCallback(async () => {
@@ -245,7 +270,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/dashboard` },
     })
-  }, [])
+  }, [supabase])
 
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
@@ -253,7 +278,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     writeNotice(null)
     setBanner(null)
     sync()
-  }, [sync, repo])
+  }, [sync, repo, supabase])
 
   const actions = useMemo(() => {
     const noop: ToggleResult = { ok: false }
@@ -316,37 +341,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [session, sync])
 
-  const value: AppValue = {
-    loading,
-    repo: repo as Repository,
-    user: snap.user,
-    challenge: snap.challenge,
-    dayData: snap.dayData,
-    derived: {
-      days: snap.days,
-      currentIndex: snap.currentIndex,
-      totalDays: snap.totalDays,
-      streak: snap.streak,
-      completedCount: snap.completedCount,
-    },
-    phase: snap.phase,
-    resetMessage: snap.resetMessage,
-    missedDay: snap.missedDay,
-    creativeToday: snap.creativeToday,
-    dayCloses: snap.dayCloses,
-    stakes: snap.stakes,
-    banner,
-    dismissBanner: () => {
-      writeNotice(null)
-      setBanner(null)
-    },
-    signIn,
-    signInWithGoogle,
-    supabaseEnabled: isSupabaseConfigured(),
-    signOut,
-    refresh,
-    ...actions,
-  }
+  const dismissBanner = useCallback(() => {
+    writeNotice(null)
+    setBanner(null)
+  }, [])
+
+  // Stable unless something it carries changes, so a banner or a snapshot
+  // update doesn't re-render every consumer for nothing.
+  const value = useMemo<AppValue>(
+    () => ({
+      loading,
+      repo: repo as Repository,
+      user: snap.user,
+      challenge: snap.challenge,
+      dayData: snap.dayData,
+      derived: {
+        days: snap.days,
+        currentIndex: snap.currentIndex,
+        totalDays: snap.totalDays,
+        streak: snap.streak,
+        completedCount: snap.completedCount,
+      },
+      phase: snap.phase,
+      resetMessage: snap.resetMessage,
+      missedDay: snap.missedDay,
+      creativeToday: snap.creativeToday,
+      dayCloses: snap.dayCloses,
+      stakes: snap.stakes,
+      banner,
+      dismissBanner,
+      signIn,
+      signInWithGoogle,
+      supabaseEnabled: supabaseConfigured,
+      signOut,
+      refresh,
+      ...actions,
+    }),
+    [loading, repo, snap, banner, dismissBanner, signIn, signInWithGoogle, signOut, refresh, actions],
+  )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

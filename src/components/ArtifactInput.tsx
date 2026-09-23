@@ -116,7 +116,7 @@ export function ArtifactInput({
           </label>
           <input
             id={`url-${dayIndex}`}
-            className="url-input"
+            className="field-input url-input"
             type="url"
             inputMode="url"
             placeholder="or paste a link"
@@ -156,12 +156,6 @@ export function ArtifactInput({
           gap: 0.6rem;
           flex-wrap: wrap;
         }
-        .small {
-          /* 44px min height: comfortable thumb target on a phone. */
-          padding: 0.6rem 1rem;
-          min-height: 44px;
-          font-size: 0.75rem;
-        }
         .url-row {
           display: flex;
           gap: 0.4rem;
@@ -170,22 +164,8 @@ export function ArtifactInput({
         }
         .url-input {
           flex: 1;
+          width: auto;
           min-width: 0;
-          font-family: var(--font-body);
-          /* 16px stops iOS Safari zooming the viewport on focus. */
-          font-size: 1rem;
-          min-height: 44px;
-          padding: 0.5rem 0.75rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
-        .url-input::placeholder {
-          color: var(--muted);
-        }
-        .url-input:focus {
-          border-color: var(--cobalt);
         }
         .err {
           font-size: 0.8rem;
@@ -233,11 +213,34 @@ export function ArtifactThumb({
 }) {
   const [src, setSrc] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  // A finished recap can hold 75+ images: read and decode each one only when
+  // it scrolls near the viewport, not all at once on mount.
+  const [near, setNear] = useState(false)
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setNear(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setNear(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin: '400px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   useEffect(() => {
     let objectUrl: string | null = null
     let cancelled = false
-    if (artifact.kind === 'image' && artifact.blobRef) {
+    if (near && artifact.kind === 'image' && artifact.blobRef) {
       repo.getArtifactBlob(artifact.blobRef).then((blob) => {
         if (blob && !cancelled) {
           objectUrl = URL.createObjectURL(blob)
@@ -249,7 +252,7 @@ export function ArtifactThumb({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [artifact, repo])
+  }, [artifact, repo, near])
 
   useEffect(() => {
     if (!armed) return
@@ -265,11 +268,16 @@ export function ArtifactThumb({
   const confirm = reopens ? 'Remove? Day reopens' : 'Remove?'
 
   return (
-    <div className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
+    <div ref={boxRef} className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
       <div className="frame">
         {artifact.kind === 'image' ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          src ? <img src={src} alt={alt} /> : <span className="ph" aria-label="Loading image" />
+          src ? (
+            // A local object URL from IndexedDB: nothing for next/image to optimize.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt={alt} decoding="async" />
+          ) : (
+            <span className="ph" role="img" aria-label="Loading image" />
+          )
         ) : href ? (
           <a href={href} target="_blank" rel="noreferrer" className="link">
             <Icon name="link" size={20} />
@@ -324,7 +332,7 @@ export function ArtifactThumb({
           align-items: center;
           gap: 0.3rem;
           font-family: var(--font-mono);
-          font-size: 0.72rem;
+          font-size: 0.75rem;
           color: var(--cobalt);
           text-align: center;
           padding: 0.4rem;
@@ -374,11 +382,11 @@ export function ArtifactThumb({
         }
         .confirm {
           font-family: var(--font-mono);
-          font-size: 0.72rem;
+          font-size: 0.75rem;
           white-space: nowrap;
           padding: 0.3rem 0.5rem;
           background: var(--coral-ink);
-          color: #fff;
+          color: var(--on-coral-ink);
         }
       `}</style>
     </div>

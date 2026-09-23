@@ -24,7 +24,8 @@ export function currentDayIndex(
   bufferHrs: number,
 ): number {
   const delta = daysBetween(challenge.startDate, creativeDate(now, tz, bufferHrs))
-  if (delta < 0) return 0
+  // A corrupt start date reads as not started, never as "Day NaN".
+  if (!Number.isFinite(delta) || delta < 0) return 0
   return delta + 1
 }
 

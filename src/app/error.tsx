@@ -25,7 +25,7 @@ export default function ErrorBoundary({
       <p className="err-body">
         Your challenge is safe — every day you’ve logged is stored on this device
         and nothing here touched it. Try again, and if this keeps happening you can
-        still export your data from settings.
+        still <Link href="/settings">export your data from Settings</Link>.
       </p>
       <div className="err-actions">
         <button className="btn" onClick={reset}>
@@ -66,7 +66,7 @@ export default function ErrorBoundary({
         }
         .err-digest {
           color: var(--muted);
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           margin-top: 1.5rem;
         }
       `}</style>

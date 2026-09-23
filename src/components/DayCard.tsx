@@ -86,6 +86,7 @@ export function DayCard({
   const [announce, setAnnounce] = useState('')
   const [notesShown, toggleNotes] = useRuleNotes(dayIndex)
   const howRef = useRef<HTMLDetailsElement>(null)
+  const cardRef = useRef<HTMLElement>(null)
 
   // The header's policy label links here: open the explainer on arrival.
   useEffect(() => {
@@ -143,8 +144,9 @@ export function DayCard({
     [dayData.checks, dayIndex, handle, toggleTask],
   )
 
-  // Keyboard accelerators, off while typing: 1–7 tick (or jump to) a rule,
-  // N jumps to the log.
+  // Keyboard accelerators: 1–7 tick (or jump to) a rule, N jumps to the log.
+  // Live only while focus is inside this card and not in a field, so a stray
+  // digit (or a speech command) elsewhere can never change the day.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape' && isTyping(e.target)) {
@@ -153,6 +155,7 @@ export function DayCard({
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
+      if (!cardRef.current?.contains(document.activeElement)) return
       const n = Number(e.key)
       if (Number.isInteger(n) && n >= 1 && n <= rules.length) {
         e.preventDefault()
@@ -190,7 +193,7 @@ export function DayCard({
       <textarea
         ref={logRef}
         id={`log-${dayIndex}`}
-        className="log-input"
+        className="field-input log-input"
         rows={3}
         value={log}
         maxLength={MAX_LOG_CHARS}
@@ -228,6 +231,7 @@ export function DayCard({
 
   return (
     <section
+      ref={cardRef}
       id="check-in"
       className={`daycard panel ${completed ? 'done' : ''}`}
       aria-labelledby={`dc-title-${dayIndex}`}
@@ -333,8 +337,8 @@ export function DayCard({
               {notesShown ? 'Hide rule notes' : 'Show rule notes'}
             </button>
             <span className="hint">
-              Keys: <kbd>1</kbd>–<kbd>{Math.min(rules.length, 9)}</kbd> rules · <kbd>N</kbd> log ·{' '}
-              <kbd>Esc</kbd> leave a field
+              In this card: <kbd>1</kbd>–<kbd>{Math.min(rules.length, 9)}</kbd> rules · <kbd>N</kbd>{' '}
+              log · <kbd>Esc</kbd> leave a field
             </span>
           </div>
         </>
@@ -399,7 +403,7 @@ export function DayCard({
           flex-direction: column;
           gap: 1.25rem;
         }
-        .daycard:focus {
+        .daycard:focus:not(:focus-visible) {
           outline: none;
         }
         .daycard.done {
@@ -565,22 +569,9 @@ export function DayCard({
         }
         .daycard :global(.log-input) {
           display: block;
-          width: 100%;
-          font-family: var(--font-body);
-          font-size: 1rem;
           line-height: 1.5;
           padding: 0.8rem 1rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--line);
           background: var(--paper-2);
-          color: var(--ink);
-          resize: vertical;
-        }
-        .daycard :global(.log-input::placeholder) {
-          color: var(--muted);
-        }
-        .daycard :global(.log-input:focus) {
-          border-color: var(--cobalt);
         }
         .card-tools {
           display: flex;

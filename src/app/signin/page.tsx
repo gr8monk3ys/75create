@@ -61,7 +61,7 @@ export default function SignIn() {
         ) : (
           <form onSubmit={enter} className="auth-form">
             <label className="field">
-              <span className="field-label font-mono">Email</span>
+              <span className="field-label">Email</span>
               <input
                 type="email"
                 required
@@ -69,7 +69,7 @@ export default function SignIn() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@studio.com"
-                className="input"
+                className="field-input input"
               />
             </label>
             <button type="submit" className="btn" disabled={busy}>
@@ -132,30 +132,15 @@ export default function SignIn() {
           flex-direction: column;
           gap: 0.4rem;
         }
-        .field-label {
-          font-size: 0.7rem;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: var(--muted);
-        }
         .input {
-          font-family: var(--font-body);
-          font-size: 1rem;
-          padding: 0.85rem 1rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
-        .input:focus {
-          border-color: var(--cobalt);
+          padding: 0.8rem 1rem;
         }
         .google {
           border-style: solid;
         }
         .proto-note {
           margin-top: 1.5rem;
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           line-height: 1.6;
           color: var(--muted);
           border-top: 1.5px dashed var(--line);

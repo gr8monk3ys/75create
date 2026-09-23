@@ -14,7 +14,6 @@ import {
   unsubscribeFromPush,
   type PushStatus,
 } from '@/lib/push'
-import { supabase } from '@/lib/supabase'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
@@ -25,7 +24,15 @@ export default function Settings() {
     if (!loading && !user) router.replace('/signin')
   }, [loading, user, router])
 
-  if (loading || !user) return null
+  if (loading || !user) {
+    return (
+      <main className="settings">
+        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+          Loading settings…
+        </p>
+      </main>
+    )
+  }
   // Keyed on the user so the form seeds its fields from stored preferences
   // once, instead of copying them in through an effect on every render.
   return <SettingsForm key={user.id} user={user} />
@@ -61,6 +68,8 @@ function SettingsForm({ user }: { user: User }) {
 
     // Push first where it's available: it's the only reminder that reaches a
     // phone with the app closed, and the only one that works on iOS at all.
+    // The SDK only exists in builds with a backend; fetch it on demand.
+    const supabase = supabaseEnabled ? (await import('@/lib/supabase')).supabase : null
     if (isPushSupported() && supabase) {
       const status = on
         ? await subscribeToPush(supabase, user.id)
@@ -111,11 +120,11 @@ function SettingsForm({ user }: { user: User }) {
 
   return (
     <main className="settings">
-      <nav className="set-nav">
+      <nav className="page-nav" aria-label="Main">
         <Link href="/dashboard" className="wordmark font-display brand">
           75 Create
         </Link>
-        <Link href="/dashboard" className="font-mono back">
+        <Link href="/dashboard" className="back-link">
           Back to your grid
         </Link>
       </nav>
@@ -138,10 +147,14 @@ function SettingsForm({ user }: { user: User }) {
         </label>
         {reminderOn && (
           <div className="time-row">
+            <label className="sr-only" htmlFor="reminder-time">
+              Reminder time
+            </label>
             <input
+              id="reminder-time"
               type="time"
               value={reminderTime}
-              className="time"
+              className="field-input time"
               onChange={(e) => {
                 setReminderTime(e.target.value)
                 saveReminders(true, e.target.value)
@@ -174,16 +187,20 @@ function SettingsForm({ user }: { user: User }) {
       </section>
 
       <section className="block panel">
-        <h2 className="font-display block-h2">Late-night buffer</h2>
+        <h2 className="font-display block-h2" id="buffer-title">
+          Late-night buffer
+        </h2>
         <p className="block-sub">
           How many hours past midnight still counts as “today” — for when you create
           after 12.
         </p>
-        <div className="chips">
+        <div className="chips" role="group" aria-labelledby="buffer-title">
           {[0, 2, 3, 4, 6].map((h) => (
             <button
               key={h}
+              type="button"
               className={`chip ${buffer === h ? 'sel' : ''}`}
+              aria-pressed={buffer === h}
               onClick={() => saveBuffer(h)}
             >
               {h === 0 ? 'Midnight' : `${h}am`}
@@ -210,14 +227,21 @@ function SettingsForm({ user }: { user: User }) {
           device. Export first if you want a copy.
         </p>
         <div className="del-row">
+          <label className="sr-only" htmlFor="delete-confirm">
+            Type DELETE to confirm
+          </label>
           <input
-            className="del-input"
+            id="delete-confirm"
+            className="field-input del-input"
             placeholder="Type DELETE to confirm"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
           />
           <button
-            className="btn del-btn"
+            className="btn btn-danger del-btn"
             onClick={deleteAccount}
             disabled={confirmText !== 'DELETE'}
           >
@@ -242,23 +266,6 @@ function SettingsForm({ user }: { user: User }) {
         .settings {
           max-width: 640px;
           padding-top: 1rem;
-        }
-        .set-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0 2.5rem;
-        }
-        .brand {
-          font-size: 1.25rem;
-          text-decoration: none;
-        }
-        .back {
-          font-size: 0.78rem;
-          color: var(--ink-soft);
-          text-decoration: none;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
         }
         .set-h1 {
           font-size: 2.5rem;
@@ -297,19 +304,14 @@ function SettingsForm({ user }: { user: User }) {
           flex-wrap: wrap;
         }
         .time {
-          font-family: var(--font-body);
-          padding: 0.5rem 0.75rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
+          width: auto;
         }
         .hint {
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           color: var(--muted);
         }
         .note {
-          font-size: 0.7rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin: 1.1rem 0 0;
           border-top: 1.5px dashed var(--line);
@@ -329,29 +331,10 @@ function SettingsForm({ user }: { user: User }) {
           border-radius: 8px;
           padding: 0.5rem 0.75rem;
         }
-        .small {
-          padding: 0.6rem 1rem;
-          min-height: 44px;
-          font-size: 0.7rem;
-        }
         .chips {
           display: flex;
           gap: 0.5rem;
           flex-wrap: wrap;
-        }
-        .chip {
-          padding: 0.55rem 1rem;
-          border-radius: 999px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-          cursor: pointer;
-          font-family: var(--font-mono);
-          font-size: 0.8rem;
-        }
-        .chip.sel {
-          border-color: var(--cobalt);
-          background: color-mix(in srgb, var(--cobalt) 12%, var(--paper));
         }
         .danger {
           border-color: color-mix(in srgb, var(--coral) 45%, var(--line));
@@ -363,18 +346,9 @@ function SettingsForm({ user }: { user: User }) {
         }
         .del-input {
           flex: 1;
-          min-width: 180px;
+          min-width: min(100%, 180px);
+          width: auto;
           font-family: var(--font-mono);
-          font-size: 0.85rem;
-          padding: 0.7rem 0.9rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
-        .del-btn {
-          background: var(--coral);
-          border-color: var(--coral);
         }
         .del-btn:hover:not(:disabled) {
           box-shadow: 4px 6px 0 var(--ink);

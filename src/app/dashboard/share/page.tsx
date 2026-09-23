@@ -41,25 +41,38 @@ export default function ShareGenerator() {
     return `${origin}/share#${encodeSnapshot(snap)}`
   }, [challenge, dayData.logs, derived, includeLogs])
 
+  const [copyFailed, setCopyFailed] = useState(false)
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(link)
+      setCopyFailed(false)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      /* clipboard unavailable — user can select manually */
+      // No clipboard access (permissions, an old browser): say so, and make
+      // the link easy to take by hand instead.
+      setCopyFailed(true)
     }
   }
 
-  if (loading || !user || !challenge) return null
+  if (loading || !user || !challenge) {
+    return (
+      <main>
+        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+          Loading…
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="share-gen">
-      <nav className="sg-nav">
+      <nav className="page-nav" aria-label="Main">
         <Link href="/dashboard" className="wordmark font-display brand">
           75 Create
         </Link>
-        <Link href="/dashboard" className="font-mono back">
+        <Link href="/dashboard" className="back-link">
           Back to your grid
         </Link>
       </nav>
@@ -86,11 +99,28 @@ export default function ShareGenerator() {
       </label>
 
       <div className="link-box panel">
-        <code className="link">{link}</code>
+        <label className="sr-only" htmlFor="share-link">
+          Share link
+        </label>
+        <textarea
+          id="share-link"
+          className="link font-mono"
+          readOnly
+          rows={3}
+          value={link}
+          onFocus={(e) => e.currentTarget.select()}
+        />
         <button className="btn" onClick={copy}>
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
+      <p className="copy-status" role="status">
+        {copied
+          ? 'Link copied.'
+          : copyFailed
+            ? 'Couldn’t reach the clipboard. The link is selected above: copy it by hand.'
+            : ''}
+      </p>
 
       <a href={link} target="_blank" rel="noreferrer" className="preview-link font-mono">
         Preview the shared page
@@ -100,23 +130,6 @@ export default function ShareGenerator() {
         .share-gen {
           max-width: 680px;
           padding-top: 1rem;
-        }
-        .sg-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0 2.5rem;
-        }
-        .brand {
-          font-size: 1.25rem;
-          text-decoration: none;
-        }
-        .back {
-          font-size: 0.78rem;
-          color: var(--ink-soft);
-          text-decoration: none;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
         }
         .sg-h1 {
           font-size: clamp(2rem, 6vw, 2.8rem);
@@ -158,12 +171,20 @@ export default function ShareGenerator() {
         }
         .link {
           flex: 1;
-          font-family: var(--font-mono);
-          font-size: 0.78rem;
+          min-width: 0;
+          font-size: 0.8rem;
+          line-height: 1.45;
           color: var(--ink-soft);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          background: transparent;
+          border: 0;
+          resize: none;
+          word-break: break-all;
+        }
+        .copy-status {
+          min-height: 1.4em;
+          margin: 0.5rem 0 0;
+          font-size: 0.85rem;
+          color: var(--ink-soft);
         }
         .preview-link {
           display: inline-block;

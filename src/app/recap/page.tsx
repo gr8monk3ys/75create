@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { Grid } from '@/components/Grid'
+import { shortDate } from '@/lib/format'
 import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
 
@@ -19,13 +20,12 @@ export default function Recap() {
     else if (!challenge) router.replace('/setup')
   }, [loading, user, challenge, router])
 
+  // Only facts the app recorded. It never measures time, so no "minutes".
   const stats = useMemo(() => {
     const completedDays = Object.keys(dayData.completions).length
-    return {
-      completedDays,
-      longest: derived.streak.longest,
-      totalMinutes: completedDays * 30,
-    }
+    const logsWritten = Object.values(dayData.logs).filter((l) => l.text.trim()).length
+    const artifactsKept = Object.values(dayData.artifacts).reduce((n, list) => n + list.length, 0)
+    return { completedDays, longest: derived.streak.longest, logsWritten, artifactsKept }
   }, [dayData, derived])
 
   const artifactDays = useMemo(() => {
@@ -35,7 +35,15 @@ export default function Recap() {
       .sort((a, b) => a.day - b.day)
   }, [dayData.artifacts])
 
-  if (loading || !user || !challenge) return null
+  if (loading || !user || !challenge) {
+    return (
+      <main>
+        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+          Loading your recap…
+        </p>
+      </main>
+    )
+  }
 
   async function downloadCert() {
     if (!challenge) return
@@ -45,9 +53,10 @@ export default function Recap() {
         dayStates: derived.days.map((d) => d.state),
         longest: stats.longest,
         completedDays: stats.completedDays,
-        totalMinutes: stats.totalMinutes,
+        logsWritten: stats.logsWritten,
+        artifactsKept: stats.artifactsKept,
         medium: challenge.medium,
-        startDate: challenge.startDate,
+        startDate: shortDate(challenge.startDate),
       })
       downloadBlob(blob, '75-create-certificate.png')
     } finally {
@@ -67,11 +76,11 @@ export default function Recap() {
 
   return (
     <main className="recap">
-      <nav className="recap-nav">
+      <nav className="page-nav" aria-label="Main">
         <Link href="/dashboard" className="wordmark font-display brand">
           75 Create
         </Link>
-        <Link href="/dashboard" className="font-mono back">
+        <Link href="/dashboard" className="back-link">
           Back to your grid
         </Link>
       </nav>
@@ -82,11 +91,12 @@ export default function Recap() {
         </h1>
       </header>
 
-      <div className="stat-row">
-        <Stat big={String(stats.completedDays)} label="days completed" />
-        <Stat big={String(stats.longest)} label="longest streak" />
-        <Stat big={`${stats.totalMinutes.toLocaleString()}+`} label="minutes, at 30 a day" />
-      </div>
+      <dl className="facts">
+        <Fact n={stats.completedDays} label={stats.completedDays === 1 ? 'day made' : 'days made'} />
+        <Fact n={stats.longest} label="longest streak" />
+        <Fact n={stats.logsWritten} label={stats.logsWritten === 1 ? 'log written' : 'logs written'} />
+        <Fact n={stats.artifactsKept} label={stats.artifactsKept === 1 ? 'piece kept' : 'pieces kept'} />
+      </dl>
 
       <div className="grid-panel panel">
         <Grid days={derived.days} />
@@ -158,32 +168,9 @@ export default function Recap() {
           max-width: 900px;
           padding-top: 1rem;
         }
-        .recap-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0 2rem;
-        }
-        .brand {
-          font-size: 1.25rem;
-          text-decoration: none;
-        }
-        .back {
-          font-size: 0.78rem;
-          color: var(--ink-soft);
-          text-decoration: none;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-        }
         .recap-h1 {
           font-size: clamp(2.4rem, 8vw, 4rem);
-          margin: 0.5rem 0 0;
-        }
-        .stat-row {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1rem;
-          margin: 2rem 0;
+          margin: 0.5rem 0 1.5rem;
         }
         .grid-panel {
           padding: 1.5rem;
@@ -232,7 +219,7 @@ export default function Recap() {
           padding-left: 1.25rem;
         }
         .tl-num {
-          font-size: 0.72rem;
+          font-size: 0.78rem;
           color: var(--coral-ink);
           text-transform: uppercase;
           letter-spacing: 0.1em;
@@ -258,36 +245,40 @@ export default function Recap() {
           gap: 0.75rem;
           flex-wrap: wrap;
         }
-        @media (max-width: 640px) {
-          .stat-row {
-            grid-template-columns: 1fr;
-          }
+        .facts {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.25rem 2.5rem;
+          margin: 0 0 2rem;
         }
       `}</style>
     </main>
   )
 }
 
-function Stat({ big, label }: { big: string; label: string }) {
+function Fact({ n, label }: { n: number; label: string }) {
   return (
-    <div className="stat panel">
-      <div className="big font-display">{big}</div>
-      <div className="label font-mono">{label}</div>
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd className="font-display">{n}</dd>
       <style jsx>{`
-        .stat {
-          padding: 1.5rem;
-          text-align: center;
+        .fact {
+          display: flex;
+          flex-direction: column-reverse;
+          gap: 0.2rem;
         }
-        .big {
-          font-size: clamp(2.2rem, 8vw, 3rem);
+        dd {
+          margin: 0;
+          font-size: clamp(2.2rem, 8vw, 3.2rem);
           color: var(--cobalt);
+          font-variant-numeric: tabular-nums;
         }
-        .label {
-          font-size: 0.7rem;
+        dt {
+          font-family: var(--font-mono);
+          font-size: 0.78rem;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           color: var(--muted);
-          margin-top: 0.3rem;
         }
       `}</style>
     </div>

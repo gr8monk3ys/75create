@@ -6,6 +6,7 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   --paper: #efe9dc;
   --paper-2: #e7e0d1;
   --paper-3: #ded5c2;
@@ -24,10 +25,16 @@
   /* Pigments dark enough to carry text (the raw pigments are for fills). */
   --coral-ink: #ad2f1a;
   --marigold-ink: #8c5906;
+  /* Text on a --coral-ink fill. */
+  --on-coral-ink: #ffffff;
+  /* Form-control edges: ≥3:1 against every paper tone, so a field reads as
+     a field on a dim phone at night. */
+  --field-border: #837968;
 
   /* grid semantics */
   --cell-complete: var(--cobalt);
-  --cell-today: var(--coral);
+  /* A touch deeper than the coral pigment so the ring clears 3:1. */
+  --cell-today: #e03d24;
   --cell-skipped: var(--marigold);
   /* ≥3:1 on the grid panel: a miss is a fact, not an absence. */
   --cell-missed: #7d7463;
@@ -48,8 +55,12 @@
     --muted: #9a9382;
     --line: #322e22;
     --cobalt: #6f85ff;
+    --cell-today: var(--coral);
+    color-scheme: dark;
     --coral-ink: #ff7a63;
     --marigold-ink: #f0b04a;
+    --on-coral-ink: #15140f;
+    --field-border: #7a7362;
     --cell-missed: #7a7362;
   }
 }
@@ -86,14 +97,6 @@ body {
 
 .font-mono {
   font-family: var(--font-mono);
-}
-
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 a {
@@ -210,9 +213,14 @@ kbd {
   gap: 0.5rem;
   text-decoration: none;
 }
-.btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 4px 6px 0 var(--coral);
+@media (hover: hover) {
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 6px 0 var(--coral);
+  }
+  .btn-ghost:hover {
+    box-shadow: 4px 6px 0 var(--cobalt);
+  }
 }
 .btn:active {
   transform: translateY(0);
@@ -221,9 +229,6 @@ kbd {
 .btn-ghost {
   background: transparent;
   color: var(--ink);
-}
-.btn-ghost:hover {
-  box-shadow: 4px 6px 0 var(--cobalt);
 }
 .btn:disabled {
   opacity: 0.55;
@@ -235,6 +240,95 @@ kbd {
 :focus-visible {
   outline: 3px solid var(--cobalt);
   outline-offset: 2px;
+}
+
+/* --- shared form primitives: one field, one chip, one small button --- */
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.field-input {
+  width: 100%;
+  min-height: 44px;
+  font-family: var(--font-body);
+  /* 16px stops iOS Safari zooming the viewport on focus. */
+  font-size: 1rem;
+  line-height: 1.45;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--field-border);
+  background: var(--paper);
+  color: var(--ink);
+}
+textarea.field-input {
+  resize: vertical;
+}
+.field-input:focus {
+  border-color: var(--cobalt);
+}
+.chip {
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--field-border);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+.chip[aria-pressed='true'],
+.chip[aria-checked='true'] {
+  border-color: var(--cobalt);
+  background: color-mix(in srgb, var(--cobalt) 14%, var(--paper));
+}
+.btn.small {
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-size: 0.75rem;
+}
+.btn-danger {
+  background: var(--coral-ink);
+  border-color: var(--coral-ink);
+  color: var(--on-coral-ink);
+}
+.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The brand / back row at the top of every inner page. */
+.page-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0 2rem;
+}
+.page-nav .brand {
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.back-link:hover {
+  color: var(--coral-ink);
 }
 
 /* Reduced motion keeps every state change, just without travel: hover lifts
@@ -281,6 +375,16 @@ main {
   margin: 0 auto;
   padding: 0 1.5rem 5rem;
 }
+.site-head,
+.site-foot {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.site-foot {
+  padding-bottom: 3rem;
+}
 .nav {
   display: flex;
   align-items: center;
@@ -292,8 +396,9 @@ main {
   font-weight: 800;
 }
 .nav .btn {
+  min-height: 44px;
   padding: 0.55rem 1.1rem;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .hero {
@@ -457,14 +562,14 @@ main {
 .foot {
   text-align: center;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   padding-top: 2.5rem;
   line-height: 1.6;
 }
 
 @media (max-width: 820px) {
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2rem;
     padding-top: 1rem;
   }

@@ -4,29 +4,35 @@
 
 import { MissPolicy } from './types'
 
-function utcDate(iso: string): Date {
+function utcDate(iso: string): Date | null {
   const [y, m, d] = iso.split('-').map(Number)
-  return new Date(Date.UTC(y, m - 1, d))
+  const date = new Date(Date.UTC(y, m - 1, d))
+  // Intl throws on an invalid date; corrupt stored data must not crash a page.
+  return Number.isNaN(date.getTime()) ? null : date
 }
 
 /** "Tuesday 23 September" */
 export function longDay(iso: string): string {
+  const date = utcDate(iso)
+  if (!date) return iso
   return new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     timeZone: 'UTC',
-  }).format(utcDate(iso))
+  }).format(date)
 }
 
 /** "23 Sep 2026" */
 export function shortDate(iso: string): string {
+  const date = utcDate(iso)
+  if (!date) return iso
   return new Intl.DateTimeFormat('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
     timeZone: 'UTC',
-  }).format(utcDate(iso))
+  }).format(date)
 }
 
 /** "3:00 am", "midnight", "8:30 pm" for a 24h "HH:MM". */
