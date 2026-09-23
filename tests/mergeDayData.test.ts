@@ -5,13 +5,13 @@ const log = (text: string, updatedAt: string) => ({ dayId: 'c:1', text, updatedA
 
 describe('mergeDayData', () => {
   it('keeps everything either copy made', () => {
-    const a = { ...emptyDayData(), completions: { 1: '2026-01-01T10:00:00Z' }, skips: [2], actionedMisses: [2] }
+    const a = { ...emptyDayData(), completions: { 1: '2026-01-01T10:00:00Z' }, skips: [3], actionedMisses: [3] }
     const b = { ...emptyDayData(), completions: { 2: '2026-01-02T10:00:00Z' }, checks: { '3:x': true } }
     const m = mergeDayData(a, b)
     expect(Object.keys(m.completions).sort()).toEqual(['1', '2'])
     expect(m.checks['3:x']).toBe(true)
-    expect(m.skips).toEqual([2])
-    expect(m.actionedMisses).toEqual([2])
+    expect(m.skips).toEqual([3])
+    expect(m.actionedMisses).toEqual([3])
   })
 
   it('keeps the newest log per day and the earliest completion', () => {
