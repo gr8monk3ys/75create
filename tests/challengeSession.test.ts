@@ -8,6 +8,7 @@ import {
   createChallengeSession,
 } from '@/lib/challengeSession'
 import { DEFAULT_RULES, Rule, User } from '@/lib/types'
+import { mergeDayData } from '@/lib/repository'
 
 // The session is exercised through its interface only: a real LocalRepository
 // (happy-dom localStorage) and a clock the test moves forward.
@@ -504,6 +505,43 @@ describe('reconcile after sync', () => {
     expect(snapshot.days[1].state).toBe('complete')
     expect(events[0]).toMatchObject({ kind: 'restore', days: [2] })
     expect(events[0].message).toMatch(/Day 2 was made on another device, so its skip token is back/)
+  })
+
+  it('says so when the merge itself dropped the miss (a real pull)', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync() // Day 2 missed here: a token is spent
+    const c = repo.getActiveChallenge()!
+    // The laptop's copy made Day 2; a pull merges it in, and the merge drops
+    // the stale skip before the session sees it.
+    const remote = { ...repo.getDayData(c.id), skips: [], actionedMisses: [] }
+    remote.completions = { ...remote.completions, 2: '2026-01-02T20:00:00.000Z' }
+    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    expect(repo.getDayData(c.id).skips).toEqual([])
+    const { events, notice } = session.sync()
+    expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
+    expect(events).toEqual([expect.objectContaining({ kind: 'restore', days: [2] })])
+    expect(notice?.message).toMatch(/Day 2 was made on another device, so its skip token is back/)
+    // Told once: the next sync has nothing to say.
+    expect(session.sync().notice).toBeNull()
+  })
+
+  it('still tells a fresh session, without the day it can’t know', () => {
+    session.start(draft({ missPolicy: 'extend' }))
+    completeToday()
+    at(3)
+    session.sync()
+    const c = repo.getActiveChallenge()!
+    const remote = { ...repo.getDayData(c.id), skips: [], actionedMisses: [] }
+    remote.completions = { ...remote.completions, 2: '2026-01-02T20:00:00.000Z' }
+    repo.replaceDayData(c.id, mergeDayData(repo.getDayData(c.id), remote))
+    // A reload: the session that saw Day 2 missed is gone.
+    const fresh = createChallengeSession(repo, () => now)
+    const { snapshot, notice } = fresh.sync()
+    expect(snapshot.totalDays).toBe(75)
+    expect(notice).toMatchObject({ kind: 'restore', days: [] })
+    expect(notice!.message).toMatch(/made on another device, so the challenge is back to 75 days/)
   })
 
   it('shortens an Extend challenge again when the missed day was made', () => {

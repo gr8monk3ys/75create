@@ -21,19 +21,25 @@ export default function ErrorBoundary({
 
   // The tab says what the page says, not the route that failed. On a hard
   // load the route's own metadata <title> lands after this boundary mounts,
-  // so the title is held while the boundary is shown and restored after.
+  // so the title is held while the boundary is shown. Whatever title it
+  // displaced is put back when the boundary goes (Try again on the same
+  // route); a route navigated to sets its own.
   useEffect(() => {
     const title = 'Something went wrong · 75 Create'
     const here = window.location.pathname
-    // Held only while this page is the one on screen: once the person moves
-    // on, the next route's own title stands.
+    let displaced = document.title
     const hold = () => {
-      if (window.location.pathname === here && document.title !== title) document.title = title
+      if (window.location.pathname !== here || document.title === title) return
+      displaced = document.title
+      document.title = title
     }
     hold()
     const watch = new MutationObserver(hold)
     watch.observe(document.head, { childList: true, subtree: true, characterData: true })
-    return () => watch.disconnect()
+    return () => {
+      watch.disconnect()
+      if (window.location.pathname === here && document.title === title) document.title = displaced
+    }
   }, [])
 
   return (

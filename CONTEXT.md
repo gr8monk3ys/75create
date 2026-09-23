@@ -82,10 +82,10 @@ Ending an attempt after a Classic miss (or a Grace miss with no tokens left). It
 _Avoid_: Fail, restart (in code)
 
 **Ending an attempt**:
-Stopping the running challenge at the person's own request (quitting is allowed but never hidden). Before Day 1 it's a free redo of the setup and stays out of history (the data is kept, and exported); after, the attempt is archived where it stands, and the day it was ended on counts as quit, not missed. Either way the next step is a new setup.
+Stopping the running challenge at the person's own request (quitting is allowed but never hidden). Before Day 1 it's a free redo of the setup and stays out of history (the data is kept, and exported); after, the attempt is archived where it stands, and the day it was ended on counts as quit, not missed — unless the attempt was already waiting on a reset, in which case the miss that ended it is recorded as the miss. Either way the next step is a new setup.
 
 **Restore**:
-Undoing a miss that turns out to have been made: another device syncs in a completion for a day this one had already actioned. The skip token or extension comes back, and the person is told.
+Undoing a miss that turns out to have been made: another device syncs in a completion for a day this one had already actioned. The skip token or extension comes back, and the person is told (by day when this session saw the miss, otherwise by what stands now).
 
 **History**:
 Every past attempt and finished round, newest first, with its frozen grid, tally and logs. Nothing in it is ever deleted except by deleting the account.

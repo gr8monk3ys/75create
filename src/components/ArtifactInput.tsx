@@ -294,6 +294,7 @@ export function ArtifactThumb({
 
   // An armed remove stands down after 4s, unless focus is still on it: a
   // screen-reader user takes longer than that to hear the prompt and act.
+  // Focus leaving it stands it down too (onBlur), so it can't stay armed.
   useEffect(() => {
     if (!armed) return
     const t = setTimeout(() => {
@@ -335,6 +336,7 @@ export function ArtifactThumb({
           ref={removeRef}
           type="button"
           className="x"
+          onBlur={() => setArmed(false)}
           onClick={() => {
             if (armed) return onRemove()
             setArmed(true)

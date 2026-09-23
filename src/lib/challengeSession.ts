@@ -211,6 +211,9 @@ export function createChallengeSession(
   repo: Repository,
   clock: () => Date = () => new Date(),
 ): ChallengeSession {
+  /** Per challenge, the missed days the last sync left: what a restore gives back. */
+  const seenMisses = new Map<string, number[]>()
+
   function context() {
     const user = repo.isSignedIn() ? repo.getUser() : null
     const challenge = user ? repo.getActiveChallenge() : null
@@ -314,7 +317,7 @@ export function createChallengeSession(
     if (user && challenge && challenge.status === 'active') {
       const restored = reconcile(challenge)
       challenge = restored.challenge
-      if (restored.days.length > 0) events.push({ kind: 'restore', message: '', days: restored.days })
+      if (restored.restored) events.push({ kind: 'restore', message: '', days: restored.days })
     }
 
     if (user && challenge && challenge.status === 'active') {
@@ -340,6 +343,10 @@ export function createChallengeSession(
       }
     }
 
+    if (challenge) {
+      const dd = repo.getDayData(challenge.id)
+      seenMisses.set(challenge.id, [...new Set([...dd.skips, ...dd.actionedMisses])])
+    }
     const told = challenge ? summarize(events, challenge) : []
     return { snapshot: snapshotOf(user, challenge, now), events: told, notice: noticeOf(told) }
   }
@@ -351,7 +358,7 @@ export function createChallengeSession(
    * token and extension counts are recounted from the day data itself, which
    * keeps them true after any merge.
    */
-  function reconcile(challenge: Challenge): { challenge: Challenge; days: number[] } {
+  function reconcile(challenge: Challenge): { challenge: Challenge; restored: boolean; days: number[] } {
     const before = repo.getDayData(challenge.id)
     const made = before.actionedMisses.filter((d) => before.completions[d])
     for (const d of made) repo.clearMiss(challenge.id, d)
@@ -364,7 +371,15 @@ export function createChallengeSession(
     const changed =
       next.skipTokensUsed !== challenge.skipTokensUsed || next.extraDays !== (challenge.extraDays ?? 0)
     if (changed) repo.saveChallenge(next)
-    return { challenge: changed ? next : challenge, days: made }
+    // A merge drops the misses of made days before this runs, so the days
+    // come from what this session last saw; after a reload they're unknown,
+    // but a recount that fell still says something was given back.
+    const stillMissed = new Set([...dd.skips, ...dd.actionedMisses])
+    const cleared = (seenMisses.get(challenge.id) ?? []).filter((d) => dd.completions[d] && !stillMissed.has(d))
+    const days = [...new Set([...made, ...cleared])].sort((x, y) => x - y)
+    const fell =
+      next.skipTokensUsed < challenge.skipTokensUsed || next.extraDays < (challenge.extraDays ?? 0)
+    return { challenge: changed ? next : challenge, restored: made.length > 0 || fell, days }
   }
 
   /** Today's challenge, when check-ins for `dayIndex` are open. */
@@ -830,7 +845,20 @@ function summarize(events: RolloverEvent[], challenge: Challenge): RolloverEvent
         (left === 0 ? ' No skips left: the next miss ends this attempt.' : ''),
     })
   }
-  const restored = events.filter((e) => e.kind === 'restore').flatMap((e) => e.days)
+  const restores = events.filter((e) => e.kind === 'restore')
+  const restored = restores.flatMap((e) => e.days)
+  if (restores.length > 0 && restored.length === 0) {
+    // Which days is unknown (the merge came in before this session saw
+    // them); what stands now is known.
+    out.push({
+      kind: 'restore',
+      days: [],
+      message:
+        challenge.missPolicy === 'grace'
+          ? `A day counted as missed here was made on another device, so your skip tokens are recounted: ${tokensLeft(challenge)} of ${MAX_SKIP_TOKENS} left.`
+          : `A day counted as missed here was made on another device, so the challenge is back to ${challengeLength(challenge)} days.`,
+    })
+  }
   if (restored.length > 0) {
     const was = restored.length === 1 ? 'was' : 'were'
     const back =

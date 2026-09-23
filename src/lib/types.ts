@@ -10,7 +10,8 @@ export type Medium =
   | 'mixed'
   | 'other'
 
-export type MissPolicy = 'classic' | 'grace' | 'extend'
+import type { MissPolicy } from './missPolicy'
+export type { MissPolicy }
 
 export type DayState = 'future' | 'complete' | 'missed' | 'skipped' | 'today'
 
@@ -105,7 +106,7 @@ export interface User {
 }
 
 // Shared with the Edge Functions, so the reminders apply the same stakes.
-export { MAX_SKIP_TOKENS, TOTAL_DAYS } from '../../supabase/functions/_shared/missPolicy'
+export { MAX_SKIP_TOKENS, TOTAL_DAYS } from './missPolicy'
 export const MAX_LOG_CHARS = 500
 export const MIN_RULES = 3
 export const MAX_RULES = 7

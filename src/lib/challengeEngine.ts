@@ -4,7 +4,7 @@
 
 import { Challenge, Day, DayState } from './types'
 import { creativeDate, daysBetween } from './creativeDay'
-import { lengthWith, missesEndAttempt } from '../../supabase/functions/_shared/missPolicy'
+import { lengthWith, missesEndAttempt } from './missPolicy'
 
 /**
  * The current 1-based day index of a challenge.
@@ -112,7 +112,12 @@ export function missConsequence(challenge: Challenge): MissOutcome {
   if (missesEndAttempt(challenge.missPolicy, challenge.skipTokensUsed, 1)) {
     return { ...base, action: 'reset' }
   }
-  return challenge.missPolicy === 'grace'
-    ? { ...base, action: 'skip', newSkipTokensUsed: challenge.skipTokensUsed + 1 }
-    : { ...base, action: 'extend', extraDays: base.extraDays + 1 }
+  switch (challenge.missPolicy) {
+    case 'classic': // Every Classic miss ends the attempt (handled above).
+      return { ...base, action: 'reset' }
+    case 'grace':
+      return { ...base, action: 'skip', newSkipTokensUsed: challenge.skipTokensUsed + 1 }
+    case 'extend':
+      return { ...base, action: 'extend', extraDays: base.extraDays + 1 }
+  }
 }
