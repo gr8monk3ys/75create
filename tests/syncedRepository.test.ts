@@ -214,6 +214,51 @@ describe('SyncedRepository', () => {
     expect(Object.keys((pushed.data as { completions: object }).completions).sort()).toEqual(['2', '3'])
   })
 
+  it('never erases remote work on push, even when the local stamp reads newer', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    await repo.flush()
+    // Another device made Day 5 and pushed it.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: { completions: { 5: '2026-01-05T20:00:00.000Z' }, logs: {}, checks: {}, artifacts: {}, skips: [], actionedMisses: [] },
+        updated_at: '2026-01-05T20:00:00.000000+00:00',
+      },
+    ]
+    // This device edits something else and pushes, without pulling first.
+    repo.saveCheck('c1', 6, 'create', true)
+    await repo.flush()
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    const data = pushed.data as { completions: Record<string, string>; checks: Record<string, boolean> }
+    expect(data.completions['5']).toBe('2026-01-05T20:00:00.000Z')
+    expect(data.checks['6:create']).toBe(true)
+    expect(repo.getDayData('c1').completions[5]).toBe('2026-01-05T20:00:00.000Z')
+  })
+
+  it('carries an untick made here over the other device’s older tick', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: {},
+          logs: {},
+          checks: { '6:create': true },
+          changedAt: { 'k:6:create': '2000-01-01T00:00:00.000Z' },
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    repo.saveCheck('c1', 6, 'create', false)
+    await repo.pull()
+    expect(repo.getDayData('c1').checks['6:create']).toBe(false)
+  })
+
   it('does not fire remote calls when signed out', async () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()
@@ -460,3 +505,26 @@ function plusOffset(epochMs: number, offsetHrs: number): string {
   const hh = String(Math.abs(offsetHrs)).padStart(2, '0')
   return shifted.replace(/\.(\d{3})Z$/, '.$1456') + `${sign}${hh}:00`
 }
+describe('SyncedRepository.pull', () => {
+  it('is single-flight: callers during a pull wait for the same one', async () => {
+    localStorage.clear()
+    let hydrates = 0
+    const state = { rows: {}, calls: [], failUpserts: false, serverNow: '2026-01-01T00:00:00Z' }
+    const client = makeMockClient(state)
+    const repo = new SyncedRepository(new LocalRepository(), client)
+    await repo.connectRemote('uid-1', 'a@b.com')
+    const original = (repo as unknown as { hydrate: (id: string) => Promise<void> }).hydrate.bind(repo)
+    ;(repo as unknown as { hydrate: (id: string) => Promise<void> }).hydrate = async (id) => {
+      hydrates++
+      await new Promise((r) => setTimeout(r, 20))
+      return original(id)
+    }
+    let firstDone = false
+    const first = repo.pull().then(() => (firstDone = true))
+    const second = repo.pull()
+    await second
+    expect(firstDone).toBe(true)
+    await first
+    expect(hydrates).toBe(1)
+  })
+})

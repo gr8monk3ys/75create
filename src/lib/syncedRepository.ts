@@ -71,6 +71,7 @@ export class SyncedRepository implements Repository {
   private userId: string | null = null
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private flushing = false
+  private pulling: Promise<void> | null = null
 
   constructor(local: LocalRepository, client: SupabaseClient) {
     this.local = local
@@ -157,6 +158,9 @@ export class SyncedRepository implements Repository {
    * Resolves (never rejects) within `timeoutMs`, online or not.
    */
   async pull(timeoutMs = 5000): Promise<void> {
+    // Single-flight: a caller arriving mid-pull (focus and visibility fire
+    // together) waits for the same pull instead of rolling over without it.
+    if (this.pulling) return this.pulling
     const userId = this.userId
     if (!userId) return
     if (typeof navigator !== 'undefined' && !navigator.onLine) return
@@ -164,7 +168,12 @@ export class SyncedRepository implements Repository {
       await this.hydrate(userId)
       await this.flush()
     })().catch(() => {})
-    await Promise.race([work, new Promise((r) => setTimeout(r, timeoutMs))])
+    this.pulling = Promise.race([work, new Promise<void>((r) => setTimeout(r, timeoutMs))]).finally(
+      () => {
+        this.pulling = null
+      },
+    )
+    return this.pulling
   }
 
   /**
@@ -277,17 +286,19 @@ export class SyncedRepository implements Repository {
       .select('challenge_id, data, updated_at')
       .eq('user_id', userId)
     for (const row of dayData.data ?? []) {
+      // Always merged, whatever the stamps say: a local stamp is this
+      // device's clock and can read newer than a row another device wrote
+      // since. The merge is safe either way (it keeps what both copies made
+      // and honours the later undo), and whatever it adds goes back up so
+      // both copies converge.
+      const remote = { ...emptyDayData(), ...(row.data as DayData) }
+      const merged = mergeDayData(this.local.getDayData(row.challenge_id), remote)
+      this.local.replaceDayData(row.challenge_id, merged)
       if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
-        // Merge, never replace: this device may hold work the other hasn't
-        // seen (made offline, or not yet flushed). Whatever the merge adds
-        // goes back up so both copies converge.
-        const remote = { ...emptyDayData(), ...(row.data as DayData) }
-        const merged = mergeDayData(this.local.getDayData(row.challenge_id), remote)
-        this.local.replaceDayData(row.challenge_id, merged)
         stamps.dayData[row.challenge_id] = row.updated_at
-        if (JSON.stringify(merged) !== JSON.stringify(mergeDayData(remote, remote))) {
-          this.dirtyDay(row.challenge_id)
-        }
+      }
+      if (JSON.stringify(merged) !== JSON.stringify(mergeDayData(remote, remote))) {
+        this.dirtyDay(row.challenge_id)
       }
     }
 
@@ -390,6 +401,21 @@ export class SyncedRepository implements Repository {
           await this.client
             .from('challenges')
             .upsert({ id, user_id: this.userId, data: challenge })
+        }
+        // Read, merge, write: another device may have pushed since this one
+        // last pulled, and a blind upsert of the local copy would erase its
+        // work (a day made on the laptop, gone from the phone's push).
+        const current = await this.client
+          .from('day_data')
+          .select('data')
+          .eq('challenge_id', id)
+          .maybeSingle()
+        if (current.data?.data) {
+          const merged = mergeDayData(this.local.getDayData(id), {
+            ...emptyDayData(),
+            ...(current.data.data as DayData),
+          })
+          this.local.replaceDayData(id, merged)
         }
         const res = await this.client
           .from('day_data')

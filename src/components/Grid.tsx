@@ -28,8 +28,9 @@ export function gridSummary(days: Day[], endedOn: number | null = null): string 
   const parts = [`${count('complete')} made`]
   if (count('skipped')) parts.push(`${count('skipped')} skipped`)
   if (count('missed')) parts.push(`${count('missed')} missed`)
+  const toGo = count('future') + (today ? 1 : 0)
   if (endedOn) parts.push(`ended on Day ${endedOn}`)
-  else parts.push(`${count('future') + (today ? 1 : 0)} to go`)
+  else parts.push(toGo > 0 ? `${toGo} to go` : 'every day settled')
   return `${days.length}-day grid: ${parts.join(', ')}.`
 }
 
@@ -90,9 +91,11 @@ export const Grid = memo(function Grid({
   }, [focusKey])
 
   function move(to: number) {
-    const target = Math.min(Math.max(to, openable[0] ?? 1), last)
-    setActive(target)
-    cells.current[target]?.focus()
+    // Off the edge of the days you can open (up from row one, down past
+    // today): stay put rather than jump somewhere unexpected.
+    if (to < (openable[0] ?? 1) || to > last) return
+    setActive(to)
+    cells.current[to]?.focus()
   }
 
   function onKeyDown(e: React.KeyboardEvent, index: number) {

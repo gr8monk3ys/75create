@@ -95,7 +95,7 @@ export function DayCard({
   const celebrate = useRef<() => void>(() => {})
   /** Built once the card mounts; only event handlers and effects use them. */
   const draft = useRef<LogDraft | null>(null)
-  const peak = useRef<MomentHold | null>(null)
+  const celebrationHold = useRef<MomentHold | null>(null)
   const firstStoredLog = useRef(storedLog)
   const logRef = useRef<HTMLTextAreaElement>(null)
   const ruleRefs = useRef<Record<string, HTMLElement | null>>({})
@@ -147,7 +147,7 @@ export function DayCard({
     })
     const hold = createMomentHold({ pauseMs: CELEBRATION_PAUSE_MS, play: () => celebrate.current() })
     draft.current = log
-    peak.current = hold
+    celebrationHold.current = hold
     const flush = () => log.flush()
     const onHidden = () => {
       if (document.visibilityState === 'hidden') log.flush()
@@ -171,18 +171,18 @@ export function DayCard({
       if (!result.ok) return false
       if (result.justCompleted) {
         // The celebration is visual only; a milestone or the finish is said
-        // here, so the peak isn't silent for a screen reader.
+        // here, so the celebrationHold isn't silent for a screen reader.
         const m = milestoneAt(dayIndex, totalDays)
         const moment = m ? ` ${milestoneCopy(m, dayIndex, totalDays).title}` : ''
         setAnnounce(`Day ${dayIndex}, made.${moment}${m === 'final' ? ' Your recap is ready.' : ''}`)
         // Finished by the log while still writing it: the stamp and the
         // announcement land now, the full-screen moment once they stop.
-        if (document.activeElement === logRef.current) peak.current?.hold()
+        if (document.activeElement === logRef.current) celebrationHold.current?.hold()
         else onComplete(dayIndex)
         return true
       }
       if (result.reopened) {
-        peak.current?.cancel()
+        celebrationHold.current?.cancel()
         setAnnounce(`Day ${dayIndex} is no longer complete.`)
         return true
       }
@@ -270,7 +270,7 @@ export function DayCard({
     const clipped = value.slice(0, MAX_LOG_CHARS)
     setLog(draft.current?.type(clipped) ?? clipped)
     // Still writing: a held celebration waits for the next pause.
-    peak.current?.typing()
+    celebrationHold.current?.typing()
   }
 
 
@@ -290,7 +290,7 @@ export function DayCard({
         aria-describedby={[statusId, `log-count-${dayIndex}`].filter(Boolean).join(' ')}
         placeholder="What did you make or learn today?"
         onChange={(e) => onLogChange(e.target.value)}
-        onBlur={() => peak.current?.release()}
+        onBlur={() => celebrationHold.current?.release()}
       />
       <span id={`log-count-${dayIndex}`} className={`count ${savedFlash ? 'flash' : ''}`}>
         {savedFlash ? (
@@ -528,6 +528,7 @@ export function DayCard({
 
       <style jsx>{`
         .daycard {
+          position: relative;
           padding: 1.5rem;
           display: flex;
           flex-direction: column;
@@ -535,12 +536,13 @@ export function DayCard({
         }
         @media (max-width: 26em) {
           /* A phone, or large text: nested paddings give way to the words. */
+          /* Held to the viewport, so they don't double with the text. */
           .daycard {
-            padding: 1rem;
+            padding: min(1rem, 4vw);
           }
           .daycard :global(.check) {
-            padding: 0.7rem 0.75rem;
-            gap: 0.6rem;
+            padding: min(0.7rem, 3vw) min(0.75rem, 3vw);
+            gap: min(0.6rem, 2.5vw);
           }
         }
         .daycard:focus:not(:focus-visible) {
@@ -571,7 +573,12 @@ export function DayCard({
           color: var(--ink-soft);
         }
         .stamp {
-          flex: none;
+          /* Pressed onto the card's corner, over its edge like a rubber stamp,
+             so landing it never re-wraps the date beneath. */
+          position: absolute;
+          top: -0.85rem;
+          right: 1.25rem;
+          background: var(--paper-2);
           display: inline-flex;
           align-items: center;
           gap: 0.3rem;
@@ -687,6 +694,7 @@ export function DayCard({
           /* A rule name longer than a narrow card (large text on a small
              phone) breaks rather than pushing the page sideways. */
           overflow-wrap: anywhere;
+          hyphens: auto;
         }
         .check-name {
           font-weight: 600;

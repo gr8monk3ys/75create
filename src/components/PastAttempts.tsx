@@ -7,6 +7,8 @@ import { Icon } from './Icon'
 import { PastAttempt, hasLog } from '@/lib/challengeSession'
 import { POLICY_NAMES, shortDate } from '@/lib/format'
 
+const LOGS_SHOWN = 5
+
 export function PastAttempts() {
   const { history, challenge } = useApp()
   // History only changes when a challenge ends (a new active id), so it's
@@ -85,6 +87,9 @@ function AttemptRow({
     .filter(([day]) => hasLog(dd, Number(day)))
     .sort((a, b) => Number(a[0]) - Number(b[0]))
   const bodyId = `attempt-${challenge.id}`
+  // A finished round holds 75 logs: the first few, then all on request.
+  const [allLogs, setAllLogs] = useState(false)
+  const shown = allLogs ? logs : logs.slice(0, LOGS_SHOWN)
 
   return (
     <li className="attempt panel">
@@ -109,14 +114,26 @@ function AttemptRow({
           {logs.length === 0 ? (
             <p className="empty">No logs were written in this attempt.</p>
           ) : (
-            <ol className="log-list">
-              {logs.map(([idx, log]) => (
-                <li key={idx}>
-                  <span className="log-day">Day {idx}</span>
-                  <span className="log-text">{log.text}</span>
-                </li>
-              ))}
-            </ol>
+            <>
+              <ol className="log-list">
+                {shown.map(([idx, log]) => (
+                  <li key={idx}>
+                    <span className="log-day">Day {idx}</span>
+                    <span className="log-text">{log.text}</span>
+                  </li>
+                ))}
+              </ol>
+              {logs.length > LOGS_SHOWN && (
+                <button
+                  type="button"
+                  className="btn btn-ghost small more"
+                  onClick={() => setAllLogs(!allLogs)}
+                  aria-expanded={allLogs}
+                >
+                  {allLogs ? 'Show fewer logs' : `Show all ${logs.length} logs`}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -174,6 +191,9 @@ function AttemptRow({
           display: flex;
           flex-direction: column;
           gap: 0.6rem;
+        }
+        .attempt-body :global(.more) {
+          margin-top: 0.9rem;
         }
         .log-list li {
           display: grid;

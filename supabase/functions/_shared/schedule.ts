@@ -1,6 +1,8 @@
 // Scheduling helpers shared by the reminder senders (email and push). Plain
 // TypeScript with no Deno APIs, so bun tests import it directly.
 
+import { creativeDate, daysBetween } from './creativeDay.ts'
+
 function localMinutes(tz: string, now: Date): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: tz,
@@ -48,48 +50,36 @@ export function secretMatches(provided: string | null, expected: string): boolea
 
 // ---------- is today still to make? ----------
 //
-// The same creative-day rule as the app (src/lib/creativeDay.ts): the local
-// date with the clock shifted back by the late-night buffer. Repeated here
-// because Edge Functions deploy on their own; a bun test holds the two copies
-// to the same answers.
+// The same rules as the app: the creative day from the shared module, and a
+// challenge that's ended (an unactioned Classic miss, or Grace with no token
+// left for one) no longer gets nudged, even before the app has rolled over.
 
-const BASE_DAYS = 75
-
-function creativeDate(now: Date, tz: string, bufferHrs: number): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(now.getTime() - bufferHrs * 3_600_000))
-  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? '00'
-  return `${g('year')}-${g('month')}-${g('day')}`
-}
-
-function daysBetween(a: string, b: string): number {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
-  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
-}
+/** The format's base length; the app's TOTAL_DAYS (a test holds them equal). */
+export const BASE_DAYS = 75
+const MAX_SKIP_TOKENS = 3
 
 /** The stored shape the senders read (a subset of the app's Challenge). */
 export interface StoredChallenge {
   id: string
   status: string
   startDate: string
+  missPolicy?: 'classic' | 'grace' | 'extend'
+  skipTokensUsed?: number
   extraDays?: number
 }
 
 /** The stored shape of a challenge's day data (a subset of the app's DayData). */
 export interface StoredDayData {
   completions?: Record<string, string>
+  skips?: number[]
+  actionedMisses?: number[]
 }
 
 /**
  * Whether a reminder has anything to remind about: a running challenge whose
  * creative day today has started, isn't past the last day, and isn't made
- * yet. No challenge, a future start, a finished round or maintenance, or a
- * day already made: no nudge.
+ * yet. No challenge, a future start, an attempt already ended by a miss, a
+ * finished round or maintenance, or a day already made: no nudge.
  */
 export function todayNeedsMaking(
   challenges: StoredChallenge[],
@@ -107,6 +97,20 @@ export function todayNeedsMaking(
     today = creativeDate(now, 'UTC', bufferHrs ?? 3)
   }
   const index = daysBetween(active.startDate, today) + 1
-  if (!Number.isFinite(index) || index < 1 || index > BASE_DAYS + (active.extraDays ?? 0)) return false
-  return !dayData[active.id]?.completions?.[String(index)]
+  if (!Number.isFinite(index) || index < 1) return false
+
+  const dd = dayData[active.id] ?? {}
+  const settled = (d: number) =>
+    Boolean(dd.completions?.[String(d)]) || (dd.skips ?? []).includes(d) || (dd.actionedMisses ?? []).includes(d)
+  let pending = 0
+  for (let d = 1; d < index; d++) if (!settled(d)) pending++
+  // Misses the app hasn't rolled over yet: under Classic, or Grace without
+  // enough tokens, the attempt has already ended.
+  const policy = active.missPolicy ?? 'classic'
+  if (pending > 0 && policy === 'classic') return false
+  if (pending > 0 && policy === 'grace' && (active.skipTokensUsed ?? 0) + pending > MAX_SKIP_TOKENS) return false
+  // Under Extend, each pending miss will add a day to the end.
+  const length = BASE_DAYS + (active.extraDays ?? 0) + (policy === 'extend' ? pending : 0)
+  if (index > length) return false
+  return !dd.completions?.[String(index)]
 }

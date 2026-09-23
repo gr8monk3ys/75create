@@ -30,6 +30,8 @@ export default function Dashboard() {
     banner,
     dismissBanner,
     confirmReset,
+    enterMaintenance,
+    closeForNewRound,
   } = useApp()
   const router = useRouter()
   const [celebrate, setCelebrate] = useState(false)
@@ -91,7 +93,10 @@ export default function Dashboard() {
   const finish = finishLine(derived.tally, totalDays)
   const opened = openDay ? gridDays.find((d) => d.index === openDay) : undefined
   // Past days you can browse: everything settled before today.
-  const pastDays = gridDays.filter((d) => d.state !== 'future' && d.state !== 'today').map((d) => d.index)
+  // Today (made or not) is the check-in card's, not the browser's.
+  const pastDays = gridDays
+    .filter((d) => d.state !== 'future' && d.state !== 'today' && !(checkInOpen && d.index === currentIndex))
+    .map((d) => d.index)
   const legend = (
     [
       ['complete', 'sw-c', 'made'],
@@ -137,8 +142,10 @@ export default function Dashboard() {
 
   const heading =
     phase === 'reset-pending'
-      ? `Ended on Day ${missedDay ?? currentIndex}`
-      : phase === 'maintenance'
+      ? `Ended on Day ${missedDay}`
+      : phase === 'finished' && !checkInOpen
+        ? finish.title
+        : phase === 'maintenance'
         ? `Maintenance, day ${currentIndex}`
         : phase === 'prestart'
           ? 'Your challenge has not started yet'
@@ -242,6 +249,33 @@ export default function Dashboard() {
                 maintenance={phase === 'maintenance'}
                 onComplete={handleComplete}
               />
+            )}
+            {phase === 'finished' && !checkInOpen && (
+              // Past the last day, the dashboard is still where they open the
+              // app: the next step is offered here, not only on the recap.
+              <section className="panel prestart" aria-labelledby="next-title">
+                <h2 id="next-title" className="font-display">
+                  Keep the habit, or run it back.
+                </h2>
+                <p>
+                  Maintenance mode keeps a daily log and artifact with no rules and no resets.
+                  Or start a fresh 75, with new rules if you like.
+                </p>
+                <div className="next-actions">
+                  <button className="btn btn-ghost" onClick={enterMaintenance}>
+                    Maintenance mode
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() => {
+                      closeForNewRound()
+                      router.push('/setup')
+                    }}
+                  >
+                    Start a new round
+                  </button>
+                </div>
+              </section>
             )}
             {phase === 'reset-pending' && (
               <section className="panel prestart" aria-labelledby="ended-title">
@@ -484,6 +518,12 @@ export default function Dashboard() {
           }
           .prestart {
             padding: 1.75rem;
+          }
+          .next-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+            margin-top: 1.1rem;
           }
           .prestart h2 {
             font-size: 1.5rem;

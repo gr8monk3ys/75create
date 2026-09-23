@@ -18,6 +18,14 @@ export interface DayData {
   skips: number[]
   /** Missed day indices whose miss-policy consequence has been applied. */
   actionedMisses: number[]
+  /**
+   * When each tick and completion last changed on this device (keyed
+   * "k:<checkKey>" and "c:<dayIndex>"), so a merge can carry an untick or a
+   * reopened day instead of resurrecting it from a stale copy.
+   */
+  changedAt?: Record<string, string>
+  /** Artifacts removed here: a merge never brings them back. */
+  removedArtifacts?: string[]
 }
 
 export function emptyDayData(): DayData {
@@ -38,30 +46,60 @@ export function dayId(challengeId: string, dayIndex: number): string {
  * Combine two copies of a challenge's day data (this device's and another's)
  * so that nothing either one made is lost: a completion, tick, artifact, skip
  * or actioned miss on either side survives, and each day keeps its most
- * recently written log. Made work is the thing this product can't lose, so
- * the merge errs toward keeping it; the session reconciles misses afterwards.
+ * recently written log. An undo carries too: an untick or a reopened day
+ * wins when it's the later change, and a removed artifact stays removed.
+ * Made work is the thing this product can't lose, so without a record of
+ * who changed what last, the merge keeps it; the session reconciles misses
+ * afterwards.
  */
 export function mergeDayData(a: DayData, b: DayData): DayData {
   const out = emptyDayData()
-  out.completions = { ...b.completions, ...a.completions }
-  for (const [day, at] of Object.entries(b.completions)) {
-    const mine = a.completions[Number(day)]
-    // Keep the earlier moment the day was made.
-    if (mine && at < mine) out.completions[Number(day)] = at
+  const stampA = a.changedAt ?? {}
+  const stampB = b.changedAt ?? {}
+  /** Which side changed `key` last: 'a', 'b', or null when neither recorded it. */
+  const later = (key: string): 'a' | 'b' | null => {
+    const ta = stampA[key]
+    const tb = stampB[key]
+    if (!ta && !tb) return null
+    return (ta ?? '') >= (tb ?? '') ? 'a' : 'b'
+  }
+
+  // A completion on either side stands, unless the other side reopened
+  // that day after it was made (its stamp is later).
+  for (const day of new Set([...Object.keys(a.completions), ...Object.keys(b.completions)])) {
+    const d = Number(day)
+    const inA = a.completions[d]
+    const inB = b.completions[d]
+    if (inA && inB) out.completions[d] = inA < inB ? inA : inB // the earlier moment it was made
+    else if (inA && later(`c:${d}`) !== 'b') out.completions[d] = inA
+    else if (inB && later(`c:${d}`) !== 'a') out.completions[d] = inB
   }
   out.logs = { ...a.logs }
   for (const [day, log] of Object.entries(b.logs)) {
     const mine = a.logs[Number(day)]
     if (!mine || log.updatedAt > mine.updatedAt) out.logs[Number(day)] = log
   }
-  out.checks = { ...b.checks }
-  for (const [key, on] of Object.entries(a.checks)) out.checks[key] = on || b.checks[key] === true
+  // A tick follows whichever side changed it last; unrecorded, a tick wins.
+  for (const key of new Set([...Object.keys(a.checks), ...Object.keys(b.checks)])) {
+    const side = later(`k:${key}`)
+    out.checks[key] =
+      side === 'a' ? a.checks[key] === true
+      : side === 'b' ? b.checks[key] === true
+      : a.checks[key] === true || b.checks[key] === true
+  }
+  const removed = new Set([...(a.removedArtifacts ?? []), ...(b.removedArtifacts ?? [])])
   const days = new Set([...Object.keys(a.artifacts), ...Object.keys(b.artifacts)].map(Number))
   for (const day of days) {
     const byId = new Map<string, Artifact>()
-    for (const art of [...(b.artifacts[day] ?? []), ...(a.artifacts[day] ?? [])]) byId.set(art.id, art)
+    for (const art of [...(b.artifacts[day] ?? []), ...(a.artifacts[day] ?? [])]) {
+      if (!removed.has(art.id)) byId.set(art.id, art)
+    }
     out.artifacts[day] = [...byId.values()].sort((x, y) => x.createdAt.localeCompare(y.createdAt))
   }
+  const changedAt: Record<string, string> = { ...stampB }
+  for (const [key, at] of Object.entries(stampA)) if (!changedAt[key] || at > changedAt[key]) changedAt[key] = at
+  if (Object.keys(changedAt).length > 0) out.changedAt = changedAt
+  if (removed.size > 0) out.removedArtifacts = [...removed].sort()
   out.skips = [...new Set([...a.skips, ...b.skips])].sort((x, y) => x - y)
   out.actionedMisses = [...new Set([...a.actionedMisses, ...b.actionedMisses])].sort((x, y) => x - y)
   return out

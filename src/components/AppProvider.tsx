@@ -18,6 +18,7 @@ import {
   ChallengeDraft,
   ChallengeSession,
   DayBoundary,
+  Ending,
   PastAttempt,
   Phase,
   Snapshot,
@@ -64,6 +65,8 @@ interface AppValue {
   /** Local "HH:MM" at which today's creative day closes. */
   dayCloses: string
   stakes: Stakes | null
+  /** What ending the challenge now would do, or null (see Snapshot.ending). */
+  ending: Ending | null
   /** A one-time note about a consequence applied at rollover (skip/extend). */
   banner: Banner | null
   dismissBanner: () => void
@@ -183,7 +186,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   /** Apply rollover consequences and re-read. Surfaces any new consequence. */
   const sync = useCallback(() => {
     if (!session) return
-    const { snapshot, events } = session.sync()
+    const { snapshot, notice: told } = session.sync()
     // The day states and stakes only change at rollover or completion, not
     // on every autosave: keep the previous values while they're equal, so
     // the memoized grids and header don't re-render while someone types.
@@ -192,9 +195,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       days: sameDays(prev.days, snapshot.days) ? prev.days : snapshot.days,
       stakes: sameStakes(prev.stakes, snapshot.stakes) ? prev.stakes : snapshot.stakes,
     }))
-    const last = events[events.length - 1]
-    if (last) {
-      const notice: Banner = { kind: last.kind, message: last.message, count: last.days.length }
+    if (told) {
+      const notice: Banner = { kind: told.kind, message: told.message, count: told.days.length }
       writeNotice(notice)
       setBanner(notice)
     } else if (snapshot.phase === 'signed-out') {
@@ -222,17 +224,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!session || !authKnown) return
     const synced = supabase ? (repo as SyncedRepository) : null
-    let pulling = false
     // Before deciding anything about the day, catch up with the other
-    // devices (bounded, and a no-op offline).
+    // devices. The pull is single-flight, bounded, and a no-op offline, so
+    // every caller (focus and visibility fire together) waits for the same
+    // one: rollover never runs on the stale local copy alone.
     const catchUp = async () => {
-      if (!synced || pulling) return sync()
-      pulling = true
-      try {
-        await synced.pull()
-      } finally {
-        pulling = false
-      }
+      if (synced) await synced.pull()
       sync()
     }
     const onChange = () => {
@@ -452,6 +449,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       creativeToday: snap.creativeToday,
       dayCloses: snap.dayCloses,
       stakes: snap.stakes,
+      ending: snap.ending,
       banner,
       dismissBanner,
       signIn,

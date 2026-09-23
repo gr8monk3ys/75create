@@ -76,7 +76,15 @@ export interface Snapshot {
   dayCloses: string
   /** What a miss costs, so the dashboard can keep the stakes visible. */
   stakes: Stakes | null
+  /**
+   * What ending the challenge now would do (Settings shows it; endAttempt
+   * does it): a free redo before Day 1, stopping on a given day, or null
+   * when there's nothing to end (finished rounds close with a new round).
+   */
+  ending: Ending | null
 }
+
+export type Ending = { kind: 'redo' } | { kind: 'stop'; day: number }
 
 export interface Stakes {
   policy: MissPolicy
@@ -141,8 +149,12 @@ export type ToggleResult =
   | { ok: false }
 
 export interface ChallengeSession {
-  /** Apply any pending miss consequences, then read. Safe to call repeatedly. */
-  sync(): { snapshot: Snapshot; events: RolloverEvent[] }
+  /**
+   * Apply any pending miss consequences, then read. Safe to call repeatedly.
+   * `notice` is what to tell the person about this sync, all of it in one
+   * message (a restore and a newly spent token together, say), or null.
+   */
+  sync(): { snapshot: Snapshot; events: RolloverEvent[]; notice: RolloverEvent | null }
   /** Read without writing anything. */
   read(): Snapshot
   /** Tick or untick one of today's rules. `dayIndex` is the day the user is looking at. */
@@ -236,6 +248,15 @@ export function createChallengeSession(
     else if (isFinished(days, currentIndex)) phase = 'finished'
     else phase = 'active'
 
+    const ending: Ending | null =
+      phase === 'prestart'
+        ? { kind: 'redo' }
+        : phase === 'reset-pending'
+          ? { kind: 'stop', day: pending!.index }
+          : phase === 'active'
+            ? { kind: 'stop', day: currentIndex }
+            : null
+
     // With the attempt ended there is no today to check in: don't draw one.
     if (phase === 'reset-pending') {
       days = days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))
@@ -258,6 +279,7 @@ export function createChallengeSession(
       missedDay: phase === 'reset-pending' ? pending!.index : null,
       creativeToday,
       dayCloses: closesAt(user.lateNightBufferHrs),
+      ending,
       stakes: {
         policy: challenge.missPolicy,
         tokensLeft:
@@ -283,7 +305,7 @@ export function createChallengeSession(
     return snapshotOf(user, challenge, clock())
   }
 
-  function sync(): { snapshot: Snapshot; events: RolloverEvent[] } {
+  function sync(): { snapshot: Snapshot; events: RolloverEvent[]; notice: RolloverEvent | null } {
     const now = clock()
     const { user } = context()
     let { challenge } = context()
@@ -318,10 +340,8 @@ export function createChallengeSession(
       }
     }
 
-    return {
-      snapshot: snapshotOf(user, challenge, now),
-      events: challenge ? summarize(events, challenge) : [],
-    }
+    const told = challenge ? summarize(events, challenge) : []
+    return { snapshot: snapshotOf(user, challenge, now), events: told, notice: noticeOf(told) }
   }
 
   /**
@@ -523,7 +543,12 @@ export function createChallengeSession(
     const snap = read()
     const { challenge, user } = snap
     if (snap.phase !== 'reset-pending' || !challenge || !user) return
-    repo.saveChallenge({ ...challenge, status: 'archived', endedOnDay: snap.missedDay ?? undefined })
+    repo.saveChallenge({
+      ...challenge,
+      status: 'archived',
+      endedOnDay: snap.missedDay ?? undefined,
+      endedBy: 'reset',
+    })
     repo.saveChallenge({
       ...challenge,
       id: newId(),
@@ -548,19 +573,15 @@ export function createChallengeSession(
   }
 
   function endAttempt(): void {
-    const snap = read()
-    const { challenge } = snap
-    if (!challenge) return
-    const endedOnDay =
-      snap.phase === 'prestart'
-        ? 0 // never started: nothing to keep in history
-        : snap.phase === 'reset-pending'
-          ? (snap.missedDay ?? snap.currentIndex)
-          : snap.phase === 'active'
-            ? snap.currentIndex
-            : null
-    if (endedOnDay === null) return // finished rounds close with closeForNewRound
-    repo.saveChallenge({ ...challenge, status: 'archived', endedOnDay })
+    const { challenge, ending } = read()
+    if (!challenge || !ending) return // finished rounds close with closeForNewRound
+    repo.saveChallenge({
+      ...challenge,
+      status: 'archived',
+      // Never started: kept (it's the person's data) but out of history.
+      endedOnDay: ending.kind === 'redo' ? 0 : ending.day,
+      endedBy: 'person',
+    })
   }
 
   function history(): PastAttempt[] {
@@ -621,6 +642,7 @@ export function emptySnapshot(): Snapshot {
     creativeToday: '',
     dayCloses: '00:00',
     stakes: null,
+    ending: null,
   }
 }
 
@@ -676,7 +698,7 @@ export function ruleMet(rule: Rule, dayData: DayData, dayIndex: number): boolean
     case 'artifact':
       return (dayData.artifacts[dayIndex]?.length ?? 0) > 0
     default:
-      return dayData.checks[`${dayIndex}:${rule.id}`] === true
+      return dayData.checks[checkKey(dayIndex, rule.id)] === true
   }
 }
 
@@ -688,6 +710,8 @@ export function attemptDays(challenge: Challenge, dayData: DayData): Day[] {
   const total = challengeLength(challenge)
   // A finished round has no end day: every day it had counts.
   const end = challenge.status === 'completed' ? total : attemptEnd(challenge, dayData)
+  // The day an attempt was quit on was never missed: only a reset's end day was.
+  const lastMissed = challenge.endedBy === 'person' ? end - 1 : end
   const days: Day[] = []
   for (let index = 1; index <= total; index++) {
     const completedAt = dayData.completions[index] ?? null
@@ -695,7 +719,7 @@ export function attemptDays(challenge: Challenge, dayData: DayData): Day[] {
       ? 'complete'
       : dayData.skips.includes(index)
         ? 'skipped'
-        : index <= end
+        : index <= lastMissed
           ? 'missed'
           : 'future'
     days.push({ challengeId: challenge.id, index, state, completedAt })
@@ -771,6 +795,22 @@ function resetCopy(challenge: Challenge, missedDay: number): string {
   return challenge.missPolicy === 'grace'
     ? `Day ${missedDay} was missed ${why}. Restarting keeps your ${n} rules and makes today Day 1.`
     : `Day ${missedDay} was missed. ${why}. Restarting keeps your ${n} rules and makes today Day 1.`
+}
+
+/**
+ * Everything one sync has to say, as one notice: nothing is dropped when a
+ * restore and a newly spent token happen together. It takes the kind of the
+ * consequence that cost something (a skip or an extension) over a restore.
+ */
+function noticeOf(events: RolloverEvent[]): RolloverEvent | null {
+  if (events.length === 0) return null
+  if (events.length === 1) return events[0]
+  const costly = events.find((e) => e.kind !== 'restore') ?? events[0]
+  return {
+    kind: costly.kind,
+    days: [...new Set(events.flatMap((e) => e.days))].sort((a, b) => a - b),
+    message: events.map((e) => e.message).join(' '),
+  }
 }
 
 /** One event per kind, so a long absence reads as one message, not twenty. */

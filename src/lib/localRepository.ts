@@ -31,6 +31,11 @@ interface Root {
   signedIn: boolean
 }
 
+/** Record when a tick or completion changed, for merges (see mergeDayData). */
+function stamp(dd: DayData, key: string): void {
+  dd.changedAt = { ...dd.changedAt, [key]: new Date().toISOString() }
+}
+
 function emptyRoot(): Root {
   return { user: null, challenges: [], dayData: {}, signedIn: false }
 }
@@ -179,6 +184,7 @@ export class LocalRepository implements Repository {
     const dd = this.dayDataFor(root, challengeId)
     if (completedAt === null) delete dd.completions[dayIndex]
     else dd.completions[dayIndex] = completedAt
+    stamp(dd, `c:${dayIndex}`)
     this.write(root)
   }
 
@@ -198,6 +204,7 @@ export class LocalRepository implements Repository {
     const root = this.read()
     const dd = this.dayDataFor(root, challengeId)
     dd.checks[checkKey(dayIndex, ruleId)] = checked
+    stamp(dd, `k:${checkKey(dayIndex, ruleId)}`)
     this.write(root)
   }
 
@@ -223,6 +230,8 @@ export class LocalRepository implements Repository {
     dd.artifacts[dayIndex] = (dd.artifacts[dayIndex] ?? []).filter(
       (a) => a.id !== artifactId,
     )
+    // Remembered, so a merge with a copy that still has it can't bring it back.
+    dd.removedArtifacts = [...new Set([...(dd.removedArtifacts ?? []), artifactId])]
     this.write(root)
   }
 
@@ -240,7 +249,6 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
-  /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
   clearMiss(challengeId: string, dayIndex: number): void {
     const root = this.read()
     const dd = this.dayDataFor(root, challengeId)
@@ -249,6 +257,7 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
+  /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
   replaceDayData(challengeId: string, data: DayData): void {
     const root = this.read()
     root.dayData[challengeId] = { ...emptyDayData(), ...data }

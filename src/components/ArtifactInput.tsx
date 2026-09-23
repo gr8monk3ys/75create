@@ -394,11 +394,14 @@ export function ArtifactThumb({
           min-width: 0;
         }
         .host {
-          display: block;
+          /* Up to two lines, so a host reads whole in the small tile. */
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
           max-width: 100%;
           overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          overflow-wrap: anywhere;
+          line-height: 1.25;
         }
         .unsafe {
           color: var(--coral-ink);
@@ -442,6 +445,8 @@ export function ArtifactThumb({
           width: 100%;
           height: 100%;
           place-items: center;
+          /* The focus ring follows the tile's corners. */
+          border-radius: 10px;
         }
         .confirm {
           font-family: var(--font-mono);

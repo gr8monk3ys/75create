@@ -536,10 +536,26 @@ describe('ending and history', () => {
     const [past] = session.history()
     expect(past).toMatchObject({ outcome: 'ended', endedOn: 2 })
     expect(past.tally.made).toBe(1)
+    // Day 2 was quit, not missed.
+    expect(past.tally.missed).toBe(0)
+    expect(past.days[1].state).toBe('future')
   })
 
-  it('lets a future start be set up again without leaving a trace', () => {
+  it('says what ending would do, and a reset still draws its miss', () => {
+    session.start(draft())
+    expect(session.read().ending).toEqual({ kind: 'stop', day: 1 })
+    completeToday()
+    at(3)
+    const s = session.sync().snapshot
+    expect(s.ending).toEqual({ kind: 'stop', day: 2 })
+    session.confirmReset()
+    const [past] = session.history()
+    expect(past.days[1].state).toBe('missed')
+  })
+
+  it('lets a future start be set up again, out of history', () => {
     session.start(draft({ start: '2026-01-10' }))
+    expect(session.read().ending).toEqual({ kind: 'redo' })
     session.endAttempt()
     expect(session.read().phase).toBe('no-challenge')
     expect(session.history()).toEqual([])
@@ -554,5 +570,24 @@ describe('ending and history', () => {
     expect(round.outcome).toBe('finished')
     expect(round.endedOn).toBeNull()
     expect(round.tally.made).toBe(75)
+  })
+})
+
+describe('one notice per sync', () => {
+  it('says both a restore and a newly spent token', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync() // Day 2 spends a token
+    const id = repo.getActiveChallenge()!.id
+    // The laptop made Days 2 and 3; Day 4 goes unmade.
+    repo.saveDayCompletion(id, 2, '2026-01-02T20:00:00.000Z')
+    repo.saveDayCompletion(id, 3, '2026-01-03T20:00:00.000Z')
+    at(5)
+    const { notice } = session.sync()
+    expect(notice?.kind).toBe('skip')
+    expect(notice?.message).toMatch(/Day 2 was made on another device/)
+    expect(notice?.message).toMatch(/Day 4 was missed/)
+    expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(1)
   })
 })

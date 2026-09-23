@@ -50,8 +50,14 @@ export interface Challenge {
   maintenanceMode: boolean
   /** Days added to the base 75 by the Extend policy. */
   extraDays: number
-  /** Archived attempts: the missed day that ended them. */
+  /** Archived attempts: the day they ended on (the miss, or the day quit). */
   endedOnDay?: number
+  /**
+   * Who ended an archived attempt: a miss (`reset`) or the person
+   * (`person`, quitting). A quit day was never missed, so it isn't drawn
+   * as one. Absent on attempts archived before this was recorded (resets).
+   */
+  endedBy?: 'reset' | 'person'
 }
 
 export interface Day {

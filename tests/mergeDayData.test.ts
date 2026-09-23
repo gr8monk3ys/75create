@@ -30,3 +30,31 @@ describe('mergeDayData', () => {
     expect(mergeDayData(a, b).artifacts[1].map((x) => x.id)).toEqual(['p', 'q', 'r'])
   })
 })
+
+describe('mergeDayData carries undos', () => {
+  const at = (t: string) => `2026-01-05T${t}:00.000Z`
+
+  it('an untick made later wins over a stale tick', () => {
+    const stale = { ...emptyDayData(), checks: { '5:create': true }, changedAt: { 'k:5:create': at('10:00') } }
+    const unticked = { ...emptyDayData(), checks: { '5:create': false }, changedAt: { 'k:5:create': at('11:00') } }
+    expect(mergeDayData(unticked, stale).checks['5:create']).toBe(false)
+    expect(mergeDayData(stale, unticked).checks['5:create']).toBe(false)
+  })
+
+  it('a day reopened later stays open; one made later stays made', () => {
+    const made = { ...emptyDayData(), completions: { 5: at('10:00') }, changedAt: { 'c:5': at('10:00') } }
+    const reopened = { ...emptyDayData(), changedAt: { 'c:5': at('11:00') } }
+    expect(mergeDayData(made, reopened).completions[5]).toBeUndefined()
+    expect(mergeDayData(reopened, made).completions[5]).toBeUndefined()
+    const remade = { ...made, completions: { 5: at('12:00') }, changedAt: { 'c:5': at('12:00') } }
+    expect(mergeDayData(reopened, remade).completions[5]).toBe(at('12:00'))
+  })
+
+  it('a removed artifact never comes back from a copy that still has it', () => {
+    const art = { id: 'a1', dayId: 'c1:5', kind: 'image' as const, blobRef: 'b1', createdAt: at('10:00') }
+    const stale = { ...emptyDayData(), artifacts: { 5: [art] } }
+    const removed = { ...emptyDayData(), artifacts: { 5: [] }, removedArtifacts: ['a1'] }
+    expect(mergeDayData(stale, removed).artifacts[5]).toEqual([])
+    expect(mergeDayData(removed, stale).removedArtifacts).toEqual(['a1'])
+  })
+})

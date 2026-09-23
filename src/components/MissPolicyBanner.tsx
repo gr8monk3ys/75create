@@ -34,7 +34,8 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           {TITLES[banner.kind][(banner.count ?? 1) > 1 ? 1 : 0]}
         </h2>
         <p className="msg">{banner.message}</p>
-        {whyNote && (
+        {/* Their reason for starting belongs with a miss, not with good news. */}
+        {whyNote && banner.kind !== 'restore' && (
           <figure className="why">
             <blockquote>{whyNote}</blockquote>
             <figcaption>

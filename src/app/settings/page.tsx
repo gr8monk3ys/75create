@@ -44,7 +44,7 @@ export default function Settings() {
  * attempt ends where it is and moves to past attempts with everything made.
  */
 function EndChallenge() {
-  const { challenge, phase, derived, missedDay, endAttempt } = useApp()
+  const { ending, endAttempt } = useApp()
   const router = useRouter()
   const [armed, setArmed] = useState(false)
   const confirmRef = useRef<HTMLButtonElement>(null)
@@ -53,10 +53,8 @@ function EndChallenge() {
     if (armed) confirmRef.current?.focus()
   }, [armed])
 
-  if (!challenge || (phase !== 'prestart' && phase !== 'active' && phase !== 'reset-pending')) {
-    return null
-  }
-  const endsOn = phase === 'reset-pending' ? missedDay : derived.currentIndex
+  if (!ending) return null
+  const redo = ending.kind === 'redo'
 
   function end() {
     endAttempt()
@@ -66,17 +64,17 @@ function EndChallenge() {
   return (
     <section className="block panel" aria-labelledby="end-title">
       <h2 className="font-display block-h2" id="end-title">
-        {phase === 'prestart' ? 'Change your setup' : 'End this challenge'}
+        {redo ? 'Change your setup' : 'End this challenge'}
       </h2>
       <p className="block-sub">
-        {phase === 'prestart'
+        {ending.kind === 'redo'
           ? 'Day 1 hasn’t started, so nothing is lost: set it up again with different rules, stakes or a start date.'
-          : `This attempt ends on Day ${endsOn} and moves to past attempts with everything you made. Then you set up a new challenge.`}
+          : `This attempt ends on Day ${ending.day} and moves to past attempts with everything you made. Then you set up a new challenge.`}
       </p>
       {armed ? (
         <div className="end-row">
           <button ref={confirmRef} type="button" className="btn btn-danger" onClick={end}>
-            {phase === 'prestart' ? 'Yes, set it up again' : `Yes, end on Day ${endsOn}`}
+            {ending.kind === 'redo' ? 'Yes, set it up again' : `Yes, end on Day ${ending.day}`}
           </button>
           <button type="button" className="btn btn-ghost" onClick={() => setArmed(false)}>
             Keep going
@@ -84,7 +82,7 @@ function EndChallenge() {
         </div>
       ) : (
         <button type="button" className="btn btn-ghost" onClick={() => setArmed(true)}>
-          {phase === 'prestart' ? 'Set it up again' : 'End this challenge'}
+          {redo ? 'Set it up again' : 'End this challenge'}
         </button>
       )}
       <style jsx>{`
