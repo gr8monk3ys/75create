@@ -237,14 +237,16 @@ function SettingsForm({ user }: { user: User }) {
           Immediate and permanent. Wipes every challenge, log, and artifact on this
           device. Export first if you want a copy.
         </p>
+        {/* A visible label: the instruction mustn't vanish as you type, on
+            the one action that can't be undone. */}
+        <label className="field-label" htmlFor="delete-confirm">
+          Type DELETE to confirm
+        </label>
         <div className="del-row">
-          <label className="sr-only" htmlFor="delete-confirm">
-            Type DELETE to confirm
-          </label>
           <input
             id="delete-confirm"
             className="field-input del-input"
-            placeholder="Type DELETE to confirm"
+            placeholder="DELETE"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}

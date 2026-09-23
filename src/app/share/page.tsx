@@ -29,7 +29,7 @@ export default function SharePage() {
   if (!snap) {
     return (
       <main className="share-view centered">
-        <h1 className="font-display">This link is empty or broken.</h1>
+        <h1 className="font-display sv-h1">This link is empty or broken.</h1>
         <p className="muted">Ask for a fresh share link, or start your own 75.</p>
         <Link href="/" className="btn">
           Start my 75
@@ -117,6 +117,8 @@ function Styles() {
       }
       .share-view .sv-nav {
         display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
         justify-content: space-between;
         align-items: center;
         padding: 0.5rem 0 2rem;
@@ -156,8 +158,16 @@ function Styles() {
       }
       .share-view .log-row {
         display: grid;
-        grid-template-columns: 70px 1fr;
+        /* A day label that grows with the text, not a fixed column. */
+        grid-template-columns: minmax(4.5rem, max-content) minmax(0, 1fr);
         gap: 0.75rem;
+      }
+      @media (max-width: 30em) {
+        /* A phone (or large text): the day sits above its log. */
+        .share-view .log-row {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0.2rem;
+        }
       }
       .share-view .log-day {
         color: var(--muted);

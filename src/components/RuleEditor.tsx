@@ -43,6 +43,8 @@ export function RuleEditor({ rules, onChange }: Props) {
               value={r.name}
               onChange={(e) => update(r.id, { name: e.target.value })}
               aria-label={`Task ${i + 1} name`}
+              aria-invalid={r.name.trim() === ''}
+              aria-describedby={r.name.trim() === '' ? 'rules-problem' : undefined}
             />
             <button
               type="button"
@@ -122,7 +124,7 @@ export function RuleEditor({ rules, onChange }: Props) {
              button off a 320px screen. */
           min-width: 0;
           min-height: 44px;
-          font-size: 1.125rem;
+          font-size: 1.25rem;
           background: transparent;
           border: none;
           border-bottom: 1.5px dashed var(--field-border);

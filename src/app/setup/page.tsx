@@ -149,15 +149,19 @@ export default function Setup() {
             <button className="btn btn-ghost" onClick={() => go(0)}>
               Back
             </button>
-            <button className="btn" onClick={() => go(2)} disabled={!canFinish}>
+            <button
+              className="btn"
+              onClick={() => go(2)}
+              disabled={!canFinish}
+              aria-describedby="rules-problem"
+            >
               Next: stakes
             </button>
           </div>
-          {problem && (
-            <p className="form-hint font-mono" role="status">
-              {problem}
-            </p>
-          )}
+          {/* Always mounted, so a new problem is announced as it appears. */}
+          <p className="form-hint font-mono" role="status" id="rules-problem">
+            {problem ?? ''}
+          </p>
         </section>
       )}
 
@@ -207,6 +211,8 @@ export default function Setup() {
                   type="date"
                   className="field-input date"
                   aria-label="Start date"
+                  aria-describedby="stakes-problem"
+                  aria-invalid={!futureDate}
                   value={futureDate}
                   min={tomorrow}
                   onChange={(e) => setFutureDate(e.target.value)}
@@ -237,19 +243,34 @@ export default function Setup() {
             <button className="btn btn-ghost" onClick={() => go(1)}>
               Back
             </button>
-            <button className="btn" onClick={finish} disabled={!canFinish}>
+            <button
+              className="btn"
+              onClick={finish}
+              disabled={!canFinish}
+              aria-describedby="stakes-problem"
+            >
               Start my 75
             </button>
           </div>
-          {(error || problem) && (
+          {/* What still blocks Start, said politely as it changes; a failure
+              to start is the one thing worth interrupting for. */}
+          <p className="form-hint font-mono" role="status" id="stakes-problem">
+            {error ? '' : (problem ?? '')}
+          </p>
+          {error && (
             <p className="form-hint font-mono" role="alert">
-              {error ?? problem}
+              {error}
             </p>
           )}
         </section>
       )}
 
       <style jsx>{`
+        /* Empty, it takes no room but stays in the accessibility tree, so
+           the live region is there before its first message. */
+        .form-hint:empty {
+          margin: 0;
+        }
         .form-hint {
           margin: 0.75rem 0 0;
           font-size: 0.75rem;
@@ -296,7 +317,8 @@ export default function Setup() {
         }
         .media-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          /* Two across where they fit; one column at large text. */
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
           gap: 0.75rem;
         }
         .media {
@@ -311,6 +333,9 @@ export default function Setup() {
           font-family: var(--font-body);
           font-size: 1rem;
           min-height: 56px;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          text-align: left;
           cursor: pointer;
           transition:
             border-color 0.12s ease,
@@ -325,10 +350,15 @@ export default function Setup() {
         }
         .media :global(.glyph) {
           flex: none;
+          color: var(--ink-soft);
+        }
+        /* Cobalt is "made": only the chosen medium carries it. */
+        .media.sel :global(.glyph) {
           color: var(--cobalt);
         }
         .nav-row {
           display: flex;
+          flex-wrap: wrap;
           justify-content: space-between;
           align-items: center;
           margin-top: 2.5rem;

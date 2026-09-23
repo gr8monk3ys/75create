@@ -142,6 +142,11 @@ function sameDays(a: Day[], b: Day[]): boolean {
   return true
 }
 
+function sameStakes(a: Stakes | null, b: Stakes | null): boolean {
+  if (!a || !b) return a === b
+  return a.policy === b.policy && a.tokensLeft === b.tokensLeft && a.extraDays === b.extraDays
+}
+
 /** How often to check whether the creative day has rolled over. */
 const TICK_MS = 60_000
 
@@ -188,10 +193,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sync = useCallback(() => {
     if (!session) return
     const { snapshot, events } = session.sync()
-    // The day states only change at rollover or completion, not on every
-    // autosave: keep the previous array while they're equal, so the grids
-    // and header don't re-render while someone types.
-    setSnap((prev) => (sameDays(prev.days, snapshot.days) ? { ...snapshot, days: prev.days } : snapshot))
+    // The day states and stakes only change at rollover or completion, not
+    // on every autosave: keep the previous values while they're equal, so
+    // the memoized grids and header don't re-render while someone types.
+    setSnap((prev) => ({
+      ...snapshot,
+      days: sameDays(prev.days, snapshot.days) ? prev.days : snapshot.days,
+      stakes: sameStakes(prev.stakes, snapshot.stakes) ? prev.stakes : snapshot.stakes,
+    }))
     const last = events[events.length - 1]
     if (last) {
       const notice: Banner = { kind: last.kind, message: last.message }

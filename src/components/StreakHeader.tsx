@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import type { Phase, Stakes } from '@/lib/challengeSession'
 import { MAX_SKIP_TOKENS, TOTAL_DAYS } from '@/lib/types'
 
@@ -21,7 +22,7 @@ interface Props {
  * what a miss costs. The stakes stay on screen for all 75 days because
  * they're the point of the format, not a setting you chose once.
  */
-export function StreakHeader({
+export const StreakHeader = memo(function StreakHeader({
   dayIndex,
   current,
   longest,
@@ -79,7 +80,15 @@ export function StreakHeader({
           </dd>
         </div>
       )}
-      {stakes && !after && <StakesStat stakes={stakes} totalDays={totalDays} />}
+      {stakes && !after && (
+        <StakesStat
+          stakes={stakes}
+          totalDays={totalDays}
+          // "How today works" lives in the check-in card: link to it only
+          // when there is one on the page.
+          explained={phase === 'active' || phase === 'finished'}
+        />
+      )}
       {!stakes && totalDays > TOTAL_DAYS && (
         <div className="stat">
           <dt>Extended</dt>
@@ -141,17 +150,33 @@ export function StreakHeader({
       `}</style>
     </dl>
   )
+})
+
+function PolicyName({ name, explained }: { name: string; explained: boolean }) {
+  return explained ? (
+    <a href="#how-today" className="policy-link">
+      {name}
+    </a>
+  ) : (
+    <>{name}</>
+  )
 }
 
-function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }) {
+function StakesStat({
+  stakes,
+  totalDays,
+  explained,
+}: {
+  stakes: Stakes
+  totalDays: number
+  explained: boolean
+}) {
   if (stakes.policy === 'grace') {
     const left = stakes.tokensLeft ?? 0
     return (
       <div className="stat stakes">
         <dt>
-          <a href="#how-today" className="policy-link">
-            Grace
-          </a>
+          <PolicyName name="Grace" explained={explained} />
         </dt>
         <dd className="tokens">
           <span className="pips" aria-hidden>
@@ -208,7 +233,7 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
             font-size: 0.8rem;
             color: var(--ink-soft);
           }
-          .policy-link {
+          dt :global(.policy-link) {
             color: inherit;
             text-decoration: underline dotted;
             text-underline-offset: 0.3em;
@@ -244,9 +269,7 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
   return (
     <div className="stat stakes">
       <dt>
-        <a href="#how-today" className="policy-link">
-          {stakes.policy === 'classic' ? 'Classic' : 'Extend'}
-        </a>
+        <PolicyName name={stakes.policy === 'classic' ? 'Classic' : 'Extend'} explained={explained} />
       </dt>
       <dd className="line">{line}</dd>
       <style jsx>{`
@@ -271,7 +294,7 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
           display: flex;
           align-items: flex-end;
         }
-        .policy-link {
+        dt :global(.policy-link) {
           color: inherit;
           text-decoration: underline dotted;
           text-underline-offset: 0.3em;

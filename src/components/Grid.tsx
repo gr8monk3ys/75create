@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Day } from '@/lib/types'
 
 /** Deterministic small rotation (-3.5°..3.5°) so stamps feel hand-placed. */
@@ -52,7 +52,8 @@ interface Props {
   endedOn?: number | null
 }
 
-export function Grid({
+/** Memoized: an autosave re-renders the page, but the day states it draws are unchanged. */
+export const Grid = memo(function Grid({
   days,
   compact = false,
   onOpenDay,
@@ -210,6 +211,11 @@ export function Grid({
           outline: 2.5px solid var(--ink);
           outline-offset: 2px;
         }
+        /* Focus outranks selection: the open day still shows where focus is. */
+        .cell.sel:focus-visible {
+          outline: 3px solid var(--cobalt);
+          outline-offset: 3px;
+        }
         .cell.stamp {
           animation: pop-in 0.55s cubic-bezier(0.25, 1, 0.5, 1) both;
         }
@@ -263,4 +269,4 @@ export function Grid({
       `}</style>
     </div>
   )
-}
+})

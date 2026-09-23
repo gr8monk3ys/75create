@@ -9,12 +9,12 @@ import { useEffect } from 'react'
 import { reportError } from '@/lib/reportError'
 
 const CSS = `
-  .ge { --paper: #efe9dc; --ink: #1b1a17; --soft: #4a463d; color-scheme: light;
+  .ge { --paper: #efe9dc; --ink: #1b1a17; --soft: #4a463d; --focus: #2340d8; color-scheme: light;
     margin: 0; min-height: 100dvh; display: flex; flex-direction: column;
     justify-content: center; padding: 2rem 1.5rem; background: var(--paper);
     color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.6; }
   @media (prefers-color-scheme: dark) {
-    .ge { --paper: #15140f; --ink: #f3ecdd; --soft: #cdc5b4; color-scheme: dark; }
+    .ge { --paper: #15140f; --ink: #f3ecdd; --soft: #cdc5b4; --focus: #6f85ff; color-scheme: dark; }
   }
   .ge-box { max-width: 34rem; margin: 0 auto; }
   .ge h1 { font-size: 2rem; margin: 0.5rem 0 0.75rem; line-height: 1.05; }
@@ -23,7 +23,7 @@ const CSS = `
     border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink);
     color: var(--paper); font-family: ui-monospace, monospace; font-size: 0.875rem;
     letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
-  .ge button:focus-visible { outline: 3px solid #6f85ff; outline-offset: 2px; }
+  .ge button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 `
 
 export default function GlobalError({

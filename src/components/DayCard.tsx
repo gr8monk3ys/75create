@@ -278,7 +278,7 @@ export function DayCard({
     </div>
   )
 
-  const artifactField = (labelId: string) => (
+  const artifactField = (labelId: string, describedBy?: string) => (
     <ArtifactInput
       repo={repo}
       dayIndex={dayIndex}
@@ -289,6 +289,7 @@ export function DayCard({
       wouldReopen={wouldReopen}
       onResult={handle}
       labelledBy={labelId}
+      describedBy={describedBy}
       uploadId={`upload-${dayIndex}`}
     />
   )
@@ -302,7 +303,7 @@ export function DayCard({
       tabIndex={-1}
     >
       <header className="daycard-head">
-        <div>
+        <div className="head-text">
           <h2 id={`dc-title-${dayIndex}`} className="font-display dc-h2">
             {longDay(creativeToday)}
           </h2>
@@ -328,14 +329,19 @@ export function DayCard({
               const evidence = evidenceOf(r)
               const met = ruleMet(r, dayData, dayIndex)
               const labelId = `rule-${dayIndex}-${r.id}`
+              // A button's contents aren't read as a description: point at the
+              // note explicitly so what counts is heard, not only seen.
+              const descId = notesShown && r.description ? `${labelId}-desc` : undefined
               const body = (
                 <span className="check-body">
                   <span className="check-name" id={labelId}>
                     {r.name}
                     {!r.required && <span className="opt"> · optional</span>}
                   </span>
-                  {notesShown && r.description && (
-                    <span className="check-desc">{r.description}</span>
+                  {descId && (
+                    <span className="check-desc" id={descId}>
+                      {r.description}
+                    </span>
                   )}
                 </span>
               )
@@ -353,6 +359,7 @@ export function DayCard({
                       onClick={() => toggle(r)}
                       aria-pressed={met}
                       aria-labelledby={labelId}
+                      aria-describedby={descId}
                       aria-keyshortcuts={i < 9 ? String(i + 1) : undefined}
                     >
                       {box}
@@ -386,8 +393,10 @@ export function DayCard({
                     <span className={`status ${status.startsWith('Clearing') ? 'warn' : ''}`} id={statusId}>
                       {status}
                     </span>
-                    {notesShown && r.description && (
-                      <span className="check-desc">{r.description}</span>
+                    {descId && (
+                      <span className="check-desc" id={descId}>
+                        {r.description}
+                      </span>
                     )}
                   </span>
                   {i < 9 && <kbd className="key" aria-hidden>{i + 1}</kbd>}
@@ -418,7 +427,9 @@ export function DayCard({
                         {head}
                       </div>
                     )}
-                    {evidence === 'log' ? logField(labelId, statusId) : artifactField(labelId)}
+                    {evidence === 'log'
+                      ? logField(labelId, [statusId, descId].filter(Boolean).join(' '))
+                      : artifactField(labelId, descId)}
                   </div>
                 </li>
               )
@@ -506,6 +517,10 @@ export function DayCard({
           justify-content: space-between;
           align-items: flex-start;
           gap: 1rem;
+        }
+        .head-text {
+          /* Let a long date wrap instead of widening the card. */
+          min-width: 0;
         }
         .dc-h2 {
           font-size: clamp(1.5rem, 5vw, 1.9rem);
@@ -621,6 +636,9 @@ export function DayCard({
           gap: 0.2rem;
           flex: 1;
           min-width: 0;
+          /* A rule name longer than a narrow card (large text on a small
+             phone) breaks rather than pushing the page sideways. */
+          overflow-wrap: anywhere;
         }
         .check-name {
           font-weight: 600;

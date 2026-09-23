@@ -63,6 +63,21 @@ export default function Dashboard() {
     [totalDays],
   )
 
+  const { currentIndex, checkInOpen } = derived
+  // Stable across autosaves (the day states and today don't change while
+  // someone types), so the memoized grid skips those renders.
+  const onOpenDay = useCallback(
+    (index: number) => {
+      if (index === currentIndex && checkInOpen) {
+        document.getElementById('check-in')?.focus()
+        document.getElementById('check-in')?.scrollIntoView({ block: 'start' })
+        return
+      }
+      setOpenDay((open) => (open === index ? null : index))
+    },
+    [currentIndex, checkInOpen],
+  )
+
   if (loading || !user || !challenge) {
     return (
       <main className="dash">
@@ -79,7 +94,6 @@ export default function Dashboard() {
     )
   }
 
-  const { currentIndex, checkInOpen } = derived
   const gridDays = derived.days
   const finish = finishLine(derived.tally, totalDays)
   const opened = openDay ? gridDays.find((d) => d.index === openDay) : undefined
@@ -101,15 +115,6 @@ export default function Dashboard() {
           .filter((l) => l.day > totalDays && l.text)
           .sort((a, b) => b.day - a.day)
       : []
-
-  function onOpenDay(index: number) {
-    if (index === currentIndex && checkInOpen) {
-      document.getElementById('check-in')?.focus()
-      document.getElementById('check-in')?.scrollIntoView({ block: 'start' })
-      return
-    }
-    setOpenDay(openDay === index ? null : index)
-  }
 
   function closeDay() {
     const from = openDay
@@ -349,6 +354,7 @@ export default function Dashboard() {
           }
           .dash-nav {
             display: flex;
+            flex-wrap: wrap;
             justify-content: space-between;
             align-items: center;
             gap: 0.5rem;
@@ -361,6 +367,7 @@ export default function Dashboard() {
           .nav-links {
             display: flex;
             flex-wrap: wrap;
+            min-width: 0;
             justify-content: flex-end;
             gap: 0.1rem;
             font-size: 0.8rem;
@@ -432,7 +439,7 @@ export default function Dashboard() {
             flex-wrap: wrap;
           }
           .grid-title {
-            font-size: 1.125rem;
+            font-size: 1.25rem;
             margin: 0;
           }
           .grid-foot {
@@ -462,7 +469,7 @@ export default function Dashboard() {
             border-top: 1.5px dashed var(--line);
           }
           .after-h3 {
-            font-size: 1.125rem;
+            font-size: 1.25rem;
             margin: 0 0 0.6rem;
           }
           .after-list {

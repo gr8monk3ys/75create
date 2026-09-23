@@ -69,7 +69,8 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           border-color: var(--marigold);
         }
         .kind-extend {
-          border-color: var(--cobalt);
+          /* A miss, not a made day: never cobalt. */
+          border-color: var(--ink-soft);
         }
         .banner-body {
           flex: 1;
@@ -94,10 +95,10 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
         }
         .why blockquote {
           margin: 0;
-          font-family: var(--font-display);
-          font-weight: 600;
+          /* Lead: their own words, in the reading face. */
+          font-family: var(--font-body);
           font-size: 1.125rem;
-          line-height: 1.35;
+          line-height: 1.5;
           color: var(--ink);
           quotes: '“' '”';
         }

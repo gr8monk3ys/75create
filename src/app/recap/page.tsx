@@ -105,7 +105,7 @@ export default function Recap() {
       </div>
 
       <div className="cert-row">
-        <div>
+        <div className="cert-text">
           <h2 className="font-display cert-h2">Take the certificate.</h2>
           <p className="cert-sub">
             A PNG with your stats and the finished grid. No artifacts included —
@@ -190,6 +190,10 @@ export default function Recap() {
           padding: 1.5rem;
           border: 1.5px solid var(--line);
           border-radius: 14px;
+        }
+        .cert-text {
+          flex: 1 1 16rem;
+          min-width: 0;
         }
         .cert-h2 {
           font-size: 1.5rem;

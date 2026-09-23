@@ -176,7 +176,7 @@ test.describe('settings', () => {
     await startChallenge(page, 'delete@75create.test')
 
     await page.goto('/settings')
-    await page.getByPlaceholder('Type DELETE to confirm').fill('DELETE')
+    await page.getByLabel('Type DELETE to confirm').fill('DELETE')
     await page.getByRole('button', { name: /delete everything/i }).click()
 
     await page.waitForURL('/')

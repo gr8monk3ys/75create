@@ -21,6 +21,8 @@ interface Props {
   onResult: (result: ToggleResult) => void
   /** Id of the element that labels this group (the rule or field heading). */
   labelledBy?: string
+  /** The rule's note, when shown. */
+  describedBy?: string
   /** Id for the upload button, so a rule label can point at it. */
   uploadId?: string
 }
@@ -35,6 +37,7 @@ export function ArtifactInput({
   wouldReopen,
   onResult,
   labelledBy,
+  describedBy,
   uploadId,
 }: Props) {
   const [url, setUrl] = useState('')
@@ -75,7 +78,7 @@ export function ArtifactInput({
   }
 
   return (
-    <div className="artifact" role="group" aria-labelledby={labelledBy}>
+    <div className="artifact" role="group" aria-labelledby={labelledBy} aria-describedby={describedBy}>
       {artifacts.length > 0 && (
         <ul className="thumbs" aria-label="Today's artifacts">
           {artifacts.map((a) => (

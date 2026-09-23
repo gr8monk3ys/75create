@@ -160,7 +160,8 @@ button {
 
 kbd {
   font-family: var(--font-mono);
-  font-size: 0.78em;
+  /* Relative to its line, but never under the 11px floor. */
+  font-size: max(0.7rem, 0.78em);
   padding: 0.1em 0.45em;
   border: 1px solid var(--line);
   box-shadow: 0 1px 0 var(--line);
@@ -219,6 +220,10 @@ kbd {
   justify-content: center;
   gap: 0.5rem;
   text-decoration: none;
+  /* At large text sizes a label wraps inside its button rather than
+     pushing the page sideways. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 @media (hover: hover) {
   .btn:hover {
@@ -256,6 +261,7 @@ kbd {
 }
 .field-input {
   width: 100%;
+  max-width: 100%;
   min-height: 44px;
   font-family: var(--font-body);
   /* 16px stops iOS Safari zooming the viewport on focus. */
@@ -405,9 +411,20 @@ main {
 }
 .nav {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem 0;
+}
+
+/* Display-size words can outgrow a phone at large text: break them rather
+   than scroll the page. */
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .wordmark {
   font-size: 1.25rem;

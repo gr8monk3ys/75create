@@ -1,19 +1,29 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from './AppProvider'
 import { Grid } from './Grid'
 import { Icon } from './Icon'
 import { attemptDays, tally } from '@/lib/challengeSession'
 import { POLICY_NAMES, shortDate } from '@/lib/format'
 import { Challenge } from '@/lib/types'
+import type { DayData } from '@/lib/repository'
 
 export function PastAttempts() {
-  const { repo } = useApp()
-  const archived = repo
-    .getChallenges()
-    .filter((c) => c.status === 'archived')
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const { repo, challenge } = useApp()
+  // Archived attempts only change when an attempt ends (a new challenge id),
+  // so they're read from storage then, not on every autosave.
+  const activeId = challenge?.id
+  const archived = useMemo(
+    () =>
+      repo
+        .getChallenges()
+        .filter((c) => c.status === 'archived')
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .map((c) => ({ challenge: c, dayData: repo.getDayData(c.id) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [repo, activeId],
+  )
   const [open, setOpen] = useState<string | null>(null)
 
   if (archived.length === 0) return null
@@ -28,11 +38,12 @@ export function PastAttempts() {
         as work you made.
       </p>
       <ul className="attempts">
-        {archived.map((c, i) => (
+        {archived.map(({ challenge: c, dayData }, i) => (
           <AttemptRow
             key={c.id}
             number={archived.length - i}
             challenge={c}
+            dayData={dayData}
             open={open === c.id}
             onToggle={() => setOpen(open === c.id ? null : c.id)}
           />
@@ -71,16 +82,16 @@ export function PastAttempts() {
 function AttemptRow({
   number,
   challenge,
+  dayData: dd,
   open,
   onToggle,
 }: {
   number: number
   challenge: Challenge
+  dayData: DayData
   open: boolean
   onToggle: () => void
 }) {
-  const { repo } = useApp()
-  const dd = repo.getDayData(challenge.id)
   const days = attemptDays(challenge, dd)
   const { made } = tally(days, dd)
   const endedOn = challenge.endedOnDay ?? days.find((d) => d.state === 'missed')?.index ?? null
@@ -146,7 +157,7 @@ function AttemptRow({
           gap: 0.25rem;
         }
         .a-name {
-          font-size: 1.125rem;
+          font-size: 1.25rem;
         }
         .a-meta {
           color: var(--ink-soft);
