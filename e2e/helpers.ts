@@ -4,7 +4,7 @@ import { expect, type Page } from '@playwright/test'
 export async function startChallenge(page: Page, email: string): Promise<void> {
   await page.goto('/signin')
   await page.locator('input[type=email]').fill(email)
-  await page.getByRole('button', { name: 'Send magic link' }).click()
+  await page.getByRole('button', { name: /Send magic link|Continue on this device/ }).click()
   await page.waitForURL(/\/setup|\/dashboard/)
 
   if (page.url().includes('/setup')) {

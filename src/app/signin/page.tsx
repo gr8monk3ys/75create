@@ -32,14 +32,7 @@ export default function SignIn() {
   }
 
   async function google() {
-    if (supabaseEnabled) {
-      await signInWithGoogle() // redirects to Google
-      return
-    }
-    const value = email.trim() || 'creative@example.com'
-    if (!email.trim()) setEmail(value)
-    await signIn(value)
-    router.push(repo.getActiveChallenge() ? '/dashboard' : '/setup')
+    await signInWithGoogle() // redirects to Google
   }
 
   return (
@@ -73,16 +66,24 @@ export default function SignIn() {
               />
             </label>
             <button type="submit" className="btn" disabled={busy}>
-              {busy ? 'Sending…' : 'Send magic link'}
+              {supabaseEnabled
+                ? busy
+                  ? 'Sending…'
+                  : 'Send magic link'
+                : 'Continue on this device'}
             </button>
-            <button
-              type="button"
-              className="btn btn-ghost google"
-              onClick={google}
-              disabled={busy}
-            >
-              Continue with Google
-            </button>
+            {/* Only offered where it's real: without a backend there is no
+                Google sign-in to continue with. */}
+            {supabaseEnabled && (
+              <button
+                type="button"
+                className="btn btn-ghost google"
+                onClick={google}
+                disabled={busy}
+              >
+                Continue with Google
+              </button>
+            )}
           </form>
         )}
 
@@ -93,9 +94,9 @@ export default function SignIn() {
           </p>
         ) : (
           <p className="proto-note font-mono">
-            Prototype note: this build runs entirely in your browser. There&apos;s no
-            server configured, so the magic link and Google button sign you in
-            instantly and your challenge is saved locally on this device.
+            This build runs entirely in your browser: your email just names your
+            challenge on this device, and everything is saved here. No account,
+            no server, nothing sent anywhere.
           </p>
         )}
       </div>

@@ -292,6 +292,7 @@ function SettingsForm({ user }: { user: User }) {
         .row-toggle {
           display: flex;
           align-items: center;
+          min-height: 44px;
           gap: 0.6rem;
           cursor: pointer;
           font-weight: 600;
@@ -349,9 +350,6 @@ function SettingsForm({ user }: { user: User }) {
           min-width: min(100%, 180px);
           width: auto;
           font-family: var(--font-mono);
-        }
-        .del-btn:hover:not(:disabled) {
-          box-shadow: 4px 6px 0 var(--ink);
         }
         .signout {
           margin-top: 1rem;

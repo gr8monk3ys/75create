@@ -125,6 +125,16 @@ interface Stack {
   client: SupabaseClient | null
 }
 
+function sameDays(a: Day[], b: Day[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].state !== b[i].state || a[i].completedAt !== b[i].completedAt || a[i].index !== b[i].index) {
+      return false
+    }
+  }
+  return true
+}
+
 /** How often to check whether the creative day has rolled over. */
 const TICK_MS = 60_000
 
@@ -166,7 +176,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const sync = useCallback(() => {
     if (!session) return
     const { snapshot, events } = session.sync()
-    setSnap(snapshot)
+    // The day states only change at rollover or completion, not on every
+    // autosave: keep the previous array while they're equal, so the grids
+    // and header don't re-render while someone types.
+    setSnap((prev) => (sameDays(prev.days, snapshot.days) ? { ...snapshot, days: prev.days } : snapshot))
     const last = events[events.length - 1]
     if (last) {
       const notice: Banner = { kind: last.kind, message: last.message }
@@ -346,6 +359,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBanner(null)
   }, [])
 
+  // Stable while the day states and numbers are (see `keepDays` in sync).
+  const derived = useMemo<Derived>(
+    () => ({
+      days: snap.days,
+      currentIndex: snap.currentIndex,
+      totalDays: snap.totalDays,
+      streak: snap.streak,
+      completedCount: snap.completedCount,
+    }),
+    // streak is rebuilt per snapshot; its numbers are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [snap.days, snap.currentIndex, snap.totalDays, snap.streak.current, snap.streak.longest, snap.completedCount],
+  )
+
   // Stable unless something it carries changes, so a banner or a snapshot
   // update doesn't re-render every consumer for nothing.
   const value = useMemo<AppValue>(
@@ -355,13 +382,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       user: snap.user,
       challenge: snap.challenge,
       dayData: snap.dayData,
-      derived: {
-        days: snap.days,
-        currentIndex: snap.currentIndex,
-        totalDays: snap.totalDays,
-        streak: snap.streak,
-        completedCount: snap.completedCount,
-      },
+      derived,
       phase: snap.phase,
       resetMessage: snap.resetMessage,
       missedDay: snap.missedDay,
@@ -377,7 +398,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       refresh,
       ...actions,
     }),
-    [loading, repo, snap, banner, dismissBanner, signIn, signInWithGoogle, signOut, refresh, actions],
+    [loading, repo, snap, derived, banner, dismissBanner, signIn, signInWithGoogle, signOut, refresh, actions],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

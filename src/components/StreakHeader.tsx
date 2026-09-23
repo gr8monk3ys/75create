@@ -212,6 +212,10 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
             color: inherit;
             text-decoration: underline dotted;
             text-underline-offset: 0.3em;
+            /* A 44px hit area around a short label, without moving it. */
+            display: inline-block;
+            padding: 0.9rem 0.6rem;
+            margin: -0.9rem -0.6rem;
           }
           @media (max-width: 520px) {
             .stakes {
@@ -271,6 +275,9 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
           color: inherit;
           text-decoration: underline dotted;
           text-underline-offset: 0.3em;
+          display: inline-block;
+          padding: 0.9rem 0.6rem;
+          margin: -0.9rem -0.6rem;
         }
         @media (max-width: 520px) {
           .stakes {

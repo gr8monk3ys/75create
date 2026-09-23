@@ -99,7 +99,7 @@ test.describe('artifact links', () => {
 
     await input.fill('javascript:alert(1)')
     await add.click()
-    await expect(page.getByText(/isn’t a web link/)).toBeVisible()
+    await expect(page.getByText(/isn’t a web address/)).toBeVisible()
     await expect(page.locator('.thumb')).toHaveCount(0)
 
     await input.fill('example.com/study.png')

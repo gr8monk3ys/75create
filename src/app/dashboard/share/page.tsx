@@ -187,8 +187,10 @@ export default function ShareGenerator() {
           color: var(--ink-soft);
         }
         .preview-link {
-          display: inline-block;
-          margin-top: 1.25rem;
+          display: inline-flex;
+          align-items: center;
+          min-height: 44px;
+          margin-top: 0.75rem;
           font-size: 0.8rem;
           color: var(--cobalt);
           text-decoration: none;

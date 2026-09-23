@@ -92,7 +92,7 @@ export default function Recap() {
       </header>
 
       <dl className="facts">
-        <Fact n={stats.completedDays} label={stats.completedDays === 1 ? 'day made' : 'days made'} />
+        <Fact n={stats.completedDays} label={stats.completedDays === 1 ? 'day made' : 'days made'} made />
         <Fact n={stats.longest} label="longest streak" />
         <Fact n={stats.logsWritten} label={stats.logsWritten === 1 ? 'log written' : 'logs written'} />
         <Fact n={stats.artifactsKept} label={stats.artifactsKept === 1 ? 'piece kept' : 'pieces kept'} />
@@ -128,7 +128,7 @@ export default function Recap() {
                 <span className="tl-num font-mono">Day {day}</span>
                 <div className="tl-arts">
                   {artifacts.map((a) => (
-                    <ArtifactThumb key={a.id} artifact={a} repo={repo} size={120} />
+                    <ArtifactThumb key={a.id} artifact={a} repo={repo} size={120} dayIndex={day} />
                   ))}
                 </div>
                 {dayData.logs[day]?.text && (
@@ -188,7 +188,6 @@ export default function Recap() {
           padding: 1.5rem;
           border: 1.5px solid var(--line);
           border-radius: 14px;
-          box-shadow: 4px 5px 0 var(--marigold);
         }
         .cert-h2 {
           font-size: 1.5rem;
@@ -220,7 +219,7 @@ export default function Recap() {
         }
         .tl-num {
           font-size: 0.8rem;
-          color: var(--coral-ink);
+          color: var(--muted);
           text-transform: uppercase;
           letter-spacing: 0.1em;
         }
@@ -256,9 +255,10 @@ export default function Recap() {
   )
 }
 
-function Fact({ n, label }: { n: number; label: string }) {
+/** One recorded fact. Only days made wear cobalt: that pigment means made. */
+function Fact({ n, label, made = false }: { n: number; label: string; made?: boolean }) {
   return (
-    <div className="fact">
+    <div className={`fact ${made ? 'made' : ''}`}>
       <dt>{label}</dt>
       <dd className="font-display">{n}</dd>
       <style jsx>{`
@@ -270,8 +270,11 @@ function Fact({ n, label }: { n: number; label: string }) {
         dd {
           margin: 0;
           font-size: clamp(1.8rem, 7vw, 2.6rem);
-          color: var(--cobalt);
+          color: var(--ink);
           font-variant-numeric: tabular-nums;
+        }
+        .made dd {
+          color: var(--cobalt);
         }
         dt {
           font-family: var(--font-mono);

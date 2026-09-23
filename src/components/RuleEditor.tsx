@@ -15,7 +15,13 @@ export function RuleEditor({ rules, onChange }: Props) {
   }
   function remove(id: string) {
     if (rules.length <= MIN_RULES) return
-    onChange(rules.filter((r) => r.id !== id))
+    const at = rules.findIndex((r) => r.id === id)
+    const rest = rules.filter((r) => r.id !== id)
+    onChange(rest)
+    // The button that had focus is gone: land on the rule that took its
+    // place (or the one before it), so keyboard users stay in the list.
+    const next = rest[Math.min(at, rest.length - 1)]
+    requestAnimationFrame(() => document.getElementById(`rule-name-${next.id}`)?.focus())
   }
   function add() {
     if (rules.length >= MAX_RULES) return
@@ -32,6 +38,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           <div className="rule-top">
             <span className="idx font-mono">{String(i + 1).padStart(2, '0')}</span>
             <input
+              id={`rule-name-${r.id}`}
               className="name-input font-display"
               value={r.name}
               onChange={(e) => update(r.id, { name: e.target.value })}
@@ -106,7 +113,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           gap: 0.75rem;
         }
         .idx {
-          color: var(--coral-ink);
+          color: var(--muted);
           font-size: 0.875rem;
         }
         .name-input {
@@ -146,7 +153,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           cursor: not-allowed;
         }
         .desc-input {
-          font-size: 0.875rem;
+          /* Stays at the field's 16px so iOS doesn't zoom; quieter by colour. */
           color: var(--ink-soft);
         }
         .evidence-note {

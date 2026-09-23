@@ -149,7 +149,7 @@ export function Grid({
         }
         .grid-cells {
           display: grid;
-          grid-template-columns: repeat(${COLS}, 1fr);
+          grid-template-columns: repeat(${COLS}, minmax(0, 1fr));
           gap: ${compact ? '3px' : '6px'};
         }
         .cell {
@@ -166,11 +166,13 @@ export function Grid({
         button.cell {
           cursor: pointer;
         }
-        button.cell:hover {
-          transform: rotate(var(--rot)) scale(1.12);
+        @media (hover: hover) {
+          button.cell:hover {
+            transform: rotate(var(--rot)) scale(1.12);
+          }
         }
         .cell-future {
-          border: 1.5px dotted color-mix(in srgb, var(--field-border) 70%, transparent);
+          border: 1.5px dotted var(--field-border);
           background: color-mix(in srgb, var(--paper-3) 30%, transparent);
         }
         .cell-complete {
@@ -213,7 +215,7 @@ export function Grid({
         }
         .cell-skipped .cell-mark {
           /* Marigold is light in both themes: always dark ink on it. */
-          color: #1b1a17;
+          color: var(--on-marigold);
         }
         .cell-missed .cell-mark {
           background: var(--paper-2);
@@ -222,6 +224,14 @@ export function Grid({
         }
         .grid-compact .cell-mark {
           display: none;
+        }
+        /* Too small for a glyph, a compact skipped cell still carries a mark
+           of its own (an ink bar across it), so skipped never depends on
+           hue alone. */
+        .grid-compact .cell-skipped {
+          background:
+            linear-gradient(var(--on-marigold), var(--on-marigold)) center / 60% 2px no-repeat,
+            color-mix(in srgb, var(--cell-skipped) 85%, transparent);
         }
         @media (max-width: 520px) {
           .grid-cells {

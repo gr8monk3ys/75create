@@ -273,7 +273,8 @@ export default function Setup() {
           flex-wrap: wrap;
         }
         .step.on {
-          color: var(--coral-ink);
+          color: var(--ink);
+          font-weight: 700;
         }
         .step.done {
           color: var(--ink);
@@ -295,7 +296,7 @@ export default function Setup() {
         }
         .media-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 0.75rem;
         }
         .media {

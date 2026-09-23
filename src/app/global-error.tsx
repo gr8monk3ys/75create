@@ -2,10 +2,29 @@
 
 // Last-resort boundary: catches errors thrown in the root layout itself, where
 // `error.tsx` never mounts. It replaces <html>, so it carries its own styles and
-// cannot rely on globals.css having loaded.
+// cannot rely on globals.css having loaded. The palette is repeated here, both
+// themes, as literal values for that reason.
 
 import { useEffect } from 'react'
 import { reportError } from '@/lib/reportError'
+
+const CSS = `
+  .ge { --paper: #efe9dc; --ink: #1b1a17; --soft: #4a463d; color-scheme: light;
+    margin: 0; min-height: 100dvh; display: flex; flex-direction: column;
+    justify-content: center; padding: 2rem 1.5rem; background: var(--paper);
+    color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.6; }
+  @media (prefers-color-scheme: dark) {
+    .ge { --paper: #15140f; --ink: #f3ecdd; --soft: #cdc5b4; color-scheme: dark; }
+  }
+  .ge-box { max-width: 34rem; margin: 0 auto; }
+  .ge h1 { font-size: 2rem; margin: 0.5rem 0 0.75rem; line-height: 1.05; }
+  .ge p { margin: 0; color: var(--soft); }
+  .ge button { margin-top: 1.5rem; min-height: 44px; padding: 0.85rem 1.4rem;
+    border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink);
+    color: var(--paper); font-family: ui-monospace, monospace; font-size: 0.875rem;
+    letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+  .ge button:focus-visible { outline: 3px solid #6f85ff; outline-offset: 2px; }
+`
 
 export default function GlobalError({
   error,
@@ -20,48 +39,19 @@ export default function GlobalError({
 
   return (
     <html lang="en">
-      <body
-        style={{
-          margin: 0,
-          minHeight: '100dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          gap: '0.9rem',
-          padding: '2rem 1.5rem',
-          background: '#efe9dc',
-          color: '#1b1a17',
-          fontFamily: 'ui-sans-serif, system-ui, sans-serif',
-          lineHeight: 1.6,
-        }}
-      >
-        <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '2rem', margin: '0.5rem 0 0.75rem', lineHeight: 1.05 }}>
-            75 Create couldn’t start.
-          </h1>
-          <p style={{ margin: 0, color: '#4a463d' }}>
-            Nothing you’ve logged was touched — it’s still stored on this device.
-            Reload to try again.
+      <head>
+        <title>Something went wrong · 75 Create</title>
+        <style>{CSS}</style>
+      </head>
+      <body className="ge">
+        <main className="ge-box">
+          <h1>75 Create couldn’t start.</h1>
+          <p>
+            Nothing you’ve logged was touched — it’s still stored on this device. Reload to
+            try again.
           </p>
-          <button
-            onClick={reset}
-            style={{
-              marginTop: '1.5rem',
-              padding: '0.85rem 1.4rem',
-              borderRadius: 999,
-              border: '1.5px solid #1b1a17',
-              background: '#1b1a17',
-              color: '#efe9dc',
-              fontFamily: 'ui-monospace, monospace',
-              fontSize: '0.85rem',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
-          >
-            Reload
-          </button>
-        </div>
+          <button onClick={reset}>Reload</button>
+        </main>
       </body>
     </html>
   )

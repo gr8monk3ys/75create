@@ -361,6 +361,8 @@ export default function Dashboard() {
           }
           .nav-links {
             display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
             gap: 0.1rem;
             font-size: 0.8rem;
             text-transform: uppercase;

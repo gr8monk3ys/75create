@@ -1,4 +1,6 @@
-@import 'tailwindcss';
+/* Only the reset: the app styles itself, and the full import generated
+   utility rules from stray strings across the repo. */
+@import 'tailwindcss/preflight';
 
 /* ============================================================
    75 Create — "The daily mark"
@@ -27,6 +29,8 @@
   --marigold-ink: #8c5906;
   /* Text on a --coral-ink fill. */
   --on-coral-ink: #ffffff;
+  /* Marks on marigold (light in both themes). */
+  --on-marigold: #1b1a17;
   /* Form-control edges: ≥3:1 against every paper tone, so a field reads as
      a field on a dim phone at night. */
   --field-border: #837968;
@@ -312,9 +316,18 @@ textarea.field-input {
   gap: 0.5rem;
   padding: 0.5rem 0 2rem;
 }
+.page-nav .brand,
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
 .page-nav .brand {
   font-size: 1.25rem;
   text-decoration: none;
+}
+.page-nav {
+  flex-wrap: wrap;
 }
 .back-link {
   display: inline-flex;
@@ -405,7 +418,7 @@ main {
 
 .hero {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: 3rem;
   align-items: center;
   padding: 2.5rem 0 4rem;
@@ -518,7 +531,7 @@ main {
 }
 .rule-num {
   font-size: 1rem;
-  color: var(--coral-ink);
+  color: var(--muted);
   padding-top: 0.35rem;
 }
 .rule-h3 {
@@ -545,7 +558,7 @@ main {
 }
 .policy-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
 }
 .policy {
