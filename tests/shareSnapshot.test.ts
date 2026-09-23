@@ -34,6 +34,13 @@ describe('shareSnapshot codec', () => {
     expect(decodeSnapshot(encodeSnapshot(p))).toEqual(p)
   })
 
+  it('carries the day index, and drops a malformed one', () => {
+    const p: ShareSnapshot = { ...sample(), dayIndex: 4 }
+    expect(decodeSnapshot(encodeSnapshot(p))?.dayIndex).toBe(4)
+    const bad = encodeSnapshot({ ...sample(), dayIndex: 'x' as unknown as number })
+    expect(decodeSnapshot(bad)?.dayIndex).toBeUndefined()
+  })
+
   it('returns null for a malformed fragment', () => {
     expect(decodeSnapshot('not-valid-base64!!')).toBeNull()
   })

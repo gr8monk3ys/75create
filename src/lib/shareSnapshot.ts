@@ -8,6 +8,8 @@ export interface ShareSnapshot {
   startDate: string
   missPolicy: MissPolicy
   dayStates: DayState[]
+  /** The day index when shared. Absent from links made before it existed. */
+  dayIndex?: number
   current: number
   longest: number
   includeLogs: boolean
@@ -41,6 +43,7 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
     const json = new TextDecoder().decode(bytes)
     const parsed = JSON.parse(json)
     if (!parsed || !Array.isArray(parsed.dayStates)) return null
+    if (parsed.dayIndex !== undefined && !Number.isInteger(parsed.dayIndex)) delete parsed.dayIndex
     return parsed as ShareSnapshot
   } catch {
     return null

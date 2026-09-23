@@ -11,6 +11,13 @@ import { Artifact, Challenge, Log, User } from './types'
 
 const KEY_PREFIX = '75create.'
 const ROOT_KEY = `${KEY_PREFIX}v1`
+/**
+ * Accounts other than the current one keep their data under
+ * `75create.park.<userId>` (and whatever else a caller parks under
+ * `75create.park.<userId>.<name>`), so a device shared between accounts never
+ * mixes their challenges and switching back restores everything.
+ */
+export const PARK_PREFIX = `${KEY_PREFIX}park.`
 const DB_NAME = '75create'
 const DB_STORE = 'artifacts'
 
@@ -80,6 +87,51 @@ export class LocalRepository implements Repository {
     const root = this.read()
     root.signedIn = value
     this.write(root)
+  }
+
+  // ---- accounts on this device ----
+  /** Accounts whose data is parked on this device (not the current one). */
+  parkedUsers(): User[] {
+    if (typeof localStorage === 'undefined') return []
+    const users: User[] = []
+    for (const key of Object.keys(localStorage)) {
+      const id = key.startsWith(PARK_PREFIX) ? key.slice(PARK_PREFIX.length) : ''
+      if (!id || id.includes('.')) continue
+      try {
+        const parked = JSON.parse(localStorage.getItem(key) ?? '') as Root
+        if (parked.user) users.push(parked.user)
+      } catch {
+        /* unreadable park: skip it rather than fail sign-in */
+      }
+    }
+    return users
+  }
+
+  /**
+   * Make `user` this device's current account. The current account's data is
+   * parked, never merged into the new one or discarded; a parked account comes
+   * back exactly as it was left. Signed out afterwards: signing in is the
+   * caller's next step.
+   */
+  switchUser(user: User): void {
+    if (typeof localStorage === 'undefined') return
+    const root = this.read()
+    if (root.user?.id === user.id) return
+    if (root.user) {
+      localStorage.setItem(PARK_PREFIX + root.user.id, JSON.stringify({ ...root, signedIn: false }))
+    }
+    const parkedKey = PARK_PREFIX + user.id
+    const raw = localStorage.getItem(parkedKey)
+    let next: Root = { ...emptyRoot(), user }
+    if (raw) {
+      try {
+        next = { ...emptyRoot(), ...(JSON.parse(raw) as Root), signedIn: false }
+      } catch {
+        /* corrupt park: start the account fresh */
+      }
+    }
+    localStorage.removeItem(parkedKey)
+    this.write(next)
   }
 
   // ---- challenges ----
@@ -246,17 +298,33 @@ export class LocalRepository implements Repository {
   }
 
   // ---- account ----
+  /**
+   * Delete the current account's data. Other accounts parked on this device
+   * are left alone, down to their artifact images.
+   */
   async deleteAllData(): Promise<void> {
+    const root = this.read()
+    const othersParked = this.parkedUsers().length > 0
     if (typeof localStorage !== 'undefined') {
       // Every key the app writes shares the prefix (root data, sync outbox,
       // reminder bookkeeping): deletion leaves none of them behind.
-      const ours = Object.keys(localStorage).filter((k) => k.startsWith(KEY_PREFIX))
+      const ours = Object.keys(localStorage).filter(
+        (k) => k.startsWith(KEY_PREFIX) && !k.startsWith(PARK_PREFIX),
+      )
       for (const k of ours) localStorage.removeItem(k)
     }
     const db = await this.openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(DB_STORE, 'readwrite')
-      tx.objectStore(DB_STORE).clear()
+      if (!othersParked) {
+        tx.objectStore(DB_STORE).clear()
+      } else {
+        for (const dd of Object.values(root.dayData)) {
+          for (const list of Object.values(dd.artifacts ?? {})) {
+            for (const a of list) if (a.blobRef) tx.objectStore(DB_STORE).delete(a.blobRef)
+          }
+        }
+      }
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })

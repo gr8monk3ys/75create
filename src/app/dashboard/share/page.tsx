@@ -31,6 +31,7 @@ export default function ShareGenerator() {
       startDate: challenge.startDate,
       missPolicy: challenge.missPolicy,
       dayStates: derived.days.map((d) => d.state),
+      dayIndex: derived.currentIndex,
       current: derived.streak.current,
       longest: derived.streak.longest,
       includeLogs,

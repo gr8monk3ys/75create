@@ -324,6 +324,97 @@ describe('SyncedRepository', () => {
       [],
     )
   })
+
+  it('stamps only the row a write touched', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // keep everything queued
+    repo.saveChallenge(makeChallenge({ id: 'c1' }))
+    const first = JSON.parse(localStorage.getItem('75create.stamps.v1')!).challenges.c1
+    await new Promise((r) => setTimeout(r, 5))
+    repo.saveChallenge(makeChallenge({ id: 'c2' }))
+    const stamps = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+    // c1 is still queued, but nothing touched it: its stamp must not move, or
+    // it would beat a newer edit of c1 made on another device.
+    expect(stamps.challenges.c1).toBe(first)
+    expect(Date.parse(stamps.challenges.c2)).toBeGreaterThan(Date.parse(first))
+  })
+
+  it('keeps a queued offline profile edit over the older remote profile', async () => {
+    state.rows.profiles = [
+      {
+        id: 'uid-1',
+        email: 'a@b.com',
+        tz: 'UTC',
+        late_night_buffer_hrs: 3,
+        reminder_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // offline: the edit stays queued
+    repo.saveUser({ ...repo.getUser()!, tz: 'Asia/Tokyo', reminderTime: '20:00' })
+    await repo.flush()
+
+    await repo.connectRemote('uid-1', 'a@b.com') // e.g. a token refresh
+    expect(repo.getUser()!.tz).toBe('Asia/Tokyo')
+    expect(repo.getUser()!.reminderTime).toBe('20:00')
+  })
+
+  it('takes a remote profile that is newer than the queued edit', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true
+    repo.saveUser({ ...repo.getUser()!, tz: 'Asia/Tokyo' })
+    state.rows.profiles = [
+      {
+        id: 'uid-1',
+        email: 'a@b.com',
+        tz: 'Europe/Berlin',
+        late_night_buffer_hrs: 2,
+        reminder_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getUser()!.tz).toBe('Europe/Berlin')
+  })
+
+  it('never carries one account\'s data or sync queue into another', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // leave uid-1's work queued
+    repo.saveChallenge(makeChallenge({ id: 'mine' }))
+    state.failUpserts = false
+    state.calls = []
+
+    await repo.connectRemote('uid-2', 'b@b.com')
+    expect(repo.getUser()!.id).toBe('uid-2')
+    expect(repo.getChallenges()).toEqual([])
+    const pushed = state.calls.filter((c) => c.op === 'upsert').map((c) => c.row?.id ?? c.row?.challenge_id)
+    expect(pushed).not.toContain('mine')
+
+    // Switching back restores uid-1's data and its queue, which then flushes.
+    state.calls = []
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['mine'])
+    const resumed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'challenges')
+    expect(resumed.map((c) => c.row?.id)).toContain('mine')
+  })
+
+  it('the first account to sign in adopts data made before signing in', async () => {
+    local.saveUser({
+      id: 'local-1',
+      email: 'a@b.com',
+      tz: 'UTC',
+      lateNightBufferHrs: 3,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      reminderTime: null,
+    })
+    repo.saveChallenge(makeChallenge({ id: 'before' }))
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getUser()!.id).toBe('uid-1')
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['before'])
+  })
 })
 
 

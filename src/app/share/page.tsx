@@ -45,8 +45,10 @@ export default function SharePage() {
     state,
     completedAt: null,
   }))
-  const completed = snap.dayStates.filter((s) => s === 'complete').length
-  const dayIndex = snap.dayStates.findIndex((s) => s === 'today') + 1
+  // Older links carry no day index: the day after the last settled day is the
+  // closest honest guess (a completed today is settled too).
+  const settled = snap.dayStates.findLastIndex((s) => s !== 'future') + 1
+  const dayIndex = snap.dayIndex ?? settled
 
   return (
     <main className="share-view">
@@ -64,7 +66,7 @@ export default function SharePage() {
 
       <div className="sv-head">
         <StreakHeader
-          dayIndex={dayIndex > 0 ? dayIndex : completed}
+          dayIndex={dayIndex}
           current={snap.current}
           longest={snap.longest}
           totalDays={snap.dayStates.length}

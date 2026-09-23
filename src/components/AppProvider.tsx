@@ -181,9 +181,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         })
         return 'magic-link-sent'
       }
-      if (!repo) return 'local'
-      const existing = repo.getUser()
-      if (!existing || existing.email !== email) repo.saveUser(newUser(newId(), email))
+      if (!(repo instanceof LocalRepository)) return 'local'
+      // Prototype auth: an email is an account. A different email switches
+      // to that account's data (parking the current one), never inherits it.
+      const current = repo.getUser()
+      if (!current) repo.saveUser(newUser(newId(), email))
+      else if (current.email !== email) {
+        const known = repo.parkedUsers().find((u) => u.email === email)
+        repo.switchUser(known ?? newUser(newId(), email))
+      }
       repo.setSignedIn(true)
       sync()
       return 'local'
