@@ -22,3 +22,6 @@ next-env.d.ts
 # local secrets (see .env.example)
 .env*.local
 .env
+
+# Agent skills are installed per machine, not vendored
+.claude/
