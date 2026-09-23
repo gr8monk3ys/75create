@@ -31,20 +31,60 @@ typography:
     fontWeight: 800
     lineHeight: 0.98
     letterSpacing: "-0.02em"
+  display-sm:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "clamp(2.4rem, 8vw, 4rem)"
+    fontWeight: 800
+    lineHeight: 0.98
   headline:
     fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
     fontSize: "clamp(1.8rem, 5vw, 2.7rem)"
     fontWeight: 800
     lineHeight: 0.98
     letterSpacing: "-0.02em"
-  title:
+  page-title:
     fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
-    fontSize: "1.35rem"
+    fontSize: "clamp(2rem, 6vw, 3rem)"
+    fontWeight: 800
+    lineHeight: 0.98
+  card-title:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "clamp(1.5rem, 5vw, 1.9rem)"
+    fontWeight: 800
+    lineHeight: 1
+  heading-sm:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "2rem"
+    fontWeight: 800
+    lineHeight: 1
+  title-lg:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "1.5rem"
     fontWeight: 800
     lineHeight: 1.1
+  title:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 800
+    lineHeight: 1.1
+  lead:
+    fontFamily: "Instrument Sans, system-ui, sans-serif"
+    fontSize: "1.125rem"
+    fontWeight: 400
+    lineHeight: 1.5
   body:
     fontFamily: "Instrument Sans, system-ui, sans-serif"
     fontSize: "1rem"
+    fontWeight: 400
+    lineHeight: 1.5
+  small:
+    fontFamily: "Instrument Sans, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.45
+  note:
+    fontFamily: "Space Mono, ui-monospace, monospace"
+    fontSize: "0.8rem"
     fontWeight: 400
     lineHeight: 1.5
   label:
@@ -52,7 +92,22 @@ typography:
     fontSize: "0.75rem"
     fontWeight: 400
     letterSpacing: "0.14em"
+  label-xs:
+    fontFamily: "Space Mono, ui-monospace, monospace"
+    fontSize: "0.7rem"
+    fontWeight: 700
+  numeral-xl:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "clamp(2.8rem, 12vw, 4.5rem)"
+    fontWeight: 800
+    fontFeature: "tnum"
+  numeral:
+    fontFamily: "Bricolage Grotesque, Trebuchet MS, sans-serif"
+    fontSize: "clamp(1.8rem, 7vw, 2.6rem)"
+    fontWeight: 800
+    fontFeature: "tnum"
 rounded:
+  compact: "2px"
   cell: "4px"
   field: "10px"
   panel: "14px"
@@ -156,17 +211,21 @@ A cream paper and ink base with five riso pigments, each tied to a meaning.
 **Character:** A chunky, slightly quirky grotesque at weight 800 carries headings and numbers like hand-lettered signage. A neutral sans keeps the reading quiet. A typewriter mono labels things and counts days.
 
 ### Hierarchy
-- **Display** (800, clamp(3rem, 9vw, 5.5rem), 0.98): the landing hero and the recap headline.
-- **Headline** (800, clamp(1.8rem, 5vw, 2.7rem), 0.98): section titles, the check-in date.
-- **Title** (800, 1.1–1.5rem, 1.1): panel and card titles, banner titles.
-- **Body** (400, 1rem, 1.5): all reading copy, 60ch maximum in banners and help.
-- **Label** (Space Mono 400, 0.75–0.8rem, 0.08–0.16em tracking, uppercase for stat labels): stat labels, counters, key hints, meta lines.
-- **Numerals**: Bricolage 800 with tabular figures for day counts and streaks.
+One ramp, nothing between its steps:
+- **Display** (800, clamp(3rem, 9vw, 5.5rem), 0.98): the landing hero. **Display small** (clamp(2.4rem, 8vw, 4rem)): the recap headline.
+- **Headline** (800, clamp(1.8rem, 5vw, 2.7rem)): landing section titles. **Page title** (clamp(2rem, 6vw, 3rem)): inner page titles (Settings, Setup, Share).
+- **Card title** (800, clamp(1.5rem, 5vw, 1.9rem)): the check-in date and the celebration.
+- **Heading small / Title large / Title** (800, 2rem / 1.5rem / 1.25rem): panel, banner, section and detail titles.
+- **Lead** (400, 1.125rem): landing lede, attempt names. **Body** (400, 1rem, 1.5): all reading copy, 60ch maximum in banners and help. **Small** (400, 0.875rem): secondary copy (rule notes, meta, lists).
+- **Note** (Space Mono, 0.8rem): multi-line notes, meta lines, links in mono. **Label** (Space Mono, 0.75rem, 0.08–0.16em tracking, uppercase for stat labels): stat labels, counters, key hints. **Label XS** (Space Mono 700, 0.7rem): the × and – marks inside compact grid cells only.
+- **Numerals** (Bricolage 800, tabular): clamp(2.8rem, 12vw, 4.5rem) for the day count, clamp(1.8rem, 7vw, 2.6rem) for streaks and recap facts.
 
 ### Named Rules
 **The No Kicker Rule.** No small label sits above a heading. The heading carries its own weight. Mono labels name stats and fields, never sections.
 
 **The 11px Floor Rule.** Nothing on screen is smaller than 0.7rem, and multi-line notes are at least 0.8rem.
+
+**The One Ramp Rule.** A size that isn't on the ramp above is a mistake, not a nuance: round it to the nearest step.
 
 ## Layout
 
@@ -187,7 +246,7 @@ The system is flat paper with printed marks. It has no blur shadows and no glass
 
 ## Shapes
 
-Softly rounded paper shapes (panels 14px, fields and rule rows 10px), pill buttons and chips (999px), and nearly square stamps (4px, 2px compact). Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. Stamps rotate by a deterministic −3.5° to 3.5°.
+One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, checkboxes, token pips and keycaps 4px (2px in the compact grid and for confetti), and pills 999px for buttons and chips. Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. Stamps rotate by a deterministic −3.5° to 3.5°.
 
 ## Components
 

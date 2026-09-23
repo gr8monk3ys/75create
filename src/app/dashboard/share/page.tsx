@@ -132,7 +132,7 @@ export default function ShareGenerator() {
           padding-top: 1rem;
         }
         .sg-h1 {
-          font-size: clamp(2rem, 6vw, 2.8rem);
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0.5rem 0 0.75rem;
         }
         .sg-sub {
@@ -146,7 +146,7 @@ export default function ShareGenerator() {
           align-items: flex-start;
           padding: 1rem 1.25rem;
           border: 1.5px solid var(--line);
-          border-radius: 12px;
+          border-radius: 14px;
           cursor: pointer;
           margin-bottom: 1.5rem;
         }
@@ -159,7 +159,7 @@ export default function ShareGenerator() {
         }
         .t-desc {
           display: block;
-          font-size: 0.82rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin-top: 0.2rem;
         }
@@ -183,7 +183,7 @@ export default function ShareGenerator() {
         .copy-status {
           min-height: 1.4em;
           margin: 0.5rem 0 0;
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--ink-soft);
         }
         .preview-link {

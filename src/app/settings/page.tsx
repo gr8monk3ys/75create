@@ -268,7 +268,7 @@ function SettingsForm({ user }: { user: User }) {
           padding-top: 1rem;
         }
         .set-h1 {
-          font-size: 2.5rem;
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0 0 0.4rem;
         }
         .account {
@@ -281,7 +281,7 @@ function SettingsForm({ user }: { user: User }) {
           margin-bottom: 1.25rem;
         }
         .block-h2 {
-          font-size: 1.35rem;
+          font-size: 1.25rem;
           margin: 0 0 0.75rem;
         }
         .block-sub {
@@ -325,10 +325,10 @@ function SettingsForm({ user }: { user: User }) {
           flex-wrap: wrap;
         }
         .tz-current {
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--ink);
           background: var(--paper-3);
-          border-radius: 8px;
+          border-radius: 10px;
           padding: 0.5rem 0.75rem;
         }
         .chips {

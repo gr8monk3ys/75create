@@ -207,7 +207,7 @@ export function Grid({
         .cell-mark {
           font-family: var(--font-mono);
           font-weight: 700;
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--ink);
           line-height: 1;
         }

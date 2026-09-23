@@ -39,12 +39,22 @@ export function DayDetail({
   hasNext: boolean
 }) {
   const ref = useRef<HTMLElement>(null)
+  const prevRef = useRef<HTMLButtonElement>(null)
+  const nextRef = useRef<HTMLButtonElement>(null)
   const log = dayData.logs[day.index]?.text.trim()
   const artifacts = dayData.artifacts[day.index] ?? []
 
+  // Take focus once, when the detail opens. Stepping between days leaves
+  // focus on the button that was pressed (the title's live region says which
+  // day is showing); if that direction runs out, focus moves to the other.
   useEffect(() => {
     ref.current?.focus({ preventScroll: true })
-  }, [day.index])
+  }, [])
+  useEffect(() => {
+    const active = document.activeElement
+    if (active === prevRef.current && !hasPrev) nextRef.current?.focus()
+    if (active === nextRef.current && !hasNext) prevRef.current?.focus()
+  }, [hasPrev, hasNext])
 
   return (
     <section
@@ -58,16 +68,30 @@ export function DayDetail({
       }}
     >
       <header className="d-head">
-        <h3 id="detail-title" className="font-display d-title">
+        <h3 id="detail-title" className="font-display d-title" aria-live="polite">
           Day {day.index}
           <span className="sr-only">, </span>
           <span className={`d-state st-${day.state}`}>{STATE_LINE[day.state]}</span>
         </h3>
         <div className="d-nav">
-          <button type="button" className="icon-btn" onClick={() => onStep(-1)} disabled={!hasPrev} aria-label="Previous day">
+          <button
+            ref={prevRef}
+            type="button"
+            className="icon-btn"
+            onClick={() => onStep(-1)}
+            disabled={!hasPrev}
+            aria-label="Previous day"
+          >
             <Icon name="chevron" size={18} className="flip" />
           </button>
-          <button type="button" className="icon-btn" onClick={() => onStep(1)} disabled={!hasNext} aria-label="Next day">
+          <button
+            ref={nextRef}
+            type="button"
+            className="icon-btn"
+            onClick={() => onStep(1)}
+            disabled={!hasNext}
+            aria-label="Next day"
+          >
             <Icon name="chevron" size={18} />
           </button>
           <button type="button" className="icon-btn" onClick={onClose} aria-label={`Close Day ${day.index}`}>

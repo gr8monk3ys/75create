@@ -111,7 +111,7 @@ export default function SignIn() {
           max-width: 480px;
         }
         .back {
-          font-size: 1.2rem;
+          font-size: 1.25rem;
           text-decoration: none;
         }
         .auth-card {
@@ -119,7 +119,7 @@ export default function SignIn() {
           padding: 2rem;
         }
         .auth-h1 {
-          font-size: 1.9rem;
+          font-size: 2rem;
           margin: 0.5rem 0 1.5rem;
         }
         .auth-form {

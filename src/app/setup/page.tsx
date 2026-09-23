@@ -303,7 +303,7 @@ export default function Setup() {
           align-items: center;
           gap: 0.75rem;
           padding: 1rem 1.1rem;
-          border-radius: 12px;
+          border-radius: 14px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);
           color: var(--ink);
@@ -345,7 +345,7 @@ export default function Setup() {
           flex-direction: column;
           gap: 0.3rem;
           padding: 1rem 1.2rem;
-          border-radius: 12px;
+          border-radius: 14px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);
           cursor: pointer;
@@ -363,7 +363,7 @@ export default function Setup() {
         }
         .pline {
           color: var(--ink-soft);
-          font-size: 0.92rem;
+          font-size: 0.875rem;
         }
         .lock-note {
           font-size: 0.8rem;
@@ -383,7 +383,7 @@ export default function Setup() {
         }
         .why-hint {
           color: var(--ink-soft);
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           margin: 0.4rem 0 0.7rem;
         }
       `}</style>

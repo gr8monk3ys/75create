@@ -136,7 +136,7 @@ function Styles() {
         color: var(--ink-soft);
       }
       .share-view .logs-h2 {
-        font-size: 1.4rem;
+        font-size: 1.5rem;
         margin: 0;
       }
       .share-view .grid-panel {
@@ -161,7 +161,7 @@ function Styles() {
       }
       .share-view .log-day {
         color: var(--muted);
-        font-size: 0.78rem;
+        font-size: 0.8rem;
       }
       .share-view .log-text {
         color: var(--ink-soft);

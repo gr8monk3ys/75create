@@ -76,7 +76,7 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           min-width: min(100%, 260px);
         }
         .title {
-          font-size: 1.35rem;
+          font-size: 1.25rem;
           margin: 0;
         }
         .msg {
@@ -96,7 +96,7 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           margin: 0;
           font-family: var(--font-display);
           font-weight: 600;
-          font-size: 1.1rem;
+          font-size: 1.125rem;
           line-height: 1.35;
           color: var(--ink);
           quotes: '“' '”';

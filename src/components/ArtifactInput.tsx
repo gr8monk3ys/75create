@@ -66,7 +66,7 @@ export function ArtifactInput({
   function addUrl() {
     const value = normalizeArtifactUrl(url)
     if (!value) {
-      if (url.trim()) setError('That isn’t a web link. Paste an address that starts with https://.')
+      if (url.trim()) setError('That isn’t a web address. Paste a link like example.com/my-work.')
       return
     }
     setError(null)
@@ -121,7 +121,12 @@ export function ArtifactInput({
             inputMode="url"
             placeholder="or paste a link"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? `url-err-${dayIndex}` : undefined}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              if (error) setError(null)
+            }}
             onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
           />
           <button type="button" className="btn btn-ghost small" onClick={addUrl} disabled={!url.trim()}>
@@ -130,7 +135,7 @@ export function ArtifactInput({
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={onFile} hidden />
       </div>
-      <p className="err" role="alert">
+      <p className="err" role="alert" id={`url-err-${dayIndex}`}>
         {error}
       </p>
 
@@ -161,6 +166,11 @@ export function ArtifactInput({
           gap: 0.4rem;
           flex: 1 1 14rem;
           min-width: 0;
+        }
+        @media (max-width: 360px) {
+          .url-row {
+            flex-basis: 100%;
+          }
         }
         .url-input {
           flex: 1;
@@ -265,7 +275,6 @@ export function ArtifactThumb({
   const href = artifact.kind === 'url' ? safeHref(artifact.url) : null
   const what = artifact.kind === 'image' ? 'image' : `link to ${href ? hostOf(href) : 'an unsafe address'}`
   const alt = dayIndex ? `Day ${dayIndex} image` : 'Artifact image'
-  const confirm = reopens ? 'Remove? Day reopens' : 'Remove?'
 
   return (
     <div ref={boxRef} className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
@@ -279,9 +288,10 @@ export function ArtifactThumb({
             <span className="ph" role="img" aria-label="Loading image" />
           )
         ) : href ? (
-          <a href={href} target="_blank" rel="noreferrer" className="link">
+          <a href={href} target="_blank" rel="noreferrer" className="link" title={href}>
             <Icon name="link" size={20} />
             <span className="host">{hostOf(href)}</span>
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
           <span className="link unsafe">Unsafe link hidden</span>
@@ -298,7 +308,19 @@ export function ArtifactThumb({
               : `Remove this ${what}`
           }
         >
-          {armed ? <span className="confirm">{confirm}</span> : <Icon name="close" size={16} />}
+          {armed ? (
+            <span className="confirm">
+              Remove?
+              {reopens && (
+                <>
+                  <br />
+                  Day reopens
+                </>
+              )}
+            </span>
+          ) : (
+            <Icon name="close" size={16} />
+          )}
         </button>
       )}
       <style jsx>{`
@@ -340,6 +362,7 @@ export function ArtifactThumb({
           max-width: 100%;
         }
         .host {
+          display: block;
           max-width: 100%;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -380,11 +403,20 @@ export function ArtifactThumb({
           width: 24px;
           height: 24px;
         }
+        .thumb.armed .x {
+          /* Armed, the confirm takes the whole tile: it can't be clipped or
+             run off-screen, and it is the one thing left to decide. */
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          place-items: center;
+        }
         .confirm {
           font-family: var(--font-mono);
           font-size: 0.75rem;
-          white-space: nowrap;
-          padding: 0.3rem 0.5rem;
+          line-height: 1.25;
+          text-align: center;
+          padding: 0.35rem 0.5rem;
           background: var(--coral-ink);
           color: var(--on-coral-ink);
         }

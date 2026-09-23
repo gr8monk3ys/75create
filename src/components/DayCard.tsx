@@ -91,7 +91,10 @@ export function DayCard({
   // The header's policy label links here: open the explainer on arrival.
   useEffect(() => {
     const open = () => {
-      if (window.location.hash === '#how-today' && howRef.current) howRef.current.open = true
+      if (window.location.hash === '#how-today' && howRef.current) {
+        howRef.current.open = true
+        howRef.current.querySelector<HTMLElement>('summary')?.focus({ preventScroll: true })
+      }
     }
     open()
     window.addEventListener('hashchange', open)
@@ -104,25 +107,45 @@ export function DayCard({
   const needed = maintenance ? [] : completionRules(challenge)
   const metCount = needed.filter((r) => ruleMet(r, dayData, dayIndex)).length
 
-  // Never lose a log to navigation or rollover: flush any debounced save on
-  // unmount. The session files it under the day it was typed for.
-  useEffect(
-    () => () => {
+  // Never lose a log: flush any debounced save on unmount (navigation,
+  // rollover) and the moment the page is hidden or closed (a swiped-away tab,
+  // a locked phone, a reload), which never unmounts anything. The session
+  // files it under the day it was typed for.
+  useEffect(() => {
+    const flush = () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
-      if (flashTimer.current) clearTimeout(flashTimer.current)
       pendingSave.current?.()
       pendingSave.current = null
-    },
-    [],
-  )
+    }
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHidden)
+      if (flashTimer.current) clearTimeout(flashTimer.current)
+      flush()
+    }
+  }, [])
 
-  // Completion is announced by the celebration itself; this region covers
-  // everything else, including a day that just came back off the grid.
+  // One always-present live region speaks for the card: completion, a day
+  // that came back off the grid, rule toggles. (A region that mounts with its
+  // text already inside, like the celebration, is often never read.)
   const handle = useCallback(
     (result: ToggleResult) => {
-      if (!result.ok) return
-      if (result.justCompleted) onComplete(dayIndex)
-      else if (result.reopened) setAnnounce(`Day ${dayIndex} is no longer complete.`)
+      if (!result.ok) return false
+      if (result.justCompleted) {
+        setAnnounce(`Day ${dayIndex}, made.`)
+        onComplete(dayIndex)
+        return true
+      }
+      if (result.reopened) {
+        setAnnounce(`Day ${dayIndex} is no longer complete.`)
+        return true
+      }
+      return false
     },
     [dayIndex, onComplete],
   )
@@ -149,9 +172,11 @@ export function DayCard({
   // digit (or a speech command) elsewhere can never change the day.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape' && isTyping(e.target)) {
-        // Leave the field so the shortcuts work again (the text is saved).
-        ;(e.target as HTMLElement).blur()
+      if (e.key === 'Escape' && isTyping(e.target) && cardRef.current?.contains(e.target as Node)) {
+        // Step out of the field onto its rule row, still inside the card, so
+        // the next digit or Tab carries on from here (the text is saved).
+        const row = (e.target as HTMLElement).closest<HTMLElement>('[data-rule-row]')
+        ;(row ?? cardRef.current)?.focus({ preventScroll: true })
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
@@ -176,10 +201,11 @@ export function DayCard({
     pendingSave.current = write
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
+      // The visible "Saved" is described by the field; only a change to the
+      // day itself is worth interrupting a screen reader for.
       write()
       pendingSave.current = null
       setSavedFlash(true)
-      setAnnounce('Log saved.')
       if (flashTimer.current) clearTimeout(flashTimer.current)
       flashTimer.current = setTimeout(() => setSavedFlash(false), 1600)
     }, 600)
@@ -299,33 +325,61 @@ export function DayCard({
                 )
               }
               const statusId = `${labelId}-status`
+              // The log rule follows what's typed, not the debounced save, so
+              // it never looks unmet while the words are on screen.
+              const shownMet = evidence === 'log' ? log.trim().length > 0 : met
+              const status = shownMet
+                ? 'Done'
+                : evidence === 'log'
+                  ? completed
+                    ? 'Clearing the log reopens today'
+                    : 'Write a line below'
+                  : 'Add an image or a link'
+              const head = (
+                <>
+                  <span className={`box ${shownMet ? 'on' : ''}`} aria-hidden>
+                    {shownMet && <Icon name="check" size={16} />}
+                  </span>
+                  <span className="check-body">
+                    <span className="check-name" id={labelId}>
+                      {r.name}
+                      {!r.required && <span className="opt"> · optional</span>}
+                    </span>
+                    <span className={`status ${status.startsWith('Clearing') ? 'warn' : ''}`} id={statusId}>
+                      {status}
+                    </span>
+                    {notesShown && r.description && (
+                      <span className="check-desc">{r.description}</span>
+                    )}
+                  </span>
+                  {i < 9 && <kbd className="key" aria-hidden>{i + 1}</kbd>}
+                </>
+              )
               return (
                 <li key={r.id}>
                   <div
-                    className={`check evidence ${met ? 'on' : ''}`}
+                    className={`check evidence ${shownMet ? 'on' : ''}`}
+                    data-rule-row
+                    tabIndex={-1}
+                    aria-labelledby={labelId}
                     ref={(el) => {
                       ruleRefs.current[r.id] = el
                     }}
                   >
-                    <label
-                      className="evidence-head"
-                      htmlFor={evidence === 'log' ? `log-${dayIndex}` : `upload-${dayIndex}`}
-                    >
-                      {box}
-                      <span className="check-body">
-                        <span className="check-name" id={labelId}>
-                          {r.name}
-                          {!r.required && <span className="opt"> · optional</span>}
-                        </span>
-                        <span className="status" id={statusId}>
-                          {met ? 'Done' : evidence === 'log' ? 'Write a line below' : 'Add an image or a link'}
-                        </span>
-                        {notesShown && r.description && (
-                          <span className="check-desc">{r.description}</span>
-                        )}
-                      </span>
-                      {i < 9 && <kbd className="key" aria-hidden>{i + 1}</kbd>}
-                    </label>
+                    {evidence === 'log' ? (
+                      <label className="evidence-head" htmlFor={`log-${dayIndex}`}>
+                        {head}
+                      </label>
+                    ) : (
+                      // Not a <label>: that would rename the Upload button to
+                      // this whole row. A click still lands on the controls.
+                      <div
+                        className="evidence-head"
+                        onClick={() => document.getElementById(`upload-${dayIndex}`)?.focus()}
+                      >
+                        {head}
+                      </div>
+                    )}
                     {evidence === 'log' ? logField(labelId, statusId) : artifactField(labelId)}
                   </div>
                 </li>
@@ -495,11 +549,21 @@ export function DayCard({
         .check.on .status {
           color: var(--cobalt);
         }
+        .status.warn {
+          color: var(--coral-ink);
+        }
+        .evidence:focus {
+          outline: none;
+        }
+        .evidence:focus-visible {
+          outline: 3px solid var(--cobalt);
+          outline-offset: 2px;
+        }
         .box {
           flex: none;
           width: 24px;
           height: 24px;
-          border-radius: 6px;
+          border-radius: 4px;
           border: 2px solid var(--muted);
           display: grid;
           place-items: center;
@@ -526,7 +590,7 @@ export function DayCard({
         }
         .opt {
           font-weight: 400;
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--muted);
         }
         .check-desc {
@@ -587,14 +651,14 @@ export function DayCard({
           padding: 0.6rem 0;
           min-height: 44px;
           font-family: var(--font-mono);
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           color: var(--ink-soft);
           text-decoration: underline;
           text-underline-offset: 0.25em;
           cursor: pointer;
         }
         .hint {
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           color: var(--muted);
         }
         .howto {
@@ -622,7 +686,7 @@ export function DayCard({
           gap: 0.45rem;
           color: var(--ink-soft);
           line-height: 1.5;
-          font-size: 0.92rem;
+          font-size: 0.875rem;
           max-width: 60ch;
         }
         @media (hover: none), (pointer: coarse) {

@@ -46,7 +46,7 @@ export function PastAttempts() {
           padding-top: 2.5rem;
         }
         .past-h2 {
-          font-size: 1.6rem;
+          font-size: 1.5rem;
           margin: 0 0 0.5rem;
         }
         .past-sub {
@@ -144,7 +144,7 @@ function AttemptRow({
           gap: 0.25rem;
         }
         .a-name {
-          font-size: 1.1rem;
+          font-size: 1.125rem;
         }
         .a-meta {
           color: var(--ink-soft);
@@ -178,12 +178,12 @@ function AttemptRow({
           display: grid;
           grid-template-columns: 4.5rem 1fr;
           gap: 0.75rem;
-          font-size: 0.92rem;
+          font-size: 0.875rem;
         }
         .log-day {
           font-family: var(--font-mono);
           color: var(--muted);
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           padding-top: 0.1rem;
         }
         .log-text {

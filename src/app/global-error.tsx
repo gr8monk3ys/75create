@@ -36,7 +36,7 @@ export default function GlobalError({
         }}
       >
         <div style={{ maxWidth: '34rem', margin: '0 auto' }}>
-          <h1 style={{ fontSize: '2.2rem', margin: '0.5rem 0 0.75rem', lineHeight: 1.05 }}>
+          <h1 style={{ fontSize: '2rem', margin: '0.5rem 0 0.75rem', lineHeight: 1.05 }}>
             75 Create couldn’t start.
           </h1>
           <p style={{ margin: 0, color: '#4a463d' }}>

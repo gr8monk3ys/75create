@@ -50,7 +50,7 @@ export default function ErrorBoundary({
           padding: 2rem 1.5rem;
         }
         .err-h1 {
-          font-size: clamp(2rem, 7vw, 2.8rem);
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0.25rem 0 0.5rem;
         }
         .err-body {

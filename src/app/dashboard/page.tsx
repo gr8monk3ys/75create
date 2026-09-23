@@ -125,6 +125,12 @@ export default function Dashboard() {
     if (next != null) setOpenDay(next)
   }
 
+  function restart() {
+    confirmReset()
+    // The banner and panel go; Day 1's check-in takes their place.
+    requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
+  }
+
   function dismissNotice() {
     dismissBanner()
     // The banner and its button are gone: land on the check-in, not the page.
@@ -183,7 +189,7 @@ export default function Dashboard() {
             <MissPolicyBanner
               banner={{ kind: 'reset', message: resetMessage }}
               whyNote={challenge.whyNote}
-              onConfirmReset={confirmReset}
+              onConfirmReset={restart}
               onDismiss={dismissBanner}
             />
           </div>
@@ -356,7 +362,7 @@ export default function Dashboard() {
           .nav-links {
             display: flex;
             gap: 0.1rem;
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
           }
@@ -368,7 +374,7 @@ export default function Dashboard() {
             align-items: center;
             min-height: 44px;
             padding: 0 0.55rem;
-            border-radius: 8px;
+            border-radius: 10px;
           }
           .nav-links :global(a:hover) {
             color: var(--coral-ink);
@@ -387,7 +393,7 @@ export default function Dashboard() {
             box-shadow: 4px 5px 0 var(--marigold);
           }
           .finish-h2 {
-            font-size: 1.8rem;
+            font-size: 2rem;
             margin: 0;
           }
           .finish-sub {
@@ -416,7 +422,7 @@ export default function Dashboard() {
             flex-wrap: wrap;
           }
           .grid-title {
-            font-size: 1.1rem;
+            font-size: 1.125rem;
             margin: 0;
           }
           .grid-foot {
@@ -429,7 +435,7 @@ export default function Dashboard() {
           }
           .grid-hint {
             margin: 0;
-            font-size: 0.85rem;
+            font-size: 0.875rem;
             color: var(--muted);
           }
           .grid-foot .small {
@@ -446,7 +452,7 @@ export default function Dashboard() {
             border-top: 1.5px dashed var(--line);
           }
           .after-h3 {
-            font-size: 1.1rem;
+            font-size: 1.125rem;
             margin: 0 0 0.6rem;
           }
           .after-list {
@@ -456,7 +462,7 @@ export default function Dashboard() {
             display: flex;
             flex-direction: column;
             gap: 0.5rem;
-            font-size: 0.92rem;
+            font-size: 0.875rem;
             line-height: 1.45;
           }
           .after-list li {
@@ -466,7 +472,7 @@ export default function Dashboard() {
           }
           .after-day {
             color: var(--muted);
-            font-size: 0.78rem;
+            font-size: 0.8rem;
             padding-top: 0.1rem;
           }
           .prestart {

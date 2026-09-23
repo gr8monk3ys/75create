@@ -48,7 +48,8 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
     : { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
   return (
-    <div className="cel" role="status" aria-live="polite">
+    // Visual only: the check-in card's own live region announces the day.
+    <div className="cel" aria-hidden>
       <div className="confetti" aria-hidden>
         {CONFETTI.map((c, i) => (
           <span
@@ -94,7 +95,7 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
           animation: pop-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
         }
         .card h2 {
-          font-size: 2rem;
+          font-size: clamp(1.5rem, 5vw, 1.9rem);
           margin: 0 0 0.35rem;
           text-wrap: balance;
         }
@@ -105,7 +106,7 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
         }
         .mini {
           padding: 0.6rem;
-          border-radius: 8px;
+          border-radius: 10px;
           background: var(--paper-2);
         }
         .confetti {
@@ -120,7 +121,7 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
           /* Little pigment stamps, the same marks the grid is made of. */
           width: 11px;
           height: 11px;
-          border-radius: 2.5px;
+          border-radius: 2px;
           transform: rotate(var(--r));
           animation: fall 2.4s cubic-bezier(0.3, 0.1, 0.6, 1) forwards;
         }

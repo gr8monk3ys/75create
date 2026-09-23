@@ -107,7 +107,7 @@ export function RuleEditor({ rules, onChange }: Props) {
         }
         .idx {
           color: var(--coral-ink);
-          font-size: 0.85rem;
+          font-size: 0.875rem;
         }
         .name-input {
           flex: 1;
@@ -115,7 +115,7 @@ export function RuleEditor({ rules, onChange }: Props) {
              button off a 320px screen. */
           min-width: 0;
           min-height: 44px;
-          font-size: 1.15rem;
+          font-size: 1.125rem;
           background: transparent;
           border: none;
           border-bottom: 1.5px dashed var(--field-border);
@@ -146,12 +146,12 @@ export function RuleEditor({ rules, onChange }: Props) {
           cursor: not-allowed;
         }
         .desc-input {
-          font-size: 0.92rem;
+          font-size: 0.875rem;
           color: var(--ink-soft);
         }
         .evidence-note {
           margin: 0;
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--ink-soft);
         }
         .req-toggle {
@@ -160,7 +160,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           gap: 0.6rem;
           min-height: 44px;
           cursor: pointer;
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           color: var(--muted);
           text-transform: uppercase;
           letter-spacing: 0.06em;

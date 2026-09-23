@@ -219,7 +219,7 @@ export default function Recap() {
           padding-left: 1.25rem;
         }
         .tl-num {
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           color: var(--coral-ink);
           text-transform: uppercase;
           letter-spacing: 0.1em;
@@ -233,7 +233,7 @@ export default function Recap() {
         .tl-log {
           color: var(--ink-soft);
           margin: 0;
-          font-size: 0.92rem;
+          font-size: 0.875rem;
           line-height: 1.5;
         }
         .next {
@@ -269,13 +269,13 @@ function Fact({ n, label }: { n: number; label: string }) {
         }
         dd {
           margin: 0;
-          font-size: clamp(2.2rem, 8vw, 3.2rem);
+          font-size: clamp(1.8rem, 7vw, 2.6rem);
           color: var(--cobalt);
           font-variant-numeric: tabular-nums;
         }
         dt {
           font-family: var(--font-mono);
-          font-size: 0.78rem;
+          font-size: 0.8rem;
           text-transform: uppercase;
           letter-spacing: 0.1em;
           color: var(--muted);

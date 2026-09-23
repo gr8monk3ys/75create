@@ -58,22 +58,27 @@ export function StreakHeader({
           )}
         </dd>
       </div>
-      {!after && (
+      {!after && !ended && (
         <div className="stat">
           <dt>Streak</dt>
           <dd className="num font-display">
             {current}
-            <span className="unit">{current === 1 ? 'day' : 'days'}</span>
+            <span className="unit">
+              {current === 1 ? 'day' : 'days'}
+              {current > 0 && current === longest ? ' · your longest yet' : ''}
+            </span>
           </dd>
         </div>
       )}
-      <div className="stat">
-        <dt>Longest</dt>
-        <dd className="num font-display">
-          {longest}
-          <span className="unit">{longest === 1 ? 'day' : 'days'}</span>
-        </dd>
-      </div>
+      {(after || ended || current !== longest || current === 0) && (
+        <div className="stat">
+          <dt>Longest</dt>
+          <dd className="num font-display">
+            {longest}
+            <span className="unit">{longest === 1 ? 'day' : 'days'}</span>
+          </dd>
+        </div>
+      )}
       {stakes && !after && <StakesStat stakes={stakes} totalDays={totalDays} />}
       {!stakes && totalDays > TOTAL_DAYS && (
         <div className="stat">
@@ -186,7 +191,7 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
           .pip {
             width: 1.1rem;
             height: 1.1rem;
-            border-radius: 3px;
+            border-radius: 4px;
             border: 1.5px dashed var(--muted);
           }
           .pip.on {
@@ -256,7 +261,7 @@ function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }
         .line {
           margin: 0;
           font-family: var(--font-mono);
-          font-size: 0.85rem;
+          font-size: 0.875rem;
           color: var(--ink-soft);
           min-height: 2.6rem;
           display: flex;
