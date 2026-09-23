@@ -384,6 +384,11 @@ export function ArtifactThumb({
           height: 100%;
           object-fit: cover;
         }
+        /* The frame clips its content, so the ring is drawn inside it. */
+        .link:focus-visible {
+          outline-offset: -3px;
+          border-radius: 10px;
+        }
         .link {
           width: 100%;
           height: 100%;
@@ -449,9 +454,14 @@ export function ArtifactThumb({
         .thumb.armed .x {
           /* Armed, the confirm takes the whole tile: it can't be clipped or
              run off-screen, and it is the one thing left to decide. */
-          inset: 0;
-          width: 100%;
-          height: 100%;
+          inset: 0 auto auto 0;
+          min-width: 100%;
+          min-height: 100%;
+          /* At large text the confirm can outgrow the tile: it grows over the
+             row rather than being cut off. */
+          width: max-content;
+          height: auto;
+          z-index: 2;
           place-items: center;
           /* The focus ring follows the tile's corners. */
           border-radius: 10px;

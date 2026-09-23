@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { Grid } from '@/components/Grid'
+import { AccountLink } from '@/components/AccountLink'
 import { DEFAULT_RULES, Day, TOTAL_DAYS } from '@/lib/types'
 import { POLICY_NAMES, POLICY_PITCHES } from '@/lib/format'
 
@@ -32,9 +33,7 @@ export default function Home() {
       <header className="site-head">
         <nav className="nav" aria-label="Main">
           <span className="wordmark font-display">75 Create</span>
-          <Link href="/signin" className="btn btn-ghost">
-            Sign in
-          </Link>
+          <AccountLink />
         </nav>
       </header>
       <main>

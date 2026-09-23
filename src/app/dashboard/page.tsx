@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { StreakHeader } from '@/components/StreakHeader'
-import { Grid } from '@/components/Grid'
+import { Grid, GridLegend } from '@/components/Grid'
 import { DayCard } from '@/components/DayCard'
 import { DAY_DETAIL_ID, DayDetail } from '@/components/DayDetail'
 import { Celebration } from '@/components/Celebration'
@@ -97,16 +97,6 @@ export default function Dashboard() {
   const pastDays = gridDays
     .filter((d) => d.state !== 'future' && d.state !== 'today' && !(checkInOpen && d.index === currentIndex))
     .map((d) => d.index)
-  const legend = (
-    [
-      ['complete', 'sw-c', 'made'],
-      ['today', 'sw-t', 'today'],
-      ['skipped', 'sw-s', 'skipped'],
-      ['missed', 'sw-m', 'missed'],
-      ['future', 'sw-f', 'to come'],
-    ] as const
-    // Today keeps its ring once made, so the legend keeps "today" too.
-  ).filter(([state]) => (state === 'today' ? checkInOpen : gridDays.some((d) => d.state === state)))
   const afterDays =
     phase === 'maintenance'
       ? Object.entries(dayData.logs)
@@ -301,13 +291,7 @@ export default function Dashboard() {
                 <h2 id="grid-title" className="grid-title font-display">
                   The grid
                 </h2>
-                <span className="grid-legend font-mono" aria-hidden>
-                  {legend.map(([state, sw, label]) => (
-                    <span key={state}>
-                      <i className={`sw ${sw}`} /> {label}
-                    </span>
-                  ))}
-                </span>
+                <GridLegend days={gridDays} today={checkInOpen} />
               </div>
               <Grid
                 days={gridDays}
@@ -534,7 +518,7 @@ export default function Dashboard() {
             padding-top: 0.1rem;
           }
           .state-panel {
-            padding: 1.75rem;
+            padding: min(1.75rem, 5vw);
           }
           .round-foot {
             display: flex;

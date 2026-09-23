@@ -6,7 +6,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: '75 Create',
     description: '75 days of creative discipline.',
     categories: ['productivity', 'lifestyle'],
-    start_url: '/',
+    // Straight to the day: the dashboard sends a signed-out visitor to sign in.
+    start_url: '/dashboard',
     display: 'standalone',
     // Must match the app's paper ground (globals.css --paper) and the
     // viewport themeColor, or the install splash flashes a different colour.

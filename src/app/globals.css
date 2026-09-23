@@ -234,7 +234,8 @@ kbd {
   /* At large text sizes a label wraps inside its button rather than
      pushing the page sideways. */
   max-width: 100%;
-  overflow-wrap: anywhere;
+  /* Breaks inside a word only when that word can't fit on a line alone. */
+  overflow-wrap: break-word;
 }
 @media (hover: hover) {
   .btn:hover {

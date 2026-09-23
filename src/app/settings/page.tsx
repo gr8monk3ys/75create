@@ -466,5 +466,5 @@ function reminderChannelNote(supabaseEnabled: boolean, pushStatus: PushStatus): 
   if (supabaseEnabled) {
     return 'This device gets a browser notification while the app is open. Email reminders are sent by the server at your reminder time, when that function is deployed.'
   }
-  return 'Prototype note: email and push reminders need the server backend. For now this fires a browser notification on this device, and only while the app is open.'
+  return 'This build runs on this device alone: the reminder is a browser notification, and only arrives while the app is open. Email and push reminders come with the optional server backend.'
 }

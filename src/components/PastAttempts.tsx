@@ -142,6 +142,11 @@ function AttemptRow({
         .attempt {
           overflow: hidden;
         }
+        /* The panel clips its content, so the ring is drawn inside it. */
+        .attempt-head:focus-visible {
+          outline-offset: -3px;
+          border-radius: 14px;
+        }
         .attempt-head {
           width: 100%;
           display: flex;

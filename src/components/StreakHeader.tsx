@@ -16,6 +16,8 @@ interface Props {
   missedDay?: number | null
   /** Days completed, shown once the challenge is finished. */
   made?: number
+  /** Read by someone other than the owner (the share page). */
+  readOnly?: boolean
 }
 
 /**
@@ -32,6 +34,7 @@ export const StreakHeader = memo(function StreakHeader({
   stakes,
   missedDay,
   made,
+  readOnly = false,
 }: Props) {
   const day = Math.min(Math.max(dayIndex, 0), totalDays)
   const ended = phase === 'reset-pending'
@@ -67,7 +70,7 @@ export const StreakHeader = memo(function StreakHeader({
             {current}
             <span className="unit">
               {current === 1 ? 'day' : 'days'}
-              {current > 0 && current === longest ? ' · your longest yet' : ''}
+              {current > 0 && current === longest ? (readOnly ? ' · the longest yet' : ' · your longest yet') : ''}
             </span>
           </dd>
         </div>

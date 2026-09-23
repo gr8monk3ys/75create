@@ -18,6 +18,32 @@ const LABELS: Record<Day['state'], string> = {
   future: 'upcoming',
 }
 
+const LEGEND = [
+  ['complete', 'sw-c', 'made'],
+  ['today', 'sw-t', 'today'],
+  ['skipped', 'sw-s', 'skipped'],
+  ['missed', 'sw-m', 'missed'],
+  ['future', 'sw-f', 'to come'],
+] as const
+
+/**
+ * The key to the grid's marks, listing only the states on it. `today` keeps
+ * "today" listed once today is made (its ring stays on the stamp). Visual
+ * only: the grid's own summary says the same to a screen reader.
+ */
+export function GridLegend({ days, today = false }: { days: Day[]; today?: boolean }) {
+  const shown = LEGEND.filter(([state]) => (state === 'today' && today) || days.some((d) => d.state === state))
+  return (
+    <span className="grid-legend font-mono" aria-hidden>
+      {shown.map(([state, sw, label]) => (
+        <span key={state}>
+          <i className={`sw ${sw}`} /> {label}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 /**
  * One sentence a screen reader can say instead of 75 separate cells. An
  * ended attempt has nothing "to go": it says where it ended instead.

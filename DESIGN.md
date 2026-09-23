@@ -217,7 +217,7 @@ One ramp, nothing between its steps:
 - **Card title** (800, clamp(1.5rem, 5vw, 1.9rem)): the check-in date and the celebration.
 - **Heading small / Title large / Title** (800, 2rem / 1.5rem / 1.25rem): panel, banner, section and detail titles.
 - **Lead** (400, 1.125rem): landing lede, attempt names. **Body** (400, 1rem, 1.5): all reading copy, 60ch maximum in banners and help. **Small** (400, 0.875rem): secondary copy (rule notes, meta, lists).
-- **Note** (Space Mono, 0.8rem): multi-line notes, meta lines, links in mono. **Label** (Space Mono, 0.75rem, 0.08–0.16em tracking, uppercase for stat labels): stat labels, counters, key hints. **Label XS** (Space Mono 700, 0.7rem): the × and – marks inside compact grid cells only.
+- **Note** (Space Mono, 0.8rem): multi-line notes, meta lines, links in mono. **Label** (Space Mono, 0.75rem, 0.08–0.16em tracking, uppercase for stat labels): stat labels, counters, key hints. **Label XS** (Space Mono 700, 0.7rem): the × and – marks inside grid cells on small screens only.
 - **Numerals** (Bricolage 800, tabular): clamp(2.8rem, 12vw, 4.5rem) for the day count, clamp(1.8rem, 7vw, 2.6rem) for streaks and recap facts.
 
 ### Named Rules
@@ -246,7 +246,7 @@ The system is flat paper with printed marks. It has no blur shadows and no glass
 
 ## Shapes
 
-One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, checkboxes, token pips and keycaps 4px (2px in the compact grid and for confetti), and pills 999px for buttons and chips. Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. The one heavier line is today's ring (2.5px coral, on the grid and its legend swatch), which has to read at a glance among 75 cells; once today is made its cobalt stamp keeps a 2px coral outline. Sizes attached to a numeral or keycap (the day denominator, the streak unit, kbd) follow their numeral in em, clamped to the ramp's bounds and the 11px floor. Stamps rotate by a deterministic −3.5° to 3.5°.
+One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, checkboxes, token pips and keycaps 4px (2px in the compact grid and for confetti), and pills 999px for buttons and chips. Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. The heavier lines are the grid's own: today's ring (2.5px coral, on the grid and its legend swatch), which has to read at a glance among 75 cells, and the ring round the day opened in the detail (2.5px ink); once today is made its cobalt stamp keeps a 2px coral outline. Focus (3px cobalt) outranks all of them. Sizes attached to a numeral or keycap (the day denominator, the streak unit, kbd) follow their numeral in em, clamped to the ramp's bounds and the 11px floor. Stamps rotate by a deterministic −3.5° to 3.5°.
 
 ## Components
 

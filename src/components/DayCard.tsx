@@ -80,7 +80,7 @@ export function DayCard({
   maintenance = false,
   onComplete,
 }: Props) {
-  const { toggleRule, saveLog, derived } = useApp()
+  const { toggleRule, saveLog, derived, supabaseEnabled } = useApp()
   const totalDays = derived.totalDays
   const completed = !maintenance && Boolean(dayData.completions[dayIndex])
   // The log's draft (see lib/logDraft): seeded from storage, saved after a
@@ -516,7 +516,9 @@ export function DayCard({
               </li>
             )}
             <li>
-              Everything saves as you go, and stays on this device unless you share it.
+              {supabaseEnabled
+                ? 'Everything saves as you go, on this device and to your account, so your other devices have it too.'
+                : 'Everything saves as you go, and stays on this device unless you share it.'}
             </li>
           </ul>
         </details>

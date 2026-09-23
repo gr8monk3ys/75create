@@ -41,13 +41,14 @@ export default function ShareGenerator() {
     return `${origin}/share#${encodeSnapshot(snap)}`
   }, [challenge, dayData.logs, derived, includeLogs])
 
-  const [copyFailed, setCopyFailed] = useState(false)
+  // A count, not a flag: the same failure twice is announced twice.
+  const [copyFailed, setCopyFailed] = useState(0)
   const linkRef = useRef<HTMLTextAreaElement>(null)
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link)
-      setCopyFailed(false)
+      setCopyFailed(0)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -55,7 +56,7 @@ export default function ShareGenerator() {
       // so it's ready to copy by hand, and say so.
       linkRef.current?.focus()
       linkRef.current?.select()
-      setCopyFailed(true)
+      setCopyFailed((n) => n + 1)
     }
   }
 
@@ -82,7 +83,7 @@ export default function ShareGenerator() {
 
       <h1 className="font-display sg-h1">Share a read-only link to your grid.</h1>
       <p className="sg-sub">
-        Anyone with the link sees your grid and streak — nothing else, no account
+        Anyone with the link sees your grid, streak and medium — nothing else, no account
         needed. The link carries a snapshot from right now; generate a fresh one to
         update it.
       </p>
@@ -118,7 +119,7 @@ export default function ShareGenerator() {
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
-      <p className="copy-status" role="status">
+      <p className="copy-status" role="status" key={copyFailed}>
         {copied
           ? 'Link copied.'
           : copyFailed

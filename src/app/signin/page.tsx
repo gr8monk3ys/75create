@@ -135,7 +135,7 @@ export default function SignIn() {
         }
         .auth-card {
           width: 100%;
-          padding: 2rem;
+          padding: min(2rem, 6vw);
         }
         .auth-h1 {
           font-size: 2rem;

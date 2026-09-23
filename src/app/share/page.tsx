@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Grid } from '@/components/Grid'
+import { Grid, GridLegend } from '@/components/Grid'
 import { StreakHeader } from '@/components/StreakHeader'
 import { decodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 import { Day } from '@/lib/types'
@@ -72,10 +72,15 @@ export default function SharePage() {
           current={snap.current}
           longest={snap.longest}
           totalDays={snap.dayStates.length}
+          readOnly
         />
       </div>
 
       <div className="grid-panel panel">
+        {/* Someone who's never seen the app needs the key to the marks. */}
+        <div className="sv-legend">
+          <GridLegend days={days} />
+        </div>
         <Grid days={days} />
       </div>
 
@@ -142,6 +147,9 @@ function Styles() {
       .share-view .logs-h2 {
         font-size: 1.5rem;
         margin: 0;
+      }
+      .share-view .sv-legend {
+        margin-bottom: 0.9rem;
       }
       .share-view .grid-panel {
         padding: 1.5rem;
