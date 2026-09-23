@@ -4,26 +4,16 @@ import { useMemo, useState } from 'react'
 import { useApp } from './AppProvider'
 import { Grid } from './Grid'
 import { Icon } from './Icon'
-import { attemptDays, tally } from '@/lib/challengeSession'
+import { PastAttempt, hasLog } from '@/lib/challengeSession'
 import { POLICY_NAMES, shortDate } from '@/lib/format'
-import { Challenge } from '@/lib/types'
-import type { DayData } from '@/lib/repository'
 
 export function PastAttempts() {
-  const { repo, challenge } = useApp()
-  // Archived attempts only change when an attempt ends (a new challenge id),
-  // so they're read from storage then, not on every autosave.
+  const { history, challenge } = useApp()
+  // History only changes when a challenge ends (a new active id), so it's
+  // read then, not on every autosave.
   const activeId = challenge?.id
-  const archived = useMemo(
-    () =>
-      repo
-        .getChallenges()
-        .filter((c) => c.status === 'archived')
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .map((c) => ({ challenge: c, dayData: repo.getDayData(c.id) })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [repo, activeId],
-  )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const archived = useMemo(() => history(), [history, activeId])
   const [open, setOpen] = useState<string | null>(null)
 
   if (archived.length === 0) return null
@@ -34,18 +24,17 @@ export function PastAttempts() {
         Past attempts
       </h2>
       <p className="past-sub">
-        Nothing here is deleted. Every reset archives the attempt, logs and all. It still counts
-        as work you made.
+        Nothing here is deleted. Every reset, every attempt you end and every finished round is
+        kept, logs and all. It still counts as work you made.
       </p>
       <ul className="attempts">
-        {archived.map(({ challenge: c, dayData }, i) => (
+        {archived.map((attempt, i) => (
           <AttemptRow
-            key={c.id}
+            key={attempt.challenge.id}
             number={archived.length - i}
-            challenge={c}
-            dayData={dayData}
-            open={open === c.id}
-            onToggle={() => setOpen(open === c.id ? null : c.id)}
+            attempt={attempt}
+            open={open === attempt.challenge.id}
+            onToggle={() => setOpen(open === attempt.challenge.id ? null : attempt.challenge.id)}
           />
         ))}
       </ul>
@@ -81,22 +70,19 @@ export function PastAttempts() {
 
 function AttemptRow({
   number,
-  challenge,
-  dayData: dd,
+  attempt,
   open,
   onToggle,
 }: {
   number: number
-  challenge: Challenge
-  dayData: DayData
+  attempt: PastAttempt
   open: boolean
   onToggle: () => void
 }) {
-  const days = attemptDays(challenge, dd)
-  const { made } = tally(days, dd)
-  const endedOn = challenge.endedOnDay ?? days.find((d) => d.state === 'missed')?.index ?? null
+  const { challenge, dayData: dd, days, endedOn, outcome } = attempt
+  const { made } = attempt.tally
   const logs = Object.entries(dd.logs)
-    .filter(([, log]) => log.text.trim())
+    .filter(([day]) => hasLog(dd, Number(day)))
     .sort((a, b) => Number(a[0]) - Number(b[0]))
   const bodyId = `attempt-${challenge.id}`
 
@@ -104,11 +90,13 @@ function AttemptRow({
     <li className="attempt panel">
       <button className="attempt-head" onClick={onToggle} aria-expanded={open} aria-controls={bodyId}>
         <span className="a-title">
-          <span className="a-name font-display">Attempt {number}</span>
+          <span className="a-name font-display">
+            Attempt {number}{outcome === 'finished' ? ' · finished' : ''}
+          </span>
           <span className="a-meta">
             {POLICY_NAMES[challenge.missPolicy]} · started {shortDate(challenge.startDate)} ·{' '}
             {made} {made === 1 ? 'day' : 'days'} made
-            {challenge.endedOnDay ? ` · ended on Day ${challenge.endedOnDay}` : ''}
+            {endedOn ? ` · ended on Day ${endedOn}` : ''}
           </span>
         </span>
         <Icon name={open ? 'minus' : 'plus'} size={20} className="chev" />

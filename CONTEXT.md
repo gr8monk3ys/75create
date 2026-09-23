@@ -66,7 +66,7 @@ What a missed day costs, chosen at setup and locked: Classic, Grace or Extend.
 Any missed day ends the attempt.
 
 **Grace**:
-Three skip tokens for the life of the challenge; a miss with no token left ends the attempt.
+Three skip tokens per attempt; a miss with no token left ends the attempt, and the restart brings three fresh tokens.
 
 **Skip token**:
 Covers one missed day under Grace, turning it into a skipped day.
@@ -80,6 +80,15 @@ Applying miss consequences to days that have newly become missed, oldest first.
 **Reset**:
 Ending an attempt after a Classic miss (or a Grace miss with no tokens left). It waits for the person to confirm, archives the attempt and restarts at Day 1 on the current creative day.
 _Avoid_: Fail, restart (in code)
+
+**Ending an attempt**:
+Stopping the running challenge at the person's own request (quitting is allowed but never hidden). Before Day 1 it's a free redo of the setup and leaves no trace; after, the attempt is archived where it stands. Either way the next step is a new setup.
+
+**Restore**:
+Undoing a miss that turns out to have been made: another device syncs in a completion for a day this one had already actioned. The skip token or extension comes back, and the person is told.
+
+**History**:
+Every past attempt and finished round, newest first, with its frozen grid, tally and logs. Nothing in it is ever deleted except by deleting the account.
 
 ### After Day 75
 

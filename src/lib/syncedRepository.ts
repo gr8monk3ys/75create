@@ -5,7 +5,7 @@
 // tracking one challenge across devices.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DayData, Repository, newUser } from './repository'
+import { DayData, Repository, emptyDayData, mergeDayData, newUser } from './repository'
 import { LocalRepository, PARK_PREFIX } from './localRepository'
 import { Artifact, Challenge, Log, User } from './types'
 import { ARTIFACTS_BUCKET } from './supabase'
@@ -151,6 +151,23 @@ export class SyncedRepository implements Repository {
   }
 
   /**
+   * Catch up with the other devices: pull newer rows, then push what's
+   * queued. Called before rollover when the app comes back to the
+   * foreground, so a day made elsewhere is never actioned here as a miss.
+   * Resolves (never rejects) within `timeoutMs`, online or not.
+   */
+  async pull(timeoutMs = 5000): Promise<void> {
+    const userId = this.userId
+    if (!userId) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const work = (async () => {
+      await this.hydrate(userId)
+      await this.flush()
+    })().catch(() => {})
+    await Promise.race([work, new Promise((r) => setTimeout(r, timeoutMs))])
+  }
+
+  /**
    * Bind this device's local data to a Supabase account. The first account to
    * sign in adopts whatever was here (so local-first use carries over into the
    * account). A different account signing in later gets its own data: the
@@ -261,8 +278,16 @@ export class SyncedRepository implements Repository {
       .eq('user_id', userId)
     for (const row of dayData.data ?? []) {
       if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
-        this.local.replaceDayData(row.challenge_id, row.data as DayData)
+        // Merge, never replace: this device may hold work the other hasn't
+        // seen (made offline, or not yet flushed). Whatever the merge adds
+        // goes back up so both copies converge.
+        const remote = { ...emptyDayData(), ...(row.data as DayData) }
+        const merged = mergeDayData(this.local.getDayData(row.challenge_id), remote)
+        this.local.replaceDayData(row.challenge_id, merged)
         stamps.dayData[row.challenge_id] = row.updated_at
+        if (JSON.stringify(merged) !== JSON.stringify(mergeDayData(remote, remote))) {
+          this.dirtyDay(row.challenge_id)
+        }
       }
     }
 
@@ -505,6 +530,11 @@ export class SyncedRepository implements Repository {
 
   addActionedMiss(challengeId: string, dayIndex: number): void {
     this.local.addActionedMiss(challengeId, dayIndex)
+    this.dirtyDay(challengeId)
+  }
+
+  clearMiss(challengeId: string, dayIndex: number): void {
+    this.local.clearMiss(challengeId, dayIndex)
     this.dirtyDay(challengeId)
   }
 

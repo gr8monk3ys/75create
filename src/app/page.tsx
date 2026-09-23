@@ -110,7 +110,7 @@ export default function Home() {
           </ol>
           <p className="custom-note">
             Not your medium? Rename them, drop the ones that don&apos;t fit, add your
-            own — 3 to 7 tasks. You lock the rules in before Day 1.
+            own — 3 to 7 rules. You lock the rules in before Day 1.
           </p>
         </section>
 

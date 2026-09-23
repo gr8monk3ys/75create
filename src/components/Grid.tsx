@@ -50,6 +50,8 @@ interface Props {
   focusKey?: number
   /** The day an ended attempt ended on: nothing is left "to go". */
   endedOn?: number | null
+  /** Today's index: once made, its stamp keeps a today ring. */
+  today?: number | null
 }
 
 /** Memoized: an autosave re-renders the page, but the day states it draws are unchanged. */
@@ -63,6 +65,7 @@ export const Grid = memo(function Grid({
   refocus = null,
   focusKey = 0,
   endedOn = null,
+  today = null,
 }: Props) {
   const summary = gridSummary(days, endedOn)
   const interactive = Boolean(onOpenDay)
@@ -70,6 +73,13 @@ export const Grid = memo(function Grid({
   const last = openable[openable.length - 1] ?? 1
   // Roving tabindex: the grid is one Tab stop; arrows move within it.
   const [active, setActive] = useState<number>(selected ?? last)
+  // Stepping days in the detail moves the selection: the grid's one Tab
+  // stop follows it, so Shift+Tab back in lands on the day on show.
+  const [seenSelected, setSeenSelected] = useState(selected)
+  if (selected !== seenSelected) {
+    setSeenSelected(selected)
+    if (selected != null) setActive(selected)
+  }
   const current = openable.includes(active) ? active : last
   const cells = useRef<Record<number, HTMLButtonElement | null>>({})
 
@@ -114,12 +124,14 @@ export const Grid = memo(function Grid({
         }
       >
         {days.map((d) => {
-          const title = `Day ${d.index}, ${LABELS[d.state]}`
-          const cls = `cell cell-${d.state} ${selected === d.index ? 'sel' : ''} ${stamp === d.index ? 'stamp' : ''}`
+          const madeToday = d.index === today && d.state === 'complete'
+          const title = `Day ${d.index}, ${madeToday ? 'made today' : LABELS[d.state]}`
+          const cls = `cell cell-${d.state} ${madeToday ? 'made-today' : ''} ${selected === d.index ? 'sel' : ''} ${stamp === d.index ? 'stamp' : ''}`
           const style = { '--rot': `${rotation(d.index)}deg` } as React.CSSProperties
           const mark =
-            d.state === 'skipped' ? <span className="cell-mark">–</span>
-            : d.state === 'missed' ? <span className="cell-mark">×</span>
+            // The mark is drawn, not read: the cell's name is its day and state.
+            d.state === 'skipped' ? <span className="cell-mark" aria-hidden>–</span>
+            : d.state === 'missed' ? <span className="cell-mark" aria-hidden>×</span>
             : null
           if (interactive && d.state !== 'future') {
             return (
@@ -193,6 +205,11 @@ export const Grid = memo(function Grid({
           border: 2.5px solid var(--cell-today);
           background: color-mix(in srgb, var(--cell-today) 12%, transparent);
           animation: today-pulse 2s ease-in-out 3;
+        }
+        /* Made today: the cobalt stamp keeps today's coral ring, outside it. */
+        .cell.made-today {
+          outline: 2px solid var(--cell-today);
+          outline-offset: 2px;
         }
         .cell-skipped {
           background: color-mix(in srgb, var(--cell-skipped) 85%, transparent);

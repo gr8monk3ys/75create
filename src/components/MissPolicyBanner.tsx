@@ -9,10 +9,11 @@ interface Props {
   onDismiss: () => void
 }
 
-const TITLES: Record<Banner['kind'], string> = {
-  reset: 'This attempt has ended.',
-  skip: 'A skip token covered you.',
-  extend: 'The challenge got longer.',
+const TITLES: Record<Banner['kind'], [one: string, many: string]> = {
+  reset: ['This attempt has ended.', 'This attempt has ended.'],
+  skip: ['A skip token covered you.', 'Skip tokens covered you.'],
+  extend: ['The challenge got longer.', 'The challenge got longer.'],
+  restore: ['A made day came back.', 'Made days came back.'],
 }
 
 /**
@@ -30,13 +31,15 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
     >
       <div className="banner-body">
         <h2 id="banner-title" className="font-display title">
-          {TITLES[banner.kind]}
+          {TITLES[banner.kind][(banner.count ?? 1) > 1 ? 1 : 0]}
         </h2>
         <p className="msg">{banner.message}</p>
         {whyNote && (
           <figure className="why">
             <blockquote>{whyNote}</blockquote>
-            <figcaption>Why you started</figcaption>
+            <figcaption>
+              <span aria-hidden>— </span>Why you started
+            </figcaption>
           </figure>
         )}
       </div>
@@ -67,6 +70,10 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
         }
         .kind-skip {
           border-color: var(--marigold);
+        }
+        .kind-restore {
+          /* Cobalt: this is about a day that was made. */
+          border-color: var(--cobalt);
         }
         .kind-extend {
           /* A miss, not a made day: never cobalt. */
@@ -113,9 +120,6 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           font-family: var(--font-mono);
           font-size: 0.75rem;
           color: var(--muted);
-        }
-        .why figcaption::before {
-          content: '— ';
         }
       `}</style>
     </section>

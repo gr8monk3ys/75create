@@ -10,7 +10,7 @@ import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
 
 export default function Recap() {
-  const { loading, user, challenge, dayData, derived, phase, repo, enterMaintenance, closeForNewRound } = useApp()
+  const { loading, user, challenge, dayData, derived, phase, enterMaintenance, closeForNewRound } = useApp()
   const router = useRouter()
   const [building, setBuilding] = useState(false)
 
@@ -105,16 +105,33 @@ export default function Recap() {
       </div>
 
       <div className="cert-row">
-        <div className="cert-text">
-          <h2 className="font-display cert-h2">Take the certificate.</h2>
-          <p className="cert-sub">
-            A PNG with your stats and the finished grid. No artifacts included —
-            share it anywhere.
-          </p>
-        </div>
-        <button className="btn" onClick={downloadCert} disabled={building}>
-          {building ? 'Rendering…' : 'Download certificate'}
-        </button>
+        {ended ? (
+          <>
+            <div className="cert-text">
+              <h2 className="font-display cert-h2">Take the certificate.</h2>
+              <p className="cert-sub">
+                A PNG with your stats and the finished grid. No artifacts included —
+                share it anywhere.
+              </p>
+            </div>
+            <button
+              className="btn"
+              onClick={() => !building && downloadCert()}
+              aria-disabled={building}
+            >
+              {building ? 'Rendering…' : 'Download certificate'}
+            </button>
+          </>
+        ) : (
+          // A certificate of completion is earned: it isn't offered mid-way.
+          <div className="cert-text">
+            <h2 className="font-display cert-h2">The certificate comes at the end.</h2>
+            <p className="cert-sub">
+              Finish Day {derived.totalDays} and it’s here: your stats and the whole grid, as a
+              PNG to share.
+            </p>
+          </div>
+        )}
       </div>
 
       <section className="gallery">
@@ -130,7 +147,7 @@ export default function Recap() {
                 <span className="tl-num font-mono">Day {day}</span>
                 <div className="tl-arts">
                   {artifacts.map((a) => (
-                    <ArtifactThumb key={a.id} artifact={a} repo={repo} size={120} dayIndex={day} />
+                    <ArtifactThumb key={a.id} artifact={a} size={120} dayIndex={day} />
                   ))}
                 </div>
                 {dayData.logs[day]?.text && (

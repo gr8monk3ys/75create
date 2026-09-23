@@ -30,7 +30,7 @@ export function currentDayIndex(
 }
 
 /** Total number of days in the challenge grid (base 75 plus any extensions). */
-function totalDays(challenge: Challenge): number {
+export function challengeLength(challenge: Challenge): number {
   return TOTAL_DAYS + (challenge.extraDays ?? 0)
 }
 
@@ -47,7 +47,7 @@ export function computeDayStates(
   skips: number[] = [],
 ): Day[] {
   const current = currentDayIndex(challenge, now, tz, bufferHrs)
-  const total = totalDays(challenge)
+  const total = challengeLength(challenge)
   const skipped = new Set(skips)
   const days: Day[] = []
   for (let index = 1; index <= total; index++) {

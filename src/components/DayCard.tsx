@@ -1,17 +1,24 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { DayData, Repository } from '@/lib/repository'
+import { DayData, checkKey } from '@/lib/repository'
 import { Challenge, MAX_LOG_CHARS, Rule } from '@/lib/types'
-import { Stakes, ToggleResult, completionRules, evidenceOf, ruleMet } from '@/lib/challengeSession'
-import { POLICY_LINES, POLICY_NAMES, clockTime, longDay } from '@/lib/format'
+import {
+  Stakes,
+  ToggleResult,
+  completionRules,
+  evidenceOf,
+  milestoneAt,
+  ruleMet,
+} from '@/lib/challengeSession'
+import { POLICY_LINES, POLICY_NAMES, clockTime, longDay, milestoneCopy } from '@/lib/format'
 import Link from 'next/link'
 import { useApp } from './AppProvider'
+import { LogDraft, MomentHold, createLogDraft, createMomentHold } from '@/lib/logDraft'
 import { ArtifactInput } from './ArtifactInput'
 import { Icon } from './Icon'
 
 interface Props {
-  repo: Repository
   challenge: Challenge
   dayIndex: number
   dayData: DayData
@@ -60,9 +67,10 @@ function isTyping(el: EventTarget | null): boolean {
 
 /** How long a writer pauses, after the log completed the day, before the moment plays. */
 const CELEBRATION_PAUSE_MS = 1500
+/** How long typing pauses before the log is saved. */
+const LOG_SAVE_DELAY_MS = 600
 
 export function DayCard({
-  repo,
   challenge,
   dayIndex,
   dayData,
@@ -72,26 +80,25 @@ export function DayCard({
   maintenance = false,
   onComplete,
 }: Props) {
-  const { toggleTask, saveLog, attachImage, attachLink, removeArtifact, wouldReopen } = useApp()
+  const { toggleRule, saveLog, derived } = useApp()
+  const totalDays = derived.totalDays
   const completed = !maintenance && Boolean(dayData.completions[dayIndex])
-  // Seeded from storage. Our own autosaves are never copied back (that would
-  // drop characters typed while a save was in flight); a log that changes in
-  // storage for another reason, such as a sync from another device, is taken
-  // in whenever nothing typed here is waiting to be saved.
+  // The log's draft (see lib/logDraft): seeded from storage, saved after a
+  // pause, flushed when the page hides, and it takes in a log synced from
+  // elsewhere only when nothing typed here is waiting to be saved.
   const storedLog = dayData.logs[dayIndex]?.text ?? ''
   const [log, setLog] = useState(storedLog)
-  /** The stored text this card last wrote or took in. */
-  const knownLog = useRef(storedLog)
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [savedFlash, setSavedFlash] = useState(false)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** Pending debounced write, run immediately if the card goes away first. */
-  const pendingSave = useRef<(() => void) | null>(null)
+  /** The latest ways to save and to celebrate, for the long-lived draft and hold. */
+  const saveNow = useRef<(text: string) => void>(() => {})
+  const celebrate = useRef<() => void>(() => {})
+  /** Built once the card mounts; only event handlers and effects use them. */
+  const draft = useRef<LogDraft | null>(null)
+  const peak = useRef<MomentHold | null>(null)
+  const firstStoredLog = useRef(storedLog)
   const logRef = useRef<HTMLTextAreaElement>(null)
   const ruleRefs = useRef<Record<string, HTMLElement | null>>({})
-  /** A completion reached by the log, held until the writer pauses or leaves the field. */
-  const heldCelebration = useRef(false)
-  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [savedFlash, setSavedFlash] = useState(false)
   const [announce, setAnnounce] = useState('')
   const [notesShown, toggleNotes] = useRuleNotes(dayIndex)
   const howRef = useRef<HTMLDetailsElement>(null)
@@ -114,20 +121,36 @@ export function DayCard({
   const logRule = rules.find((r) => evidenceOf(r) === 'log')
   const artifactRule = rules.find((r) => evidenceOf(r) === 'artifact')
   const needed = maintenance ? [] : completionRules(challenge)
-  const metCount = needed.filter((r) => ruleMet(r, dayData, dayIndex)).length
+  // The log rule counts what's typed (see `shownMet` below), so the count
+  // and the row never disagree while a save is in flight.
+  const metCount = needed.filter((r) =>
+    evidenceOf(r) === 'log' ? log.trim().length > 0 : ruleMet(r, dayData, dayIndex),
+  ).length
 
   // Never lose a log: flush any debounced save on unmount (navigation,
   // rollover) and the moment the page is hidden or closed (a swiped-away tab,
   // a locked phone, a reload), which never unmounts anything. The session
   // files it under the day it was typed for.
   useEffect(() => {
-    const flush = () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current)
-      pendingSave.current?.()
-      pendingSave.current = null
-    }
+    const log = createLogDraft({
+      initial: firstStoredLog.current,
+      maxChars: MAX_LOG_CHARS,
+      delayMs: LOG_SAVE_DELAY_MS,
+      save: (text) => saveNow.current(text),
+      // The visible "Saved" is described by the field; only a change to the
+      // day itself is worth interrupting a screen reader for.
+      onSaved: () => {
+        setSavedFlash(true)
+        if (flashTimer.current) clearTimeout(flashTimer.current)
+        flashTimer.current = setTimeout(() => setSavedFlash(false), 1600)
+      },
+    })
+    const hold = createMomentHold({ pauseMs: CELEBRATION_PAUSE_MS, play: () => celebrate.current() })
+    draft.current = log
+    peak.current = hold
+    const flush = () => log.flush()
     const onHidden = () => {
-      if (document.visibilityState === 'hidden') flush()
+      if (document.visibilityState === 'hidden') log.flush()
     }
     window.addEventListener('pagehide', flush)
     document.addEventListener('visibilitychange', onHidden)
@@ -135,52 +158,48 @@ export function DayCard({
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onHidden)
       if (flashTimer.current) clearTimeout(flashTimer.current)
-      if (holdTimer.current) clearTimeout(holdTimer.current)
-      flush()
+      hold.cancel()
+      log.dispose()
     }
   }, [])
 
   // One always-present live region speaks for the card: completion, a day
   // that came back off the grid, rule toggles. (A region that mounts with its
   // text already inside, like the celebration, is often never read.)
-  const releaseCelebration = useCallback(() => {
-    if (holdTimer.current) clearTimeout(holdTimer.current)
-    holdTimer.current = null
-    if (!heldCelebration.current) return
-    heldCelebration.current = false
-    onComplete(dayIndex)
-  }, [dayIndex, onComplete])
-
   const handle = useCallback(
     (result: ToggleResult) => {
       if (!result.ok) return false
       if (result.justCompleted) {
-        setAnnounce(`Day ${dayIndex}, made.`)
+        // The celebration is visual only; a milestone or the finish is said
+        // here, so the peak isn't silent for a screen reader.
+        const m = milestoneAt(dayIndex, totalDays)
+        const moment = m ? ` ${milestoneCopy(m, dayIndex, totalDays).title}` : ''
+        setAnnounce(`Day ${dayIndex}, made.${moment}${m === 'final' ? ' Your recap is ready.' : ''}`)
         // Finished by the log while still writing it: the stamp and the
         // announcement land now, the full-screen moment once they stop.
-        if (document.activeElement === logRef.current) {
-          heldCelebration.current = true
-          if (holdTimer.current) clearTimeout(holdTimer.current)
-          holdTimer.current = setTimeout(releaseCelebration, CELEBRATION_PAUSE_MS)
-        } else onComplete(dayIndex)
+        if (document.activeElement === logRef.current) peak.current?.hold()
+        else onComplete(dayIndex)
         return true
       }
       if (result.reopened) {
-        heldCelebration.current = false
+        peak.current?.cancel()
         setAnnounce(`Day ${dayIndex} is no longer complete.`)
         return true
       }
       return false
     },
-    [dayIndex, onComplete, releaseCelebration],
+    [dayIndex, totalDays, onComplete],
   )
+
+  useEffect(() => {
+    saveNow.current = (text) => handle(saveLog(dayIndex, text))
+    celebrate.current = () => onComplete(dayIndex)
+  }, [handle, saveLog, dayIndex, onComplete])
 
   // Take in a log that changed in storage without being typed here.
   useEffect(() => {
-    if (storedLog === knownLog.current) return
-    knownLog.current = storedLog
-    if (pendingSave.current) return // what's typed here wins; it saves next
-    setLog(storedLog)
+    const shown = draft.current?.stored(storedLog) ?? null
+    if (shown !== null) setLog(shown)
   }, [storedLog])
 
   const toggle = useCallback(
@@ -190,14 +209,14 @@ export function DayCard({
       if (evidence === 'artifact') {
         return ruleRefs.current[rule.id]?.querySelector<HTMLElement>('button, input')?.focus()
       }
-      const was = dayData.checks[`${dayIndex}:${rule.id}`] === true
-      const result = toggleTask(dayIndex, rule.id)
+      const was = dayData.checks[checkKey(dayIndex, rule.id)] === true
+      const result = toggleRule(dayIndex, rule.id)
       if (result.ok && !result.justCompleted && !result.reopened) {
         setAnnounce(`${rule.name}: ${was ? 'unchecked' : 'done'}.`)
       }
       handle(result)
     },
-    [dayData.checks, dayIndex, handle, toggleTask],
+    [dayData.checks, dayIndex, handle, toggleRule],
   )
 
   // Keyboard accelerators: 1–7 tick (or jump to) a rule, N jumps to the log.
@@ -210,6 +229,26 @@ export function DayCard({
         // the next digit or Tab carries on from here (the text is saved).
         const row = (e.target as HTMLElement).closest<HTMLElement>('[data-rule-row]')
         ;(row ?? cardRef.current)?.focus({ preventScroll: true })
+        return
+      }
+      // Tab from a rule row that Esc landed on carries on past that row's
+      // own fields, so "leave a field, then Tab" doesn't go straight back in.
+      const active = document.activeElement as HTMLElement | null
+      if (e.key === 'Tab' && !e.shiftKey && active?.hasAttribute('data-rule-row') && cardRef.current) {
+        const next = [
+          ...cardRef.current.querySelectorAll<HTMLElement>(
+            'button, a[href], input:not([type=file]), textarea, summary',
+          ),
+        ].find(
+          (el) =>
+            !active.contains(el) &&
+            el.offsetParent !== null &&
+            active.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING,
+        )
+        if (next) {
+          e.preventDefault()
+          next.focus()
+        }
         return
       }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
@@ -229,28 +268,11 @@ export function DayCard({
 
   function onLogChange(value: string) {
     const clipped = value.slice(0, MAX_LOG_CHARS)
-    setLog(clipped)
-    // Still writing: the held celebration waits for the next pause.
-    if (heldCelebration.current && holdTimer.current) {
-      clearTimeout(holdTimer.current)
-      holdTimer.current = setTimeout(releaseCelebration, CELEBRATION_PAUSE_MS)
-    }
-    const write = () => {
-      knownLog.current = clipped
-      handle(saveLog(dayIndex, clipped))
-    }
-    pendingSave.current = write
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      // The visible "Saved" is described by the field; only a change to the
-      // day itself is worth interrupting a screen reader for.
-      write()
-      pendingSave.current = null
-      setSavedFlash(true)
-      if (flashTimer.current) clearTimeout(flashTimer.current)
-      flashTimer.current = setTimeout(() => setSavedFlash(false), 1600)
-    }, 600)
+    setLog(draft.current?.type(clipped) ?? clipped)
+    // Still writing: a held celebration waits for the next pause.
+    peak.current?.typing()
   }
+
 
   const artifacts = dayData.artifacts[dayIndex] ?? []
   const closes = clockTime(dayCloses)
@@ -268,7 +290,7 @@ export function DayCard({
         aria-describedby={[statusId, `log-count-${dayIndex}`].filter(Boolean).join(' ')}
         placeholder="What did you make or learn today?"
         onChange={(e) => onLogChange(e.target.value)}
-        onBlur={releaseCelebration}
+        onBlur={() => peak.current?.release()}
       />
       <span id={`log-count-${dayIndex}`} className={`count ${savedFlash ? 'flash' : ''}`}>
         {savedFlash ? (
@@ -284,13 +306,8 @@ export function DayCard({
 
   const artifactField = (labelId: string, describedBy?: string) => (
     <ArtifactInput
-      repo={repo}
       dayIndex={dayIndex}
       artifacts={artifacts}
-      attachImage={attachImage}
-      attachLink={attachLink}
-      removeArtifact={removeArtifact}
-      wouldReopen={wouldReopen}
       onResult={handle}
       onAnnounce={setAnnounce}
       labelledBy={labelId}
@@ -378,13 +395,15 @@ export function DayCard({
               // The log rule follows what's typed, not the debounced save, so
               // it never looks unmet while the words are on screen.
               const shownMet = evidence === 'log' ? log.trim().length > 0 : met
+              // Clearing the log of a made day is the one status that warns.
+              const warns = !shownMet && evidence === 'log' && completed
               const status = shownMet
                 ? 'Done'
-                : evidence === 'log'
-                  ? completed
-                    ? 'Clearing the log reopens today'
-                    : 'Write a line below'
-                  : 'Add an image or a link'
+                : warns
+                  ? 'Clearing the log reopens today'
+                  : evidence === 'log'
+                    ? 'Write a line below'
+                    : 'Add an image or a link'
               const head = (
                 <>
                   <span className={`box ${shownMet ? 'on' : ''}`} aria-hidden>
@@ -395,7 +414,7 @@ export function DayCard({
                       {r.name}
                       {!r.required && <span className="opt"> · optional</span>}
                     </span>
-                    <span className={`status ${status.startsWith('Clearing') ? 'warn' : ''}`} id={statusId}>
+                    <span className={`status ${warns ? 'warn' : ''}`} id={statusId}>
                       {status}
                     </span>
                     {descId && (
@@ -514,6 +533,16 @@ export function DayCard({
           flex-direction: column;
           gap: 1.25rem;
         }
+        @media (max-width: 26em) {
+          /* A phone, or large text: nested paddings give way to the words. */
+          .daycard {
+            padding: 1rem;
+          }
+          .daycard :global(.check) {
+            padding: 0.7rem 0.75rem;
+            gap: 0.6rem;
+          }
+        }
         .daycard:focus:not(:focus-visible) {
           outline: none;
         }
@@ -625,7 +654,7 @@ export function DayCard({
           width: 1.5rem;
           height: 1.5rem;
           border-radius: 4px;
-          border: 2px solid var(--muted);
+          border: 1.5px solid var(--muted);
           display: grid;
           place-items: center;
           color: var(--paper);
@@ -647,7 +676,7 @@ export function DayCard({
         }
         .box.on {
           background: var(--cobalt);
-          border: 2px solid var(--cobalt);
+          border: 1.5px solid var(--cobalt);
         }
         .check-body {
           display: flex;

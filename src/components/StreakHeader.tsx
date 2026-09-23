@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import type { Phase, Stakes } from '@/lib/challengeSession'
 import { MAX_SKIP_TOKENS, TOTAL_DAYS } from '@/lib/types'
+import { POLICY_NAMES } from '@/lib/format'
 
 interface Props {
   dayIndex: number
@@ -180,7 +181,7 @@ function StakesStat({
     return (
       <div className="stat stakes">
         <dt>
-          <PolicyName name="Grace" explained={explained} />
+          <PolicyName name={POLICY_NAMES.grace} explained={explained} />
         </dt>
         <dd className="tokens">
           <span className="pips" aria-hidden>
@@ -189,7 +190,7 @@ function StakesStat({
             ))}
           </span>
           <span className="tok-label">
-            {left} {left === 1 ? 'skip' : 'skips'} left
+            {left === 0 ? 'No skips left · a miss restarts' : `${left} ${left === 1 ? 'skip' : 'skips'} left`}
           </span>
         </dd>
         <style jsx>{`
@@ -277,7 +278,7 @@ function StakesStat({
   return (
     <div className="stat stakes">
       <dt>
-        <PolicyName name={stakes.policy === 'classic' ? 'Classic' : 'Extend'} explained={explained} />
+        <PolicyName name={POLICY_NAMES[stakes.policy]} explained={explained} />
       </dt>
       <dd className="line">{line}</dd>
       <style jsx>{`

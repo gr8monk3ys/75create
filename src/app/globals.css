@@ -171,8 +171,7 @@ kbd {
   /* Relative to its line, but never under the 11px floor. */
   font-size: max(0.7rem, 0.78em);
   padding: 0.1em 0.45em;
-  border: 1px solid var(--line);
-  box-shadow: 0 1px 0 var(--line);
+  border: 1.5px solid var(--line);
   border-radius: 4px;
   background: var(--paper);
   color: var(--ink);
@@ -415,7 +414,9 @@ textarea.field-input {
 main {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 0 1.5rem 5rem;
+  /* The side gutter stops growing with text size on a phone, so large text
+     spends the width on words, not margins. */
+  padding: 0 min(1.5rem, 5vw) 5rem;
 }
 .site-head,
 .site-foot {
@@ -517,7 +518,7 @@ h3 {
   display: inline-block;
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 2px;
+  border-radius: 4px;
   vertical-align: -1px;
   margin-right: 0.15rem;
 }
@@ -538,7 +539,7 @@ h3 {
   box-shadow: inset 0 0 0 1.5px var(--cell-missed);
 }
 .sw-t {
-  border: 2px solid var(--cell-today);
+  border: 2.5px solid var(--cell-today);
 }
 .sw-f {
   border: 1.5px dotted var(--muted);

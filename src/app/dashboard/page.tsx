@@ -11,7 +11,7 @@ import { DAY_DETAIL_ID, DayDetail } from '@/components/DayDetail'
 import { Celebration } from '@/components/Celebration'
 import { MissPolicyBanner } from '@/components/MissPolicyBanner'
 import { PastAttempts } from '@/components/PastAttempts'
-import { milestoneAt } from '@/lib/challengeSession'
+import { hasLog, milestoneAt } from '@/lib/challengeSession'
 import { finishLine, longDay, milestoneCopy } from '@/lib/format'
 
 export default function Dashboard() {
@@ -30,7 +30,6 @@ export default function Dashboard() {
     banner,
     dismissBanner,
     confirmReset,
-    repo,
   } = useApp()
   const router = useRouter()
   const [celebrate, setCelebrate] = useState(false)
@@ -101,12 +100,13 @@ export default function Dashboard() {
       ['missed', 'sw-m', 'missed'],
       ['future', 'sw-f', 'to come'],
     ] as const
-  ).filter(([state]) => gridDays.some((d) => d.state === state))
+    // Today keeps its ring once made, so the legend keeps "today" too.
+  ).filter(([state]) => (state === 'today' ? checkInOpen : gridDays.some((d) => d.state === state)))
   const afterDays =
     phase === 'maintenance'
       ? Object.entries(dayData.logs)
           .map(([i, l]) => ({ day: Number(i), text: l.text.trim() }))
-          .filter((l) => l.day > totalDays && l.text)
+          .filter((l) => l.day > totalDays && hasLog(dayData, l.day))
           .sort((a, b) => b.day - a.day)
       : []
 
@@ -123,7 +123,7 @@ export default function Dashboard() {
     if (next != null) setOpenDay(next)
   }
 
-  function restart() {
+  function confirmResetAndFocus() {
     confirmReset()
     // The banner and panel go; Day 1's check-in takes their place.
     requestAnimationFrame(() => document.getElementById('check-in')?.focus({ preventScroll: true }))
@@ -137,7 +137,7 @@ export default function Dashboard() {
 
   const heading =
     phase === 'reset-pending'
-      ? 'Your attempt has ended'
+      ? `Ended on Day ${missedDay ?? currentIndex}`
       : phase === 'maintenance'
         ? `Maintenance, day ${currentIndex}`
         : phase === 'prestart'
@@ -179,7 +179,7 @@ export default function Dashboard() {
         {/* On a phone the full grid sits below the check-in: show the mark
             itself up top, where the app opens, as a way down to the grid. */}
         <a href="#grid" className="mini-grid" aria-label="Jump to the grid">
-          <Grid days={gridDays} compact />
+          <Grid days={gridDays} compact today={checkInOpen ? currentIndex : null} />
         </a>
 
         {phase === 'reset-pending' && resetMessage && (
@@ -187,7 +187,7 @@ export default function Dashboard() {
             <MissPolicyBanner
               banner={{ kind: 'reset', message: resetMessage }}
               whyNote={challenge.whyNote}
-              onConfirmReset={restart}
+              onConfirmReset={confirmResetAndFocus}
               onDismiss={dismissBanner}
             />
           </div>
@@ -230,30 +230,16 @@ export default function Dashboard() {
                 <p>The grid is set and your rules are locked. Come back then for your first check-in.</p>
               </section>
             )}
-            {checkInOpen && (
+            {(checkInOpen || phase === 'maintenance') && (
               <DayCard
                 key={currentIndex}
-                repo={repo}
                 challenge={challenge}
                 dayIndex={currentIndex}
                 dayData={dayData}
                 creativeToday={creativeToday}
                 dayCloses={dayCloses}
-                stakes={stakes}
-                onComplete={handleComplete}
-              />
-            )}
-            {phase === 'maintenance' && (
-              <DayCard
-                key={currentIndex}
-                repo={repo}
-                challenge={challenge}
-                dayIndex={currentIndex}
-                dayData={dayData}
-                creativeToday={creativeToday}
-                dayCloses={dayCloses}
-                stakes={null}
-                maintenance
+                stakes={phase === 'maintenance' ? null : stakes}
+                maintenance={phase === 'maintenance'}
                 onComplete={handleComplete}
               />
             )}
@@ -289,13 +275,13 @@ export default function Dashboard() {
                 refocus={refocus.day}
                 focusKey={refocus.key}
                 endedOn={phase === 'reset-pending' ? missedDay : null}
+                today={checkInOpen ? currentIndex : null}
               />
               {opened ? (
                 <DayDetail
                   day={opened}
                   dayData={dayData}
-                  repo={repo}
-                  onClose={closeDay}
+                    onClose={closeDay}
                   onStep={stepDay}
                   hasPrev={pastDays.indexOf(opened.index) > 0}
                   hasNext={pastDays.indexOf(opened.index) < pastDays.length - 1}
@@ -409,6 +395,7 @@ export default function Dashboard() {
           }
           .finish-sub {
             margin: 0.5rem 0 0;
+            max-width: 60ch;
             color: var(--ink-soft);
             line-height: 1.5;
           }

@@ -24,6 +24,49 @@ export function emptyDayData(): DayData {
   return { completions: {}, logs: {}, checks: {}, artifacts: {}, skips: [], actionedMisses: [] }
 }
 
+/** The storage key of one rule's tick on one day. */
+export function checkKey(dayIndex: number, ruleId: string): string {
+  return `${dayIndex}:${ruleId}`
+}
+
+/** The id of one day of one challenge, as logs and artifacts record it. */
+export function dayId(challengeId: string, dayIndex: number): string {
+  return `${challengeId}:${dayIndex}`
+}
+
+/**
+ * Combine two copies of a challenge's day data (this device's and another's)
+ * so that nothing either one made is lost: a completion, tick, artifact, skip
+ * or actioned miss on either side survives, and each day keeps its most
+ * recently written log. Made work is the thing this product can't lose, so
+ * the merge errs toward keeping it; the session reconciles misses afterwards.
+ */
+export function mergeDayData(a: DayData, b: DayData): DayData {
+  const out = emptyDayData()
+  out.completions = { ...b.completions, ...a.completions }
+  for (const [day, at] of Object.entries(b.completions)) {
+    const mine = a.completions[Number(day)]
+    // Keep the earlier moment the day was made.
+    if (mine && at < mine) out.completions[Number(day)] = at
+  }
+  out.logs = { ...a.logs }
+  for (const [day, log] of Object.entries(b.logs)) {
+    const mine = a.logs[Number(day)]
+    if (!mine || log.updatedAt > mine.updatedAt) out.logs[Number(day)] = log
+  }
+  out.checks = { ...b.checks }
+  for (const [key, on] of Object.entries(a.checks)) out.checks[key] = on || b.checks[key] === true
+  const days = new Set([...Object.keys(a.artifacts), ...Object.keys(b.artifacts)].map(Number))
+  for (const day of days) {
+    const byId = new Map<string, Artifact>()
+    for (const art of [...(b.artifacts[day] ?? []), ...(a.artifacts[day] ?? [])]) byId.set(art.id, art)
+    out.artifacts[day] = [...byId.values()].sort((x, y) => x.createdAt.localeCompare(y.createdAt))
+  }
+  out.skips = [...new Set([...a.skips, ...b.skips])].sort((x, y) => x - y)
+  out.actionedMisses = [...new Set([...a.actionedMisses, ...b.actionedMisses])].sort((x, y) => x - y)
+  return out
+}
+
 /** A fresh profile with this device's timezone and the default buffer. */
 export function newUser(id: string, email: string, now: Date = new Date()): User {
   return {
@@ -78,6 +121,8 @@ export interface Repository {
   addSkip(challengeId: string, dayIndex: number): void
   /** Record that this missed day's policy consequence has been applied. */
   addActionedMiss(challengeId: string, dayIndex: number): void
+  /** Undo a miss's consequence for a day that turned out to be made. */
+  clearMiss(challengeId: string, dayIndex: number): void
 
   // --- artifact blobs (IndexedDB) ---
   saveArtifactBlob(blob: Blob): Promise<string>

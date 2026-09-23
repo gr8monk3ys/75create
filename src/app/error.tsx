@@ -19,17 +19,12 @@ export default function ErrorBoundary({
     reportError(error, { boundary: 'route' })
   }, [error])
 
-  // The tab should say what the page says, not the route that failed.
-  useEffect(() => {
-    const previous = document.title
-    document.title = 'Something went wrong · 75 Create'
-    return () => {
-      document.title = previous
-    }
-  }, [])
 
   return (
     <main className="err">
+      {/* The tab says what the page says, not the route that failed (React
+          hoists this into <head>, ahead of the route's own title). */}
+      <title>Something went wrong · 75 Create</title>
       <h1 className="font-display err-h1">That didn’t load.</h1>
       <p className="err-body">
         Your challenge is safe — every day you’ve logged is stored on this device

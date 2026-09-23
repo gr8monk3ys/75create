@@ -163,6 +163,24 @@ test.describe('settings', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Day 1 of 75' })).toBeAttached()
   })
 
+  test('ending a challenge archives it and leads to a new setup', async ({ page }) => {
+    await startChallenge(page, 'end@75create.test')
+    await completeToday(page)
+
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'End this challenge' }).click()
+    // Two steps, and the confirm says exactly what happens.
+    await page.getByRole('button', { name: 'Yes, end on Day 1' }).click()
+    await page.waitForURL(/\/setup/)
+
+    await page.getByRole('button', { name: 'Next: rules' }).click()
+    await page.getByRole('button', { name: 'Next: stakes' }).click()
+    await page.getByRole('button', { name: /Start my 75/ }).click()
+    await page.waitForURL(/\/dashboard/)
+    await expect(page.getByRole('heading', { name: 'Past attempts' })).toBeVisible()
+    await expect(page.getByText(/1 day made · ended on Day 1/)).toBeVisible()
+  })
+
   test('the time zone is shown and matches the device', async ({ page }) => {
     await startChallenge(page, 'tz@75create.test')
 

@@ -246,7 +246,7 @@ The system is flat paper with printed marks. It has no blur shadows and no glass
 
 ## Shapes
 
-One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, checkboxes, token pips and keycaps 4px (2px in the compact grid and for confetti), and pills 999px for buttons and chips. Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. Stamps rotate by a deterministic −3.5° to 3.5°.
+One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, checkboxes, token pips and keycaps 4px (2px in the compact grid and for confetti), and pills 999px for buttons and chips. Borders are 1.5px everywhere: solid for structure, dashed for "still to do" (evidence boxes and help dividers) and for things you can edit inline, dotted for days to come. The one heavier line is today's ring (2.5px coral, on the grid and its legend swatch), which has to read at a glance among 75 cells; once today is made its cobalt stamp keeps a 2px coral outline. Sizes attached to a numeral or keycap (the day denominator, the streak unit, kbd) follow their numeral in em, clamped to the ramp's bounds and the 11px floor. Stamps rotate by a deterministic −3.5° to 3.5°.
 
 ## Components
 

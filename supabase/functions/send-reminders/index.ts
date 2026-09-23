@@ -2,7 +2,9 @@
 //
 // Schedule it every 15 minutes (Dashboard → Edge Functions → Schedules, or
 // pg_cron + pg_net). Each run emails users whose local reminder time falls in
-// the just-elapsed 15-minute window.
+// the just-elapsed 15-minute window — only when a running challenge's today
+// isn't made yet, and only users with no working push subscription (push is
+// the primary channel; email is the fallback, so nobody is nudged twice).
 //
 // Secrets:
 //   RESEND_API_KEY   required — resend.com API key
@@ -13,6 +15,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { reminderDue, secretMatches } from '../_shared/schedule.ts'
+import { usersWithTodayOpen } from '../_shared/pending.ts'
 
 const WINDOW_MIN = 15
 /** PostgREST caps a response at 1000 rows, so profiles are read in pages. */
@@ -24,6 +27,7 @@ interface Profile {
   id: string
   email: string
   tz: string | null
+  late_night_buffer_hrs: number | null
   reminder_time: string | null
 }
 
@@ -48,8 +52,8 @@ async function sendReminder(
       subject: 'Make your mark — 75 Create',
       text:
         'This is your daily 75 Create reminder.\n\n' +
-        'Check in, do your tasks, and stamp the grid before the day rolls over. ' +
-        'If you already made your mark today, ignore this and be proud.\n',
+        'Today is still open. Check in, meet your rules and stamp the grid before ' +
+        'the day rolls over.\n',
     }),
   })
   return res.ok
@@ -84,7 +88,7 @@ Deno.serve(async (req) => {
     const from_ = page * PAGE_SIZE
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, tz, reminder_time')
+      .select('id, email, tz, late_night_buffer_hrs, reminder_time')
       .not('reminder_time', 'is', null)
       .order('id', { ascending: true })
       .range(from_, from_ + PAGE_SIZE - 1)
@@ -94,7 +98,24 @@ Deno.serve(async (req) => {
     if (profiles.length === 0) break
     scanned += profiles.length
 
-    const due = profiles.filter((p) => isDue(p, now))
+    const timely = profiles.filter((p) => isDue(p, now))
+    let open: Set<string>
+    try {
+      open = await usersWithTodayOpen(supabase, timely, now)
+    } catch (e) {
+      return new Response((e as Error).message, { status: 500 })
+    }
+    const pushed = new Set<string>()
+    if (open.size > 0) {
+      const subs = await supabase
+        .from('push_subscriptions')
+        .select('user_id')
+        .is('failed_at', null)
+        .in('user_id', [...open])
+      if (subs.error) return new Response(subs.error.message, { status: 500 })
+      for (const row of subs.data ?? []) pushed.add(row.user_id)
+    }
+    const due = timely.filter((p) => open.has(p.id) && !pushed.has(p.id))
     for (let i = 0; i < due.length; i += BATCH_SIZE) {
       const results = await Promise.all(
         due

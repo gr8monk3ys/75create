@@ -179,6 +179,41 @@ describe('SyncedRepository', () => {
     expect(dd.checks['1:create']).toBe(true)
   })
 
+  it('merges a newer remote day row instead of replacing local work', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    // Made on this device, not yet pushed (offline).
+    state.failUpserts = true
+    repo.saveDayCompletion('c1', 2, '2026-01-02T21:00:00.000Z')
+    repo.saveLog('c1', 2, { dayId: 'c1:2', text: 'typed offline', updatedAt: '2026-01-02T21:00:00.000Z' })
+    await repo.flush()
+
+    // Meanwhile another device wrote Day 3 and an older Day 2 log.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: { 3: '2026-01-03T12:00:00.000Z' },
+          logs: { 2: { dayId: 'c1:2', text: 'first', updatedAt: '2026-01-02T20:00:00.000Z' } },
+          checks: {},
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    state.failUpserts = false
+    await repo.pull()
+
+    const dd = repo.getDayData('c1')
+    expect(Object.keys(dd.completions).sort()).toEqual(['2', '3'])
+    expect(dd.logs[2].text).toBe('typed offline')
+    // What the merge added went back up.
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    expect(Object.keys((pushed.data as { completions: object }).completions).sort()).toEqual(['2', '3'])
+  })
+
   it('does not fire remote calls when signed out', async () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()

@@ -1,7 +1,8 @@
 // Web Push reminder sender (Supabase Edge Function, Deno runtime).
 //
 // Schedule it every 15 minutes alongside send-reminders. Each run pushes to the
-// devices of users whose local reminder time falls in the just-elapsed window.
+// devices of users whose local reminder time falls in the just-elapsed window,
+// when a running challenge's today isn't made yet.
 //
 // Pushes are sent WITHOUT a payload. A payload would have to be encrypted per
 // RFC 8291, and the message here is fixed anyway — the service worker supplies
@@ -20,6 +21,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { reminderDue, secretMatches } from '../_shared/schedule.ts'
 import { importVapidKey, vapidToken } from '../_shared/vapid.ts'
+import { usersWithTodayOpen } from '../_shared/pending.ts'
 
 const WINDOW_MIN = 15
 const PAGE_SIZE = 500
@@ -31,6 +33,7 @@ interface Subscriber {
   endpoint: string
   user_id: string
   tz: string | null
+  late_night_buffer_hrs: number | null
   reminder_time: string | null
 }
 
@@ -104,7 +107,7 @@ Deno.serve(async (req) => {
     const start = page * PAGE_SIZE
     const { data, error } = await supabase
       .from('push_subscriptions')
-      .select('endpoint, user_id, profiles!inner(tz, reminder_time)')
+      .select('endpoint, user_id, profiles!inner(tz, late_night_buffer_hrs, reminder_time)')
       .is('failed_at', null)
       .not('profiles.reminder_time', 'is', null)
       .order('endpoint', { ascending: true })
@@ -115,17 +118,32 @@ Deno.serve(async (req) => {
     if (rows.length === 0) break
 
     const subscribers: Subscriber[] = rows.map((row) => {
-      const profile = (row as unknown as { profiles: { tz: string; reminder_time: string } })
-        .profiles
+      const profile = (
+        row as unknown as {
+          profiles: { tz: string; late_night_buffer_hrs: number; reminder_time: string }
+        }
+      ).profiles
       return {
         endpoint: (row as { endpoint: string }).endpoint,
         user_id: (row as { user_id: string }).user_id,
         tz: profile?.tz ?? null,
+        late_night_buffer_hrs: profile?.late_night_buffer_hrs ?? null,
         reminder_time: profile?.reminder_time ?? null,
       }
     })
 
-    const due = subscribers.filter((s) => isDue(s, now))
+    const timely = subscribers.filter((s) => isDue(s, now))
+    let open: Set<string>
+    try {
+      open = await usersWithTodayOpen(
+        supabase,
+        timely.map((s) => ({ id: s.user_id, tz: s.tz, late_night_buffer_hrs: s.late_night_buffer_hrs })),
+        now,
+      )
+    } catch (e) {
+      return new Response((e as Error).message, { status: 500 })
+    }
+    const due = timely.filter((s) => open.has(s.user_id))
     for (let i = 0; i < due.length; i += BATCH_SIZE) {
       const batch = due.slice(i, i + BATCH_SIZE)
       const outcomes = await Promise.all(

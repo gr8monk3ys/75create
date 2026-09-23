@@ -18,3 +18,7 @@ next-env.d.ts
 
 # Impeccable live-mode runtime state (server port/pid, sessions)
 /.impeccable/live/
+
+# local secrets (see .env.example)
+.env*.local
+.env

@@ -25,10 +25,15 @@ export function RuleEditor({ rules, onChange }: Props) {
   }
   function add() {
     if (rules.length >= MAX_RULES) return
-    onChange([
-      ...rules,
-      { id: newId(), name: 'New task', description: '', required: true },
-    ])
+    const rule = { id: newId(), name: 'New rule', description: '', required: true }
+    onChange([...rules, rule])
+    // Straight into naming it: the placeholder name is selected, so typing
+    // replaces it.
+    requestAnimationFrame(() => {
+      const input = document.getElementById(`rule-name-${rule.id}`) as HTMLInputElement | null
+      input?.focus()
+      input?.select()
+    })
   }
 
   return (
@@ -42,7 +47,7 @@ export function RuleEditor({ rules, onChange }: Props) {
               className="name-input font-display"
               value={r.name}
               onChange={(e) => update(r.id, { name: e.target.value })}
-              aria-label={`Task ${i + 1} name`}
+              aria-label={`Rule ${i + 1} name`}
               aria-invalid={r.name.trim() === ''}
               aria-describedby={r.name.trim() === '' ? 'rules-problem' : undefined}
             />
@@ -51,11 +56,11 @@ export function RuleEditor({ rules, onChange }: Props) {
               className="remove"
               onClick={() => remove(r.id)}
               disabled={rules.length <= MIN_RULES}
-              aria-label={`Remove task ${i + 1}`}
+              aria-label={`Remove rule ${i + 1}`}
               title={
                 rules.length <= MIN_RULES
-                  ? `Keep at least ${MIN_RULES} tasks`
-                  : 'Remove task'
+                  ? `Keep at least ${MIN_RULES} rules`
+                  : 'Remove rule'
               }
             >
               <Icon name="close" size={18} />
@@ -74,14 +79,14 @@ export function RuleEditor({ rules, onChange }: Props) {
             onChange={(e) => update(r.id, { description: e.target.value })}
             placeholder="Describe what counts…"
             rows={2}
-            aria-label={`Task ${i + 1} description`}
+            aria-label={`Rule ${i + 1} description`}
           />
           <label className="req-toggle font-mono">
             <input
               type="checkbox"
               checked={r.required}
               onChange={(e) => update(r.id, { required: e.target.checked })}
-              aria-label={`Task ${i + 1} (${r.name.trim() || 'unnamed'}) is required to complete the day`}
+              aria-label={`Rule ${i + 1} (${r.name.trim() || 'unnamed'}) is required to complete the day`}
             />
             Required to complete the day
           </label>
@@ -96,7 +101,7 @@ export function RuleEditor({ rules, onChange }: Props) {
         aria-disabled={rules.length >= MAX_RULES}
       >
         <Icon name="plus" size={16} />
-        Add task ({rules.length}/{MAX_RULES})
+        Add rule ({rules.length}/{MAX_RULES})
       </button>
 
       <style jsx>{`

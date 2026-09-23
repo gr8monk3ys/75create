@@ -21,8 +21,9 @@ export default function SignIn() {
 
   async function enter(e: React.FormEvent) {
     e.preventDefault()
-    const value = email.trim()
-    if (!value || busy) return
+    // Addresses are case-insensitive: Me@x.com and me@x.com are one account.
+    const value = email.trim().toLowerCase()
+    if (!value || busy || loading) return
     setBusy(true)
     setError('')
     try {
@@ -77,7 +78,12 @@ export default function SignIn() {
                 {error}
               </p>
             )}
-            <button type="submit" className="btn" disabled={busy || loading}>
+            <button
+              type="submit"
+              className="btn"
+              // Stays focusable while sending, so focus never drops to the page.
+              aria-disabled={busy || loading}
+            >
               {supabaseEnabled
                 ? busy
                   ? 'Sending…'
@@ -90,8 +96,8 @@ export default function SignIn() {
               <button
                 type="button"
                 className="btn btn-ghost google"
-                onClick={google}
-                disabled={busy}
+                onClick={() => !busy && google()}
+                aria-disabled={busy}
               >
                 Continue with Google
               </button>

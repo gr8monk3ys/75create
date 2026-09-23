@@ -12,26 +12,30 @@ import { LocalRepository } from '@/lib/localRepository'
 import type { SyncedRepository } from '@/lib/syncedRepository'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseConfigured } from '@/lib/backend'
-import { DayData, Repository, emptyDayData, newId, newUser } from '@/lib/repository'
+import { DayData, Repository, newId, newUser } from '@/lib/repository'
 import {
   BoundaryResult,
   ChallengeDraft,
   ChallengeSession,
   DayBoundary,
+  PastAttempt,
   Phase,
   Snapshot,
   Stakes,
   Tally,
   ToggleResult,
   createChallengeSession,
+  emptySnapshot,
 } from '@/lib/challengeSession'
-import { Challenge, Day, TOTAL_DAYS, User } from '@/lib/types'
+import { Challenge, Day, User } from '@/lib/types'
 
-export type BannerKind = 'skip' | 'extend' | 'reset'
+export type BannerKind = 'skip' | 'extend' | 'reset' | 'restore'
 
 export interface Banner {
   kind: BannerKind
   message: string
+  /** How many days the notice covers, for its title. */
+  count?: number
 }
 
 interface Derived {
@@ -72,7 +76,7 @@ interface AppValue {
   /** Move the day boundary; refused, with the reason, if it would decide a day. */
   changeDayBoundary: (change: DayBoundary) => BoundaryResult
   setReminder: (time: string | null) => void
-  toggleTask: (dayIndex: number, ruleId: string) => ToggleResult
+  toggleRule: (dayIndex: number, ruleId: string) => ToggleResult
   saveLog: (dayIndex: number, text: string) => ToggleResult
   attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
   attachLink: (dayIndex: number, url: string) => ToggleResult
@@ -82,27 +86,14 @@ interface AppValue {
   confirmReset: () => void
   enterMaintenance: () => void
   closeForNewRound: () => void
+  endAttempt: () => void
+  /** Past attempts and finished rounds, newest first (read on demand). */
+  history: () => PastAttempt[]
 }
 
 const AppContext = createContext<AppValue | null>(null)
 
-const EMPTY: Snapshot = {
-  phase: 'signed-out',
-  user: null,
-  challenge: null,
-  dayData: emptyDayData(),
-  days: [],
-  currentIndex: 0,
-  totalDays: TOTAL_DAYS,
-  streak: { current: 0, longest: 0 },
-  tally: { made: 0, skipped: 0, missed: 0, logsWritten: 0, artifactsKept: 0 },
-  checkInOpen: false,
-  resetMessage: null,
-  missedDay: null,
-  creativeToday: '',
-  dayCloses: '00:00',
-  stakes: null,
-}
+const EMPTY: Snapshot = emptySnapshot()
 
 // A skip or extension notice stays until dismissed, not until the next reload:
 // it is the only place the user learns a token was spent while they were away.
@@ -203,7 +194,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }))
     const last = events[events.length - 1]
     if (last) {
-      const notice: Banner = { kind: last.kind, message: last.message }
+      const notice: Banner = { kind: last.kind, message: last.message, count: last.days.length }
       writeNotice(notice)
       setBanner(notice)
     } else if (snapshot.phase === 'signed-out') {
@@ -215,6 +206,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [session])
 
   useEffect(() => {
+    // With a backend, the first sync waits for the auth listener, which pulls
+    // this account's rows first: rolling over on the local copy alone could
+    // action a day as missed that another device already made.
+    if (supabaseConfigured) return
     // Hydration from localStorage/IndexedDB, which are unreadable during
     // render and on the server — an effect is the only place this can happen.
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -225,22 +220,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // background. Re-sync when it does, so today's check-in never writes to
   // yesterday and a missed day is actioned as soon as it becomes one.
   useEffect(() => {
-    if (!session) return
+    if (!session || !authKnown) return
+    const synced = supabase ? (repo as SyncedRepository) : null
+    let pulling = false
+    // Before deciding anything about the day, catch up with the other
+    // devices (bounded, and a no-op offline).
+    const catchUp = async () => {
+      if (!synced || pulling) return sync()
+      pulling = true
+      try {
+        await synced.pull()
+      } finally {
+        pulling = false
+      }
+      sync()
+    }
     const onChange = () => {
-      if (session.read().creativeToday !== snap.creativeToday) sync()
+      if (session.read().creativeToday !== snap.creativeToday) void catchUp()
     }
     const timer = setInterval(onChange, TICK_MS)
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') onChange()
+    // Back in the foreground: another tab or device may have written since,
+    // and a tick must toggle what's stored, not what this tab last drew.
+    const onReturn = () => {
+      if (document.visibilityState === 'visible') void catchUp()
     }
-    document.addEventListener('visibilitychange', onVisible)
-    window.addEventListener('focus', onChange)
+    // Another tab on this device wrote: re-read at once.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === null || e.key.startsWith('75create.')) sync()
+    }
+    document.addEventListener('visibilitychange', onReturn)
+    window.addEventListener('focus', onReturn)
+    window.addEventListener('storage', onStorage)
     return () => {
       clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisible)
-      window.removeEventListener('focus', onChange)
+      document.removeEventListener('visibilitychange', onReturn)
+      window.removeEventListener('focus', onReturn)
+      window.removeEventListener('storage', onStorage)
     }
-  }, [session, snap.creativeToday, sync])
+  }, [session, authKnown, supabase, repo, snap.creativeToday, sync])
 
   // Real auth: when Supabase is configured the server session is the source of
   // truth for being signed in, and the prototype local session is disabled.
@@ -294,8 +311,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // to that account's data (parking the current one), never inherits it.
       const current = repo.getUser()
       if (!current) repo.saveUser(newUser(newId(), email))
-      else if (current.email !== email) {
-        const known = repo.parkedUsers().find((u) => u.email === email)
+      else if (current.email.toLowerCase() !== email.toLowerCase()) {
+        const known = repo.parkedUsers().find((u) => u.email.toLowerCase() === email.toLowerCase())
         repo.switchUser(known ?? newUser(newId(), email))
       }
       repo.setSignedIn(true)
@@ -322,73 +339,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [sync, repo, supabase])
 
   const actions = useMemo(() => {
-    const noop: ToggleResult = { ok: false }
+    const refused: ToggleResult = { ok: false }
+    /**
+     * Every write: run it on the session, then re-read so the UI catches up
+     * (a refused write means the day moved on under the user; the snapshot
+     * catches up either way). `fallback` answers while storage is starting.
+     */
+    function write<A extends unknown[], R>(
+      run: (s: ChallengeSession, ...args: A) => R,
+      fallback: R,
+    ): (...args: A) => R {
+      return (...args: A): R => {
+        if (!session) return fallback
+        const result = run(session, ...args)
+        if (result instanceof Promise) {
+          return result.then((value) => {
+            sync()
+            return value
+          }) as R
+        }
+        sync()
+        return result
+      }
+    }
     return {
-      toggleTask(dayIndex: number, ruleId: string): ToggleResult {
-        if (!session) return noop
-        const result = session.toggleTask(dayIndex, ruleId)
-        // A refused toggle means the day moved on under the user; either way
-        // the snapshot catches up.
-        sync()
-        return result
-      },
-      saveLog(dayIndex: number, text: string): ToggleResult {
-        if (!session) return noop
-        const result = session.saveLog(dayIndex, text)
-        sync()
-        return result
-      },
-      async attachImage(dayIndex: number, blob: Blob): Promise<ToggleResult> {
-        if (!session) return noop
-        const result = await session.attachImage(dayIndex, blob)
-        sync()
-        return result
-      },
-      attachLink(dayIndex: number, url: string): ToggleResult {
-        if (!session) return noop
-        const result = session.attachLink(dayIndex, url)
-        sync()
-        return result
-      },
-      async removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult> {
-        if (!session) return noop
-        const result = await session.removeArtifact(dayIndex, artifactId)
-        sync()
-        return result
-      },
-      wouldReopen(dayIndex: number, artifactId: string): boolean {
-        return session ? session.wouldReopen(dayIndex, artifactId) : false
-      },
-      changeDayBoundary(change: DayBoundary): BoundaryResult {
-        if (!session) return { ok: false, reason: 'Still starting up. Try again in a moment.' }
-        const result = session.changeDayBoundary(change)
-        sync()
-        return result
-      },
-      setReminder(time: string | null) {
-        session?.setReminder(time)
-        sync()
-      },
+      toggleRule: write((s, day: number, ruleId: string) => s.toggleRule(day, ruleId), refused),
+      saveLog: write((s, day: number, text: string) => s.saveLog(day, text), refused),
+      attachImage: write((s, day: number, blob: Blob) => s.attachImage(day, blob), Promise.resolve(refused)),
+      attachLink: write((s, day: number, url: string) => s.attachLink(day, url), refused),
+      removeArtifact: write(
+        (s, day: number, id: string) => s.removeArtifact(day, id),
+        Promise.resolve(refused),
+      ),
+      wouldReopen: (day: number, id: string) => session?.wouldReopen(day, id) ?? false,
+      changeDayBoundary: write((s, change: DayBoundary) => s.changeDayBoundary(change), {
+        ok: false,
+        reason: 'Still starting up. Try again in a moment.',
+      } as BoundaryResult),
+      setReminder: write((s, time: string | null) => s.setReminder(time), undefined),
       startChallenge(draft: ChallengeDraft): Challenge {
+        // No fallback here: starting without storage must fail loudly.
         if (!session) throw new Error('Storage is unavailable.')
-        const c = session.start(draft)
+        const challenge = session.start(draft)
+        // 75 days of work lives in this browser: ask it not to evict the
+        // storage under pressure (granted silently for installed PWAs).
+        void navigator.storage?.persist?.().catch(() => false)
         sync()
-        return c
+        return challenge
       },
-      confirmReset() {
-        session?.confirmReset()
+      confirmReset: write((s) => {
+        s.confirmReset()
         writeNotice(null)
         setBanner(null)
-        sync()
-      },
-      enterMaintenance() {
-        session?.enterMaintenance()
-        sync()
-      },
-      closeForNewRound() {
-        session?.closeForNewRound()
-        sync()
-      },
+      }, undefined),
+      enterMaintenance: write((s) => s.enterMaintenance(), undefined),
+      closeForNewRound: write((s) => s.closeForNewRound(), undefined),
+      endAttempt: write((s) => {
+        s.endAttempt()
+        writeNotice(null)
+        setBanner(null)
+      }, undefined),
+      history: () => session?.history() ?? [],
     }
   }, [session, sync])
 
@@ -397,7 +408,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setBanner(null)
   }, [])
 
-  // Stable while the day states and numbers are (see `keepDays` in sync).
+  // Stable while the day states and numbers are (sync keeps equal `days`
+  // and `stakes` objects from one snapshot to the next).
   const derived = useMemo<Derived>(
     () => ({
       days: snap.days,

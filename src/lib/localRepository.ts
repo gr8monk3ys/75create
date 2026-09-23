@@ -3,6 +3,7 @@
 
 import {
   DayData,
+  checkKey,
   Repository,
   emptyDayData,
   newId,
@@ -11,6 +12,8 @@ import { Artifact, Challenge, Log, User } from './types'
 
 const KEY_PREFIX = '75create.'
 const ROOT_KEY = `${KEY_PREFIX}v1`
+/** Where an unreadable root is kept, untouched, before a fresh one replaces it. */
+export const UNREADABLE_KEY = `${KEY_PREFIX}v1.unreadable`
 /**
  * Accounts other than the current one keep their data under
  * `75create.park.<userId>` (and whatever else a caller parks under
@@ -42,6 +45,13 @@ export class LocalRepository implements Repository {
       const parsed = JSON.parse(raw) as Root
       return { ...emptyRoot(), ...parsed }
     } catch {
+      // Unreadable (a partial write, a bad extension): keep the raw text
+      // before anything writes over it, so the challenge can be recovered.
+      try {
+        if (localStorage.getItem(UNREADABLE_KEY) === null) localStorage.setItem(UNREADABLE_KEY, raw)
+      } catch {
+        /* storage full: nothing more to be done here */
+      }
       return emptyRoot()
     }
   }
@@ -187,7 +197,7 @@ export class LocalRepository implements Repository {
   ): void {
     const root = this.read()
     const dd = this.dayDataFor(root, challengeId)
-    dd.checks[`${dayIndex}:${ruleId}`] = checked
+    dd.checks[checkKey(dayIndex, ruleId)] = checked
     this.write(root)
   }
 
@@ -231,6 +241,14 @@ export class LocalRepository implements Repository {
   }
 
   /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
+  clearMiss(challengeId: string, dayIndex: number): void {
+    const root = this.read()
+    const dd = this.dayDataFor(root, challengeId)
+    dd.skips = dd.skips.filter((d) => d !== dayIndex)
+    dd.actionedMisses = dd.actionedMisses.filter((d) => d !== dayIndex)
+    this.write(root)
+  }
+
   replaceDayData(challengeId: string, data: DayData): void {
     const root = this.read()
     root.dayData[challengeId] = { ...emptyDayData(), ...data }

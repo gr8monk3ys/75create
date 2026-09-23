@@ -1,22 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Repository } from '@/lib/repository'
 import { Artifact } from '@/lib/types'
 import { ImageError, compressImage } from '@/lib/image'
 import { normalizeArtifactUrl, safeHref } from '@/lib/safeUrl'
 import { ToggleResult } from '@/lib/challengeSession'
 import { Icon } from './Icon'
+import { useApp } from './AppProvider'
 
 interface Props {
-  repo: Repository
   dayIndex: number
   artifacts: Artifact[]
-  attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
-  attachLink: (dayIndex: number, url: string) => ToggleResult
-  removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
-  /** Whether removing an artifact would take a completed today off the grid. */
-  wouldReopen: (dayIndex: number, artifactId: string) => boolean
   /** Called with each write's result, so the card can celebrate completion.
    *  Returns true when it announced something itself (completion, reopening). */
   onResult: (result: ToggleResult) => boolean | void
@@ -31,22 +25,21 @@ interface Props {
 }
 
 export function ArtifactInput({
-  repo,
   dayIndex,
   artifacts,
-  attachImage,
-  attachLink,
-  removeArtifact,
-  wouldReopen,
   onResult,
   onAnnounce,
   labelledBy,
   describedBy,
   uploadId,
 }: Props) {
+  const { attachImage, attachLink, removeArtifact, wouldReopen } = useApp()
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Which control an error belongs to, so it's tied to that field alone.
+  const [error, setErrorState] = useState<{ text: string; from: 'upload' | 'link' } | null>(null)
+  const setError = (text: string | null, from: 'upload' | 'link' = 'link') =>
+    setErrorState(text ? { text, from } : null)
   const fileRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLButtonElement>(null)
 
@@ -66,7 +59,7 @@ export function ArtifactInput({
       report(await attachImage(dayIndex, blob), 'Image added.')
     } catch (err) {
       const why = err instanceof ImageError ? err.message : 'That upload didn’t work.'
-      setError(`${why} Try a JPEG or PNG under 5 MB, or paste a link instead.`)
+      setError(`${why} Try a JPEG or PNG under 5 MB, or paste a link instead.`, 'upload')
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -92,9 +85,9 @@ export function ArtifactInput({
             <li key={a.id}>
               <ArtifactThumb
                 artifact={a}
-                repo={repo}
                 dayIndex={dayIndex}
                 reopens={wouldReopen(dayIndex, a.id)}
+                onArm={(message) => onAnnounce?.(message)}
                 onRemove={async () => {
                   // The thumb (and its button) is about to go: keep focus in
                   // the group rather than dropping it to the page.
@@ -121,6 +114,7 @@ export function ArtifactInput({
           onClick={() => !busy && fileRef.current?.click()}
           aria-disabled={busy}
           aria-busy={busy}
+          aria-describedby={error?.from === 'upload' ? `url-err-${dayIndex}` : undefined}
         >
           <Icon name="image" size={18} />
           {busy ? 'Compressing…' : 'Upload image'}
@@ -136,8 +130,8 @@ export function ArtifactInput({
             inputMode="url"
             placeholder="or paste a link"
             value={url}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={error ? `url-err-${dayIndex}` : undefined}
+            aria-invalid={error?.from === 'link' ? true : undefined}
+            aria-describedby={error?.from === 'link' ? `url-err-${dayIndex}` : undefined}
             onChange={(e) => {
               setUrl(e.target.value)
               if (error) setError(null)
@@ -157,7 +151,7 @@ export function ArtifactInput({
         <input ref={fileRef} type="file" accept="image/*" onChange={onFile} hidden />
       </div>
       <p className="err" role="alert" id={`url-err-${dayIndex}`}>
-        {error}
+        {error?.text}
       </p>
 
       <style jsx>{`
@@ -234,20 +228,22 @@ function hostOf(url: string): string {
  */
 export function ArtifactThumb({
   artifact,
-  repo,
   onRemove,
+  onArm,
   dayIndex,
   reopens = false,
   size = 84,
 }: {
   artifact: Artifact
-  repo: Repository
   onRemove?: () => void
+  /** Says that the first tap armed removal (the confirm is otherwise silent). */
+  onArm?: (message: string) => void
   dayIndex?: number
   /** Removing this would take a completed day back off the grid. */
   reopens?: boolean
   size?: number
 }) {
+  const { repo } = useApp()
   const [src, setSrc] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
   const boxRef = useRef<HTMLDivElement>(null)
@@ -331,7 +327,11 @@ export function ArtifactThumb({
         <button
           type="button"
           className="x"
-          onClick={() => (armed ? onRemove() : setArmed(true))}
+          onClick={() => {
+            if (armed) return onRemove()
+            setArmed(true)
+            onArm?.(`Press again to remove this ${what}${reopens ? '; today will no longer be complete' : ''}.`)
+          }}
           aria-label={
             armed
               ? `Confirm: remove this ${what}${reopens ? '. Today will no longer be complete' : ''}`

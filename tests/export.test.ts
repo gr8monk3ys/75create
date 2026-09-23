@@ -28,7 +28,7 @@ describe('export', () => {
   it('keeps links, ticks and logs, not just images', async () => {
     const session = createChallengeSession(repo, () => new Date(Date.UTC(2026, 0, 1, 12)))
     const c = session.start({ medium: 'drawing', rules: DEFAULT_RULES, missPolicy: 'classic', start: 'today', whyNote: '' })
-    session.toggleTask(1, DEFAULT_RULES.find((r) => !r.evidence)!.id)
+    session.toggleRule(1, DEFAULT_RULES.find((r) => !r.evidence)!.id)
     session.saveLog(1, 'a line, with "quotes"')
     session.attachLink(1, 'https://example.com/study.png')
 

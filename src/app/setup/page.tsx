@@ -7,6 +7,7 @@ import { RuleEditor } from '@/components/RuleEditor'
 import { Icon } from '@/components/Icon'
 import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
 import { addDays } from '@/lib/creativeDay'
+import { POLICY_NAMES, POLICY_PITCHES, longDay } from '@/lib/format'
 import {
   DEFAULT_RULES,
   Medium,
@@ -25,11 +26,7 @@ const MEDIA: { id: Medium; label: string }[] = [
   { id: 'other', label: 'Other' },
 ]
 
-const POLICIES: { id: MissPolicy; name: string; line: string }[] = [
-  { id: 'classic', name: 'Classic', line: 'Any missed day restarts you at Day 1.' },
-  { id: 'grace', name: 'Grace', line: 'Three skip tokens for life. A fourth miss resets.' },
-  { id: 'extend', name: 'Extend', line: 'A missed day adds a day to the end. Streak resets, challenge continues.' },
-]
+const POLICY_ORDER: MissPolicy[] = ['classic', 'grace', 'extend']
 
 export default function Setup() {
   const { user, challenge, creativeToday, startChallenge, loading } = useApp()
@@ -40,7 +37,9 @@ export default function Setup() {
   const [rules, setRules] = useState<Rule[]>(() =>
     DEFAULT_RULES.map((r) => ({ ...r })),
   )
-  const [policy, setPolicy] = useState<MissPolicy>('grace')
+  // Classic by default: it's the format's own rule, and the one that makes
+  // the stakes real. Grace and Extend are there for a gentler run.
+  const [policy, setPolicy] = useState<MissPolicy>('classic')
   const [startChoice, setStartChoice] = useState<'today' | 'future'>('today')
   const [futureDate, setFutureDate] = useState('')
   const [why, setWhy] = useState('')
@@ -141,7 +140,7 @@ export default function Setup() {
             Your daily rules
           </h1>
           <p className="sub">
-            Start from the default five or make them yours — 3 to 7 tasks. These
+            Start from the default five or make them yours — 3 to 7 rules. These
             lock once you begin.
           </p>
           <RuleEditor rules={rules} onChange={setRules} />
@@ -172,16 +171,16 @@ export default function Setup() {
           </h1>
 
           <div className="policy-choices">
-            {POLICIES.map((p) => (
+            {POLICY_ORDER.map((id) => (
               <button
-                key={p.id}
+                key={id}
                 type="button"
-                className={`policy-pick ${policy === p.id ? 'sel' : ''}`}
-                onClick={() => setPolicy(p.id)}
-                aria-pressed={policy === p.id}
+                className={`policy-pick ${policy === id ? 'sel' : ''}`}
+                onClick={() => setPolicy(id)}
+                aria-pressed={policy === id}
               >
-                <span className="pname font-display">{p.name}</span>
-                <span className="pline">{p.line}</span>
+                <span className="pname font-display">{POLICY_NAMES[id]}</span>
+                <span className="pline">{POLICY_PITCHES[id]}</span>
               </button>
             ))}
           </div>
@@ -237,6 +236,29 @@ export default function Setup() {
               onChange={(e) => setWhy(e.target.value)}
               placeholder="Because I want to finish something for once…"
             />
+          </div>
+
+          {/* Last look before it locks: what Start commits to, in one place. */}
+          <div className="lock-summary panel" aria-labelledby="lock-title">
+            <h2 className="font-display lock-h2" id="lock-title">
+              What you’re locking in
+            </h2>
+            <ul className="lock-list">
+              <li>
+                {rules.length} daily rules, {rules.filter((r) => r.required).length} required to make
+                a day
+              </li>
+              <li>
+                {POLICY_NAMES[policy]}: {POLICY_PITCHES[policy]}
+              </li>
+              <li>
+                Day 1 is{' '}
+                {startChoice === 'today' || !futureDate
+                  ? `today${creativeToday ? `, ${longDay(creativeToday)}` : ''}`
+                  : longDay(futureDate)}
+                ; Day 75 is 74 days later
+              </li>
+            </ul>
           </div>
 
           <div className="nav-row">
@@ -363,6 +385,24 @@ export default function Setup() {
           align-items: center;
           margin-top: 2.5rem;
           gap: 1rem;
+        }
+        .lock-summary {
+          margin-top: 2rem;
+          padding: 1.25rem 1.5rem;
+        }
+        .lock-h2 {
+          font-size: 1.25rem;
+          margin: 0 0 0.6rem;
+        }
+        .lock-list {
+          margin: 0;
+          padding-left: 1.1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          line-height: 1.5;
+          color: var(--ink-soft);
+          max-width: 60ch;
         }
         .policy-choices {
           display: flex;

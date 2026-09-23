@@ -7,8 +7,9 @@
 // Persistence and time are injected (a Repository and a clock), so the whole
 // lifecycle is testable with LocalRepository and a fixed Date.
 
-import { DayData, Repository, emptyDayData, newId } from './repository'
+import { DayData, Repository, checkKey, dayId, emptyDayData, newId } from './repository'
 import {
+  challengeLength,
   computeDayStates,
   currentDayIndex,
   missConsequence,
@@ -114,7 +115,9 @@ export type BoundaryResult = { ok: true } | { ok: false; reason: string }
 
 /** A consequence applied during rollover, worth telling the user about once. */
 export interface RolloverEvent {
-  kind: 'skip' | 'extend'
+  /** `restore`: a day actioned as missed turned out to be made (another
+   *  device synced it in), so its token or extension was given back. */
+  kind: 'skip' | 'extend' | 'restore'
   message: string
   /** The missed days this consequence covered. */
   days: number[]
@@ -142,8 +145,8 @@ export interface ChallengeSession {
   sync(): { snapshot: Snapshot; events: RolloverEvent[] }
   /** Read without writing anything. */
   read(): Snapshot
-  /** Toggle one of today's tasks. `dayIndex` is the day the user is looking at. */
-  toggleTask(dayIndex: number, ruleId: string): ToggleResult
+  /** Tick or untick one of today's rules. `dayIndex` is the day the user is looking at. */
+  toggleRule(dayIndex: number, ruleId: string): ToggleResult
   /** Save the log for a day up to and including today. */
   saveLog(dayIndex: number, text: string): ToggleResult
   /** Attach an image (already compressed) to today. */
@@ -170,6 +173,26 @@ export interface ChallengeSession {
   enterMaintenance(): void
   /** After finishing (or from maintenance): close this challenge for a new one. */
   closeForNewRound(): void
+  /**
+   * Stop the running challenge at the person's own request: before Day 1 (to
+   * change the setup), mid-attempt, or instead of restarting after a miss.
+   * The attempt is archived with everything made; nothing is deleted.
+   */
+  endAttempt(): void
+  /** Every past attempt and finished round, newest first. */
+  history(): PastAttempt[]
+}
+
+/** A challenge that's over, as its history shows it. */
+export interface PastAttempt {
+  challenge: Challenge
+  dayData: DayData
+  days: Day[]
+  tally: Tally
+  /** `ended`: reset or stopped; `finished`: a completed round. */
+  outcome: 'ended' | 'finished'
+  /** The day an ended attempt stopped on. */
+  endedOn: number | null
 }
 
 export function createChallengeSession(
@@ -191,21 +214,11 @@ export function createChallengeSession(
       ? creativeDate(now, user.tz, user.lateNightBufferHrs)
       : ''
     const empty: Snapshot = {
+      ...emptySnapshot(),
       phase: user ? 'no-challenge' : 'signed-out',
       user,
-      challenge: null,
-      dayData: emptyDayData(),
-      days: [],
-      currentIndex: 0,
-      totalDays: TOTAL_DAYS,
-      streak: { current: 0, longest: 0 },
-      tally: EMPTY_TALLY,
-      checkInOpen: false,
-      resetMessage: null,
-      missedDay: null,
       creativeToday,
       dayCloses: user ? closesAt(user.lateNightBufferHrs) : '00:00',
-      stakes: null,
     }
     if (!user || !challenge) return empty
 
@@ -248,9 +261,7 @@ export function createChallengeSession(
       stakes: {
         policy: challenge.missPolicy,
         tokensLeft:
-          challenge.missPolicy === 'grace'
-            ? Math.max(0, MAX_SKIP_TOKENS - challenge.skipTokensUsed)
-            : null,
+          challenge.missPolicy === 'grace' ? tokensLeft(challenge) : null,
         extraDays: challenge.extraDays ?? 0,
       },
     }
@@ -279,6 +290,12 @@ export function createChallengeSession(
     const events: RolloverEvent[] = []
 
     if (user && challenge && challenge.status === 'active') {
+      const restored = reconcile(challenge)
+      challenge = restored.challenge
+      if (restored.days.length > 0) events.push({ kind: 'restore', message: '', days: restored.days })
+    }
+
+    if (user && challenge && challenge.status === 'active') {
       // Oldest miss first; each consequence can change what counts as missed
       // (an extension adds a day), so recompute after every step. Terminates:
       // each pass actions one miss, and the misses left can only shrink once
@@ -305,6 +322,29 @@ export function createChallengeSession(
       snapshot: snapshotOf(user, challenge, now),
       events: challenge ? summarize(events, challenge) : [],
     }
+  }
+
+  /**
+   * Undo misses that were made after all. Another device can sync in a
+   * completion for a day this one already actioned as missed (it rolled over
+   * on stale data): that day's skip or extension is given back, and the
+   * token and extension counts are recounted from the day data itself, which
+   * keeps them true after any merge.
+   */
+  function reconcile(challenge: Challenge): { challenge: Challenge; days: number[] } {
+    const before = repo.getDayData(challenge.id)
+    const made = before.actionedMisses.filter((d) => before.completions[d])
+    for (const d of made) repo.clearMiss(challenge.id, d)
+    const dd = made.length > 0 ? repo.getDayData(challenge.id) : before
+    const next: Challenge = {
+      ...challenge,
+      skipTokensUsed: challenge.missPolicy === 'grace' ? dd.skips.length : challenge.skipTokensUsed,
+      extraDays: challenge.missPolicy === 'extend' ? dd.actionedMisses.length : (challenge.extraDays ?? 0),
+    }
+    const changed =
+      next.skipTokensUsed !== challenge.skipTokensUsed || next.extraDays !== (challenge.extraDays ?? 0)
+    if (changed) repo.saveChallenge(next)
+    return { challenge: changed ? next : challenge, days: made }
   }
 
   /** Today's challenge, when check-ins for `dayIndex` are open. */
@@ -353,14 +393,14 @@ export function createChallengeSession(
     return !completionRules(challenge).every((r) => ruleMet(r, without, dayIndex))
   }
 
-  function toggleTask(dayIndex: number, ruleId: string): ToggleResult {
+  function toggleRule(dayIndex: number, ruleId: string): ToggleResult {
     const challenge = openDay(dayIndex)
     const rule = challenge?.rules.find((r) => r.id === ruleId)
     if (!challenge || !rule || evidenceOf(rule)) return { ok: false }
 
     // Always decide from storage, never from what the UI last rendered, so a
     // double tap toggles back instead of setting the same value twice.
-    const key = `${dayIndex}:${ruleId}`
+    const key = checkKey(dayIndex, ruleId)
     const checked = repo.getDayData(challenge.id).checks[key] === true
     repo.saveCheck(challenge.id, dayIndex, ruleId, !checked)
     return settle(challenge, dayIndex)
@@ -371,7 +411,7 @@ export function createChallengeSession(
     const { challenge } = snap
     if (!challenge || dayIndex < 1 || dayIndex > snap.currentIndex) return { ok: false }
     repo.saveLog(challenge.id, dayIndex, {
-      dayId: `${challenge.id}:${dayIndex}`,
+      dayId: dayId(challenge.id, dayIndex),
       text: text.slice(0, MAX_LOG_CHARS),
       updatedAt: clock().toISOString(),
     })
@@ -385,7 +425,7 @@ export function createChallengeSession(
     repo.saveArtifactMeta(challenge.id, dayIndex, {
       ...artifact,
       id: newId(),
-      dayId: `${challenge.id}:${dayIndex}`,
+      dayId: dayId(challenge.id, dayIndex),
       createdAt: clock().toISOString(),
     })
     return settle(challenge, dayIndex)
@@ -507,10 +547,46 @@ export function createChallengeSession(
     repo.saveChallenge({ ...snap.challenge, status: 'completed' })
   }
 
+  function endAttempt(): void {
+    const snap = read()
+    const { challenge } = snap
+    if (!challenge) return
+    const endedOnDay =
+      snap.phase === 'prestart'
+        ? 0 // never started: nothing to keep in history
+        : snap.phase === 'reset-pending'
+          ? (snap.missedDay ?? snap.currentIndex)
+          : snap.phase === 'active'
+            ? snap.currentIndex
+            : null
+    if (endedOnDay === null) return // finished rounds close with closeForNewRound
+    repo.saveChallenge({ ...challenge, status: 'archived', endedOnDay })
+  }
+
+  function history(): PastAttempt[] {
+    return repo
+      .getChallenges()
+      .filter((c) => (c.status === 'archived' && c.endedOnDay !== 0) || c.status === 'completed')
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map((challenge) => {
+        const dayData = repo.getDayData(challenge.id)
+        const days = attemptDays(challenge, dayData)
+        const finished = challenge.status === 'completed'
+        return {
+          challenge,
+          dayData,
+          days,
+          tally: tally(days, dayData),
+          outcome: finished ? 'finished' : 'ended',
+          endedOn: finished ? null : attemptEnd(challenge, dayData),
+        }
+      })
+  }
+
   return {
     sync,
     read,
-    toggleTask,
+    toggleRule,
     saveLog,
     attachImage,
     attachLink,
@@ -522,7 +598,52 @@ export function createChallengeSession(
     confirmReset,
     enterMaintenance,
     closeForNewRound,
+    endAttempt,
+    history,
   }
+}
+
+/** The Snapshot with nothing in it: signed out, no challenge. */
+export function emptySnapshot(): Snapshot {
+  return {
+    phase: 'signed-out',
+    user: null,
+    challenge: null,
+    dayData: emptyDayData(),
+    days: [],
+    currentIndex: 0,
+    totalDays: TOTAL_DAYS,
+    streak: { current: 0, longest: 0 },
+    tally: EMPTY_TALLY,
+    checkInOpen: false,
+    resetMessage: null,
+    missedDay: null,
+    creativeToday: '',
+    dayCloses: '00:00',
+    stakes: null,
+  }
+}
+
+/** Grace skip tokens still unspent in this attempt. */
+export function tokensLeft(challenge: Challenge): number {
+  return Math.max(0, MAX_SKIP_TOKENS - challenge.skipTokensUsed)
+}
+
+/** Whether a day has a written log (not just whitespace). */
+export function hasLog(dayData: DayData, dayIndex: number): boolean {
+  return (dayData.logs[dayIndex]?.text ?? '').trim().length > 0
+}
+
+/**
+ * The last day an archived attempt reached. Attempts archived before the end
+ * day was recorded fall back to their first gap.
+ */
+export function attemptEnd(challenge: Challenge, dayData: DayData): number {
+  if (challenge.endedOnDay !== undefined) return challenge.endedOnDay
+  const total = challengeLength(challenge)
+  let end = 1
+  while (end <= total && (dayData.completions[end] || dayData.skips.includes(end))) end++
+  return end
 }
 
 /**
@@ -551,7 +672,7 @@ export function evidenceOf(rule: Rule): Evidence | undefined {
 export function ruleMet(rule: Rule, dayData: DayData, dayIndex: number): boolean {
   switch (evidenceOf(rule)) {
     case 'log':
-      return (dayData.logs[dayIndex]?.text ?? '').trim().length > 0
+      return hasLog(dayData, dayIndex)
     case 'artifact':
       return (dayData.artifacts[dayIndex]?.length ?? 0) > 0
     default:
@@ -564,14 +685,9 @@ export function ruleMet(rule: Rule, dayData: DayData, dayIndex: number): boolean
  * that ended it are drawn as never reached, not as a wall of misses.
  */
 export function attemptDays(challenge: Challenge, dayData: DayData): Day[] {
-  const total = TOTAL_DAYS + (challenge.extraDays ?? 0)
-  const done = (i: number) => Boolean(dayData.completions[i]) || dayData.skips.includes(i)
-  let end = challenge.endedOnDay
-  if (!end) {
-    // Attempts archived before the end day was recorded: the first gap.
-    end = 1
-    while (end <= total && done(end)) end++
-  }
+  const total = challengeLength(challenge)
+  // A finished round has no end day: every day it had counts.
+  const end = challenge.status === 'completed' ? total : attemptEnd(challenge, dayData)
   const days: Day[] = []
   for (let index = 1; index <= total; index++) {
     const completedAt = dayData.completions[index] ?? null
@@ -596,7 +712,7 @@ export function tally(days: Day[], dayData: DayData): Tally {
     if (d.state === 'complete') t.made++
     else if (d.state === 'skipped') t.skipped++
     else if (d.state === 'missed') t.missed++
-    if ((dayData.logs[d.index]?.text ?? '').trim()) t.logsWritten++
+    if (hasLog(dayData, d.index)) t.logsWritten++
     t.artifactsKept += dayData.artifacts[d.index]?.length ?? 0
   }
   return t
@@ -662,19 +778,39 @@ function summarize(events: RolloverEvent[], challenge: Challenge): RolloverEvent
   const out: RolloverEvent[] = []
   const skips = events.filter((e) => e.kind === 'skip').flatMap((e) => e.days)
   if (skips.length > 0) {
-    const left = Math.max(0, MAX_SKIP_TOKENS - challenge.skipTokensUsed)
+    const left = tokensLeft(challenge)
     const were = skips.length === 1 ? 'was' : 'were'
     const covered = skips.length === 1 ? 'A skip token covered it' : 'Skip tokens covered them'
     out.push({
       kind: 'skip',
       days: skips,
-      message: `${dayList(skips)} ${were} missed. ${covered}, so your streak is intact — ${left} of ${MAX_SKIP_TOKENS} left.`,
+      message:
+        `${dayList(skips)} ${were} missed. ${covered}, so your streak is intact — ${left} of ${MAX_SKIP_TOKENS} left.` +
+        // The moment the stake changes is the moment to say it.
+        (left === 0 ? ' No skips left: the next miss ends this attempt.' : ''),
+    })
+  }
+  const restored = events.filter((e) => e.kind === 'restore').flatMap((e) => e.days)
+  if (restored.length > 0) {
+    const was = restored.length === 1 ? 'was' : 'were'
+    const back =
+      challenge.missPolicy === 'grace'
+        ? restored.length === 1
+          ? 'its skip token is back'
+          : 'their skip tokens are back'
+        : challenge.missPolicy === 'extend'
+          ? 'the challenge is shorter again'
+          : 'nothing was lost'
+    out.push({
+      kind: 'restore',
+      days: restored,
+      message: `${dayList(restored)} ${was} made on another device, so ${back}.`,
     })
   }
   const extended = events.filter((e) => e.kind === 'extend').flatMap((e) => e.days)
   if (extended.length > 0) {
     const were = extended.length === 1 ? 'was' : 'were'
-    const total = TOTAL_DAYS + (challenge.extraDays ?? 0)
+    const total = challengeLength(challenge)
     out.push({
       kind: 'extend',
       days: extended,

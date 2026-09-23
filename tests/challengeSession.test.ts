@@ -42,8 +42,8 @@ function at(day: number, hour = 12) {
 
 function completeToday() {
   const { currentIndex } = session.read()
-  session.toggleTask(currentIndex, 'a')
-  session.toggleTask(currentIndex, 'b')
+  session.toggleRule(currentIndex, 'a')
+  session.toggleRule(currentIndex, 'b')
 }
 
 beforeEach(async () => {
@@ -110,8 +110,8 @@ describe('check-in', () => {
   })
 
   it('completes the day when every required rule is checked', () => {
-    expect(session.toggleTask(1, 'a')).toEqual({ ok: true, justCompleted: false })
-    expect(session.toggleTask(1, 'b')).toEqual({ ok: true, justCompleted: true })
+    expect(session.toggleRule(1, 'a')).toEqual({ ok: true, justCompleted: false })
+    expect(session.toggleRule(1, 'b')).toEqual({ ok: true, justCompleted: true })
     const s = session.read()
     expect(s.days[0].state).toBe('complete')
     expect(s.tally.made).toBe(1)
@@ -120,22 +120,22 @@ describe('check-in', () => {
 
   it('optional rules do not gate completion, and unchecking reopens the day', () => {
     completeToday()
-    expect(session.toggleTask(1, 'b')).toEqual({ ok: true, justCompleted: false, reopened: true })
+    expect(session.toggleRule(1, 'b')).toEqual({ ok: true, justCompleted: false, reopened: true })
     expect(session.read().days[0].state).toBe('today')
     expect(session.read().tally.made).toBe(0)
   })
 
   it('toggles from storage, so a double tap toggles back', () => {
-    session.toggleTask(1, 'a')
-    session.toggleTask(1, 'a')
+    session.toggleRule(1, 'a')
+    session.toggleRule(1, 'a')
     expect(session.read().dayData.checks['1:a']).toBe(false)
   })
 
   it('refuses to toggle a day that is no longer today', () => {
     at(2)
-    expect(session.toggleTask(1, 'a')).toEqual({ ok: false })
-    expect(session.toggleTask(99, 'a')).toEqual({ ok: false })
-    expect(session.toggleTask(2, 'nope')).toEqual({ ok: false })
+    expect(session.toggleRule(1, 'a')).toEqual({ ok: false })
+    expect(session.toggleRule(99, 'a')).toEqual({ ok: false })
+    expect(session.toggleRule(2, 'nope')).toEqual({ ok: false })
   })
 
   it('saves logs for past and current days, clipped, but never the future', () => {
@@ -158,12 +158,12 @@ describe('evidence rules', () => {
   })
 
   it('cannot be ticked by hand', () => {
-    expect(session.toggleTask(1, 'words')).toEqual({ ok: false })
-    expect(session.toggleTask(1, 'proof')).toEqual({ ok: false })
+    expect(session.toggleRule(1, 'words')).toEqual({ ok: false })
+    expect(session.toggleRule(1, 'proof')).toEqual({ ok: false })
   })
 
   it('are met by the evidence, and the last piece completes the day', async () => {
-    expect(session.toggleTask(1, 'make')).toEqual({ ok: true, justCompleted: false })
+    expect(session.toggleRule(1, 'make')).toEqual({ ok: true, justCompleted: false })
     expect(session.saveLog(1, '   ')).toEqual({ ok: true, justCompleted: false })
     expect(session.saveLog(1, 'Two thumbnails.')).toEqual({ ok: true, justCompleted: false })
     expect(session.attachLink(1, 'https://example.com/a')).toEqual({ ok: true, justCompleted: true })
@@ -171,7 +171,7 @@ describe('evidence rules', () => {
   })
 
   it('removing the only artifact reopens the day', async () => {
-    session.toggleTask(1, 'make')
+    session.toggleRule(1, 'make')
     session.saveLog(1, 'x')
     await session.attachImage(1, new Blob([new Uint8Array([1])], { type: 'image/png' }))
     expect(session.read().days[0].state).toBe('complete')
@@ -198,8 +198,8 @@ describe('evidence rules', () => {
       ...c,
       rules: DEFAULT_RULES.map(({ evidence: _e, ...r }) => r),
     })
-    for (const id of ['create', 'study', 'no-passive']) session.toggleTask(1, id)
-    expect(session.toggleTask(1, 'log')).toEqual({ ok: false })
+    for (const id of ['create', 'study', 'no-passive']) session.toggleRule(1, id)
+    expect(session.toggleRule(1, 'log')).toEqual({ ok: false })
     session.saveLog(1, 'did it')
     expect(session.attachLink(1, 'https://example.com')).toEqual({ ok: true, justCompleted: true })
   })
@@ -210,9 +210,9 @@ describe('an all-optional challenge (legacy data)', () => {
     // draftProblem forbids this now, but older stored challenges may have it.
     const c = session.start(draft())
     repo.saveChallenge({ ...c, rules: c.rules.map((r) => ({ ...r, required: false })) })
-    expect(session.toggleTask(1, 'a')).toEqual({ ok: true, justCompleted: false })
-    session.toggleTask(1, 'b')
-    expect(session.toggleTask(1, 'c')).toEqual({ ok: true, justCompleted: true })
+    expect(session.toggleRule(1, 'a')).toEqual({ ok: true, justCompleted: false })
+    session.toggleRule(1, 'b')
+    expect(session.toggleRule(1, 'c')).toEqual({ ok: true, justCompleted: true })
   })
 })
 
@@ -231,7 +231,7 @@ describe('rollover and miss policies', () => {
     // Pending is state, not a one-shot banner: it survives every re-read...
     expect(session.sync().snapshot.phase).toBe('reset-pending')
     // ...and blocks check-ins until confirmed.
-    expect(session.toggleTask(3, 'a')).toEqual({ ok: false })
+    expect(session.toggleRule(3, 'a')).toEqual({ ok: false })
 
     session.confirmReset()
     const after = session.read()
@@ -271,7 +271,7 @@ describe('rollover and miss policies', () => {
     const second = session.sync()
     expect(second.events).toHaveLength(1)
     expect(second.events[0].message).toBe(
-      'Days 2–3 were missed. Skip tokens covered them, so your streak is intact — 0 of 3 left.',
+      'Days 2–3 were missed. Skip tokens covered them, so your streak is intact — 0 of 3 left. No skips left: the next miss ends this attempt.',
     )
     expect(second.snapshot.stakes!.tokensLeft).toBe(0)
     expect(second.snapshot.phase).toBe('active')
@@ -340,7 +340,7 @@ describe('finishing, maintenance, new round', () => {
     // Maintenance keeps a daily log with no rules and no misses.
     session.saveLog(80, 'still going')
     expect(session.read().dayData.logs[80].text).toBe('still going')
-    expect(session.toggleTask(80, 'a')).toEqual({ ok: false })
+    expect(session.toggleRule(80, 'a')).toEqual({ ok: false })
   })
 
   it('closes the finished challenge so a new round can start', () => {
@@ -437,7 +437,7 @@ describe('maintenance', () => {
     expect(dd.completions[s.currentIndex]).toBeUndefined()
     const id = dd.artifacts[s.currentIndex][0].id
     expect((await session.removeArtifact(s.currentIndex, id)).ok).toBe(true)
-    expect(session.toggleTask(s.currentIndex, 'a')).toEqual({ ok: false })
+    expect(session.toggleRule(s.currentIndex, 'a')).toEqual({ ok: false })
   })
 })
 
@@ -485,5 +485,74 @@ describe('day boundary', () => {
     expect(repo.getUser()!.reminderTime).toBe('20:30')
     session.setReminder(null)
     expect(repo.getUser()!.reminderTime).toBeNull()
+  })
+})
+
+describe('reconcile after sync', () => {
+  it('gives back a skip token when another device made the day', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(3)
+    session.sync() // Day 2 missed here: a token is spent
+    const c = repo.getActiveChallenge()!
+    expect(c.skipTokensUsed).toBe(1)
+    // ...but Day 2 was made on the laptop, and the merge brings it in.
+    repo.saveDayCompletion(c.id, 2, '2026-01-02T20:00:00.000Z')
+    const { snapshot, events } = session.sync()
+    expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
+    expect(snapshot.dayData.skips).toEqual([])
+    expect(snapshot.days[1].state).toBe('complete')
+    expect(events[0]).toMatchObject({ kind: 'restore', days: [2] })
+    expect(events[0].message).toMatch(/Day 2 was made on another device, so its skip token is back/)
+  })
+
+  it('shortens an Extend challenge again when the missed day was made', () => {
+    session.start(draft({ missPolicy: 'extend' }))
+    completeToday()
+    at(3)
+    expect(session.sync().snapshot.totalDays).toBe(76)
+    repo.saveDayCompletion(repo.getActiveChallenge()!.id, 2, '2026-01-02T20:00:00.000Z')
+    expect(session.sync().snapshot.totalDays).toBe(75)
+  })
+
+  it('lifts a pending Classic reset when the day turns out to be made', () => {
+    session.start(draft())
+    completeToday()
+    at(3)
+    expect(session.sync().snapshot.phase).toBe('reset-pending')
+    repo.saveDayCompletion(repo.getActiveChallenge()!.id, 2, '2026-01-02T20:00:00.000Z')
+    expect(session.sync().snapshot.phase).toBe('active')
+  })
+})
+
+describe('ending and history', () => {
+  it('ends an attempt at the person’s request and keeps it in history', () => {
+    session.start(draft())
+    completeToday()
+    at(2)
+    session.sync()
+    session.endAttempt()
+    expect(session.read().phase).toBe('no-challenge')
+    const [past] = session.history()
+    expect(past).toMatchObject({ outcome: 'ended', endedOn: 2 })
+    expect(past.tally.made).toBe(1)
+  })
+
+  it('lets a future start be set up again without leaving a trace', () => {
+    session.start(draft({ start: '2026-01-10' }))
+    session.endAttempt()
+    expect(session.read().phase).toBe('no-challenge')
+    expect(session.history()).toEqual([])
+  })
+
+  it('keeps a finished round in history after a new round starts', () => {
+    session.start(draft())
+    runTo(75)
+    session.closeForNewRound()
+    session.start(draft({ missPolicy: 'grace' }))
+    const [round] = session.history()
+    expect(round.outcome).toBe('finished')
+    expect(round.endedOn).toBeNull()
+    expect(round.tally.made).toBe(75)
   })
 })

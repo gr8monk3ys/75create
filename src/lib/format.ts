@@ -50,10 +50,17 @@ export const POLICY_NAMES: Record<MissPolicy, string> = {
   extend: 'Extend',
 }
 
+/** The one-line pitch each policy gets when it's chosen at setup. */
+export const POLICY_PITCHES: Record<MissPolicy, string> = {
+  classic: 'The 75 Hard rule. Any missed day restarts you at Day 1.',
+  grace: 'Three skip tokens per attempt. A miss with none left restarts you at Day 1.',
+  extend: 'A missed day adds a day to the end. Your streak resets; the challenge carries on.',
+}
+
 /** What a miss does, in one line, for the policy's own help text. */
 export const POLICY_LINES: Record<MissPolicy, string> = {
   classic: 'A missed day ends the attempt and you restart at Day 1 with the same rules.',
-  grace: 'A missed day spends one of three skip tokens and your streak survives. With none left, a miss ends the attempt.',
+  grace: 'A missed day spends one of this attempt’s three skip tokens and your streak survives. With none left, a miss ends the attempt.',
   extend: 'A missed day is added to the end of the challenge. Your streak restarts; the challenge carries on.',
 }
 

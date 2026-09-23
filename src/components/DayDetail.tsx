@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
-import { DayData, Repository } from '@/lib/repository'
+import { DayData } from '@/lib/repository'
 import { Day } from '@/lib/types'
 import { ArtifactThumb } from './ArtifactInput'
 import { Icon } from './Icon'
@@ -24,7 +24,6 @@ const STATE_LINE: Record<Day['state'], string> = {
 export function DayDetail({
   day,
   dayData,
-  repo,
   onClose,
   onStep,
   hasPrev,
@@ -32,7 +31,6 @@ export function DayDetail({
 }: {
   day: Day
   dayData: DayData
-  repo: Repository
   onClose: () => void
   onStep: (delta: -1 | 1) => void
   hasPrev: boolean
@@ -96,7 +94,7 @@ export function DayDetail({
         <ul className="d-thumbs" aria-label={`Day ${day.index} artifacts`}>
           {artifacts.map((a) => (
             <li key={a.id}>
-              <ArtifactThumb artifact={a} repo={repo} size={72} dayIndex={day.index} />
+              <ArtifactThumb artifact={a} size={72} dayIndex={day.index} />
             </li>
           ))}
         </ul>

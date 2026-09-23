@@ -45,3 +45,13 @@ describe('shareSnapshot codec', () => {
     expect(decodeSnapshot('not-valid-base64!!')).toBeNull()
   })
 })
+
+describe('decodeSnapshot on untrusted links', () => {
+  it('rejects unknown day states and repairs missing fields', () => {
+    const enc = (o: unknown) => encodeSnapshot(o as never)
+    expect(decodeSnapshot(enc({ dayStates: ['complete', 'evil'] }))).toBeNull()
+    const snap = decodeSnapshot(enc({ dayStates: ['complete'], includeLogs: true }))
+    expect(snap?.logs).toEqual({})
+    expect(snap?.missPolicy).toBe('classic')
+  })
+})

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
@@ -38,6 +38,66 @@ export default function Settings() {
   return <SettingsForm key={user.id} user={user} />
 }
 
+/**
+ * The way out, stated plainly. Before Day 1 it's a free redo of the setup;
+ * mid-attempt it's quitting, which the format allows but never hides: the
+ * attempt ends where it is and moves to past attempts with everything made.
+ */
+function EndChallenge() {
+  const { challenge, phase, derived, missedDay, endAttempt } = useApp()
+  const router = useRouter()
+  const [armed, setArmed] = useState(false)
+  const confirmRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (armed) confirmRef.current?.focus()
+  }, [armed])
+
+  if (!challenge || (phase !== 'prestart' && phase !== 'active' && phase !== 'reset-pending')) {
+    return null
+  }
+  const endsOn = phase === 'reset-pending' ? missedDay : derived.currentIndex
+
+  function end() {
+    endAttempt()
+    router.push('/setup')
+  }
+
+  return (
+    <section className="block panel" aria-labelledby="end-title">
+      <h2 className="font-display block-h2" id="end-title">
+        {phase === 'prestart' ? 'Change your setup' : 'End this challenge'}
+      </h2>
+      <p className="block-sub">
+        {phase === 'prestart'
+          ? 'Day 1 hasn’t started, so nothing is lost: set it up again with different rules, stakes or a start date.'
+          : `This attempt ends on Day ${endsOn} and moves to past attempts with everything you made. Then you set up a new challenge.`}
+      </p>
+      {armed ? (
+        <div className="end-row">
+          <button ref={confirmRef} type="button" className="btn btn-danger" onClick={end}>
+            {phase === 'prestart' ? 'Yes, set it up again' : `Yes, end on Day ${endsOn}`}
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => setArmed(false)}>
+            Keep going
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="btn btn-ghost" onClick={() => setArmed(true)}>
+          {phase === 'prestart' ? 'Set it up again' : 'End this challenge'}
+        </button>
+      )}
+      <style jsx>{`
+        .end-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.6rem;
+        }
+      `}</style>
+    </section>
+  )
+}
+
 function SettingsForm({ user }: { user: User }) {
   const { repo, signOut, supabaseEnabled, changeDayBoundary, setReminder } = useApp()
   const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
@@ -49,7 +109,10 @@ function SettingsForm({ user }: { user: User }) {
   const [exporting, setExporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
   // Why a day-boundary change was refused, shown under the control that asked.
-  const [boundaryNote, setBoundaryNote] = useState<{ on: 'tz' | 'buffer'; text: string } | null>(null)
+  // `n` re-keys the note, so pressing a refused choice again is announced again.
+  const [boundaryNote, setBoundaryNote] = useState<{ on: 'tz' | 'buffer'; text: string; n: number } | null>(
+    null,
+  )
   const deviceTz = detectTimezone()
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
 
@@ -91,12 +154,12 @@ function SettingsForm({ user }: { user: User }) {
   function saveBuffer(hrs: number) {
     const result = changeDayBoundary({ lateNightBufferHrs: hrs })
     if (result.ok) setBuffer(hrs)
-    setBoundaryNote(result.ok ? null : { on: 'buffer', text: result.reason })
+    setBoundaryNote((prev) => (result.ok ? null : { on: 'buffer', text: result.reason, n: (prev?.n ?? 0) + 1 }))
   }
 
   function saveTz(tz: string) {
     const result = changeDayBoundary({ tz })
-    setBoundaryNote(result.ok ? null : { on: 'tz', text: result.reason })
+    setBoundaryNote((prev) => (result.ok ? null : { on: 'tz', text: result.reason, n: (prev?.n ?? 0) + 1 }))
   }
 
   async function doExport() {
@@ -174,8 +237,8 @@ function SettingsForm({ user }: { user: User }) {
       <section className="block panel">
         <h2 className="font-display block-h2">Time zone</h2>
         <p className="block-sub">
-          Your day rolls over here. It follows this device automatically — change
-          it only if you want your challenge pinned to somewhere else.
+          Your day rolls over in this time zone. It was set from this device when
+          you signed up; if you travel or move, switch it here.
         </p>
         <div className="tz-row">
           <span className="tz-current font-mono">{user.tz}</span>
@@ -186,7 +249,7 @@ function SettingsForm({ user }: { user: User }) {
           )}
         </div>
         {boundaryNote?.on === 'tz' && (
-          <p className="refused" role="alert">
+          <p className="refused" role="alert" key={boundaryNote.n}>
             {boundaryNote.text}
           </p>
         )}
@@ -214,11 +277,13 @@ function SettingsForm({ user }: { user: User }) {
           ))}
         </div>
         {boundaryNote?.on === 'buffer' && (
-          <p className="refused" role="alert">
+          <p className="refused" role="alert" key={boundaryNote.n}>
             {boundaryNote.text}
           </p>
         )}
       </section>
+
+      <EndChallenge />
 
       <section className="block panel">
         <h2 className="font-display block-h2">Export your data</h2>
@@ -226,7 +291,12 @@ function SettingsForm({ user }: { user: User }) {
           Everything you’ve logged and every artifact image, as a ZIP with JSON and
           CSV. Yours to keep.
         </p>
-        <button className="btn btn-ghost" onClick={doExport} disabled={exporting}>
+        <button
+          className="btn btn-ghost"
+          onClick={() => !exporting && doExport()}
+          aria-disabled={exporting}
+          aria-busy={exporting}
+        >
           {exporting ? 'Packaging…' : 'Download export (.zip)'}
         </button>
       </section>
@@ -289,15 +359,17 @@ function SettingsForm({ user }: { user: User }) {
           font-size: 0.8rem;
           margin: 0 0 2rem;
         }
-        .block {
-          padding: 1.5rem;
+        .settings :global(.block) {
+          /* Held to the viewport on a phone, so large text keeps its width
+             (the reminder time keeps its AM/PM). */
+          padding: min(1.5rem, 5vw);
           margin-bottom: 1.25rem;
         }
-        .block-h2 {
+        .settings :global(.block-h2) {
           font-size: 1.25rem;
           margin: 0 0 0.75rem;
         }
-        .block-sub {
+        .settings :global(.block-sub) {
           color: var(--ink-soft);
           line-height: 1.5;
           margin: 0 0 1.1rem;
