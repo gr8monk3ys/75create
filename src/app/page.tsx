@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Grid } from '@/components/Grid'
 import { DEFAULT_RULES, Day, TOTAL_DAYS } from '@/lib/types'
+import { POLICY_NAMES, POLICY_PITCHES } from '@/lib/format'
 
 // A deterministic mid-challenge sample so the landing shows the brand in motion.
 function sampleDays(): Day[] {
@@ -18,20 +19,11 @@ function sampleDays(): Day[] {
   return days
 }
 
-const POLICIES = [
-  {
-    name: 'Classic',
-    line: 'Miss a day, restart at Day 1. The iconic, unforgiving version.',
-  },
-  {
-    name: 'Grace',
-    line: 'Three lifetime skip tokens. A fourth miss resets you.',
-  },
-  {
-    name: 'Extend',
-    line: 'A missed day adds a day to the end. The streak resets; the work goes on.',
-  },
-]
+// The same words setup uses, so the stake promised here is the one locked in.
+const POLICIES = (['classic', 'grace', 'extend'] as const).map((id) => ({
+  name: POLICY_NAMES[id],
+  line: POLICY_PITCHES[id],
+}))
 
 export default function Home() {
   const days = sampleDays()

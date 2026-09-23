@@ -48,9 +48,15 @@ function EndChallenge() {
   const router = useRouter()
   const [armed, setArmed] = useState(false)
   const confirmRef = useRef<HTMLButtonElement>(null)
+  const armRef = useRef<HTMLButtonElement>(null)
+  const wasArmed = useRef(false)
 
+  // Arming lands on the confirm; "Keep going" lands back on the button that
+  // armed it, so focus never drops to the page after a cancel.
   useEffect(() => {
     if (armed) confirmRef.current?.focus()
+    else if (wasArmed.current) armRef.current?.focus()
+    wasArmed.current = armed
   }, [armed])
 
   if (!ending) return null
@@ -81,7 +87,7 @@ function EndChallenge() {
           </button>
         </div>
       ) : (
-        <button type="button" className="btn btn-ghost" onClick={() => setArmed(true)}>
+        <button ref={armRef} type="button" className="btn btn-ghost" onClick={() => setArmed(true)}>
           {redo ? 'Set it up again' : 'End this challenge'}
         </button>
       )}

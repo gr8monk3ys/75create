@@ -214,6 +214,11 @@ export const Grid = memo(function Grid({
           outline: 2px solid var(--cell-today);
           outline-offset: 2px;
         }
+        /* Focus outranks the today ring: the grid's Tab stop must show it. */
+        .cell.made-today:focus-visible {
+          outline: 3px solid var(--cobalt);
+          outline-offset: 3px;
+        }
         .cell-skipped {
           background: color-mix(in srgb, var(--cell-skipped) 85%, transparent);
           transform: rotate(var(--rot));

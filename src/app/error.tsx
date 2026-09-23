@@ -19,12 +19,27 @@ export default function ErrorBoundary({
     reportError(error, { boundary: 'route' })
   }, [error])
 
+  // The tab says what the page says, not the route that failed. On a hard
+  // load the route's own metadata <title> lands after this boundary mounts,
+  // so the title is held while the boundary is shown and restored after.
+  useEffect(() => {
+    const previous = document.title
+    const title = 'Something went wrong · 75 Create'
+    const hold = () => {
+      if (document.title !== title) document.title = title
+    }
+    hold()
+    const watch = new MutationObserver(hold)
+    watch.observe(document.head, { childList: true, subtree: true, characterData: true })
+    return () => {
+      watch.disconnect()
+      document.title = previous
+    }
+  }, [])
+
 
   return (
     <main className="err">
-      {/* The tab says what the page says, not the route that failed (React
-          hoists this into <head>, ahead of the route's own title). */}
-      <title>Something went wrong · 75 Create</title>
       <h1 className="font-display err-h1">That didn’t load.</h1>
       <p className="err-body">
         Your challenge is safe — every day you’ve logged is stored on this device

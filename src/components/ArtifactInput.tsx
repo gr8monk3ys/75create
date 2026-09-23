@@ -37,9 +37,10 @@ export function ArtifactInput({
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
   // Which control an error belongs to, so it's tied to that field alone.
-  const [error, setErrorState] = useState<{ text: string; from: 'upload' | 'link' } | null>(null)
+  // `n` re-keys the message, so the same mistake twice is announced twice.
+  const [error, setErrorState] = useState<{ text: string; from: 'upload' | 'link'; n: number } | null>(null)
   const setError = (text: string | null, from: 'upload' | 'link' = 'link') =>
-    setErrorState(text ? { text, from } : null)
+    setErrorState((prev) => (text ? { text, from, n: (prev?.n ?? 0) + 1 } : null))
   const fileRef = useRef<HTMLInputElement>(null)
   const uploadRef = useRef<HTMLButtonElement>(null)
 
@@ -150,7 +151,7 @@ export function ArtifactInput({
         </div>
         <input ref={fileRef} type="file" accept="image/*" onChange={onFile} hidden />
       </div>
-      <p className="err" role="alert" id={`url-err-${dayIndex}`}>
+      <p className="err" role="alert" id={`url-err-${dayIndex}`} key={error?.n ?? 0}>
         {error?.text}
       </p>
 

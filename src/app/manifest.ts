@@ -5,7 +5,6 @@ export default function manifest(): MetadataRoute.Manifest {
     name: '75 Create',
     short_name: '75 Create',
     description: '75 days of creative discipline.',
-    orientation: 'portrait',
     categories: ['productivity', 'lifestyle'],
     start_url: '/',
     display: 'standalone',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
@@ -42,6 +42,7 @@ export default function ShareGenerator() {
   }, [challenge, dayData.logs, derived, includeLogs])
 
   const [copyFailed, setCopyFailed] = useState(false)
+  const linkRef = useRef<HTMLTextAreaElement>(null)
 
   async function copy() {
     try {
@@ -50,8 +51,10 @@ export default function ShareGenerator() {
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
     } catch {
-      // No clipboard access (permissions, an old browser): say so, and make
-      // the link easy to take by hand instead.
+      // No clipboard access (permissions, an old browser): select the link
+      // so it's ready to copy by hand, and say so.
+      linkRef.current?.focus()
+      linkRef.current?.select()
       setCopyFailed(true)
     }
   }
@@ -103,6 +106,7 @@ export default function ShareGenerator() {
           Share link
         </label>
         <textarea
+          ref={linkRef}
           id="share-link"
           className="link font-mono"
           readOnly

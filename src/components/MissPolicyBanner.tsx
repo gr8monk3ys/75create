@@ -103,6 +103,7 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
         }
         .why blockquote {
           margin: 0;
+          overflow-wrap: anywhere;
           /* Lead: their own words, in the reading face. */
           font-family: var(--font-body);
           font-size: 1.125rem;
