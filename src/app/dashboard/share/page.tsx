@@ -41,22 +41,32 @@ export default function ShareGenerator() {
     return `${origin}/share#${encodeSnapshot(snap)}`
   }, [challenge, dayData.logs, derived, includeLogs])
 
-  // A count, not a flag: the same failure twice is announced twice.
-  const [copyFailed, setCopyFailed] = useState(0)
+  // One status node, always mounted, so assistive tech hears each change.
+  // Cleared first, then filled on the next frame: the same message twice
+  // is announced twice.
+  const [status, setStatus] = useState('')
   const linkRef = useRef<HTMLTextAreaElement>(null)
+
+  function say(message: string) {
+    setStatus('')
+    requestAnimationFrame(() => setStatus(message))
+  }
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link)
-      setCopyFailed(0)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      say('Link copied.')
+      setTimeout(() => {
+        setCopied(false)
+        setStatus((s) => (s === 'Link copied.' ? '' : s))
+      }, 1500)
     } catch {
       // No clipboard access (permissions, an old browser): select the link
       // so it's ready to copy by hand, and say so.
       linkRef.current?.focus()
       linkRef.current?.select()
-      setCopyFailed((n) => n + 1)
+      say('Couldn’t reach the clipboard. The link is selected above: copy it by hand.')
     }
   }
 
@@ -119,12 +129,8 @@ export default function ShareGenerator() {
           {copied ? 'Copied' : 'Copy link'}
         </button>
       </div>
-      <p className="copy-status" role="status" key={copyFailed}>
-        {copied
-          ? 'Link copied.'
-          : copyFailed
-            ? 'Couldn’t reach the clipboard. The link is selected above: copy it by hand.'
-            : ''}
+      <p className="copy-status" role="status">
+        {status}
       </p>
 
       <a href={link} target="_blank" rel="noreferrer" className="preview-link font-mono">

@@ -152,8 +152,10 @@ export default function Dashboard() {
 
   function dismissNotice() {
     dismissBanner()
-    // The banner and its button are gone: land on the check-in, not the page.
-    document.getElementById('check-in')?.focus({ preventScroll: true })
+    // The banner and its button are gone: land on the check-in, not the
+    // page, or (past the last day, with no check-in) the finish or the grid.
+    const to = ['check-in', 'finish', 'grid'].map((id) => document.getElementById(id)).find(Boolean)
+    to?.focus({ preventScroll: true })
   }
 
   const heading =

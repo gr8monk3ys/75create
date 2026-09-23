@@ -11,6 +11,8 @@ export default function manifest(): MetadataRoute.Manifest {
     display: 'standalone',
     // Must match the app's paper ground (globals.css --paper) and the
     // viewport themeColor, or the install splash flashes a different colour.
+    // The manifest takes one colour, not one per scheme: a dark-mode launch
+    // shows the light paper for a moment (a platform limit, accepted).
     background_color: '#efe9dc',
     theme_color: '#efe9dc',
     icons: [

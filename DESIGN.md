@@ -256,7 +256,7 @@ One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, ch
 - **Disabled:** 55% opacity, no hover offset. A control that turns off under the keyboard (Add link once the field clears, Upload while compressing, Previous/Next at either end) uses `aria-disabled` so it keeps focus; `disabled` is only for controls that were never reachable.
 - **Hover / Focus:** hover lifts 2px with a coral misregistration offset (hover devices only). Focus is a 3px cobalt outline with a 2px offset.
 - **Ghost:** transparent with an ink border; its hover offset is cobalt.
-- **Danger:** a coral-ink fill with white text (dark: paper text), used only for account deletion.
+- **Danger:** a coral-ink fill with white text (dark: paper text), used only for the two acts that can't be taken back: deleting the account, and confirming the end of a running challenge.
 
 ### Chips
 - **Style:** a paper pill with a field-border edge, Space Mono 0.8rem, 44px tall.

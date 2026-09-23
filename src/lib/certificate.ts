@@ -2,6 +2,7 @@
 // drawn unless the owner opts in (design spec §6, F7).
 
 import { DayState } from './types'
+import { stampRotation } from './stamp'
 
 export interface CertData {
   dayStates: DayState[]
@@ -18,34 +19,65 @@ export interface CertData {
   startDate: string
 }
 
-const COLORS: Record<string, { paper: string; ink: string; sub: string; line: string; cobalt: string; coral: string; marigold: string; missed: string }> = {
-  light: {
-    paper: '#efe9dc',
-    ink: '#1b1a17',
-    sub: '#625b4e',
-    line: '#d6ccb8',
-    cobalt: '#2340d8',
-    coral: '#f5462d',
-    marigold: '#e0910f',
-    missed: '#7d7463',
-  },
+// The light printing of the tokens in globals.css: a certificate is paper.
+const C = {
+  paper: '#efe9dc',
+  ink: '#1b1a17',
+  sub: '#625b4e',
+  line: '#d6ccb8',
+  cobalt: '#2340d8',
+  marigold: '#e0910f',
+  onMarigold: '#1b1a17',
+  missed: '#7d7463',
 }
 
-export function generateCertificate(data: CertData): Promise<Blob> {
+/** The page's own families (next/font), resolved from the CSS tokens. */
+function families() {
+  const css = getComputedStyle(document.documentElement)
+  const read = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback
+  return {
+    display: read('--font-display', 'sans-serif'),
+    body: read('--font-body', 'sans-serif'),
+    mono: read('--font-mono', 'monospace'),
+  }
+}
+
+const COLS = 15
+const CELL = 44
+const GAP = 8
+const GRID_TOP = 400
+const MARGIN = 70
+
+export async function generateCertificate(data: CertData): Promise<Blob> {
+  const f = families()
+  const fonts = {
+    title: `800 88px ${f.display}`,
+    stat: `800 64px ${f.display}`,
+    sub: `400 26px ${f.body}`,
+    label: `700 17px ${f.mono}`,
+    mark: `700 28px ${f.mono}`,
+    brand: `800 26px ${f.display}`,
+  }
+  // Draw only once the brand faces are in; a fallback face would be baked
+  // into the image for good.
+  if (document.fonts) {
+    await Promise.all(Object.values(fonts).map((font) => document.fonts.load(font).catch(() => [])))
+  }
+
+  const rows = Math.ceil(data.dayStates.length / COLS)
   const W = 1200
-  const H = 750
+  // The grid decides the height: an Extend challenge past 90 days still fits.
+  const H = GRID_TOP + rows * (CELL + GAP) - GAP + 120
   const canvas = document.createElement('canvas')
   canvas.width = W
   canvas.height = H
   const ctx = canvas.getContext('2d')!
-  const c = COLORS.light
 
-  // background
-  ctx.fillStyle = c.paper
+  ctx.fillStyle = C.paper
   ctx.fillRect(0, 0, W, H)
 
-  // dotted texture
-  ctx.fillStyle = c.line
+  // The sketchbook dot grid.
+  ctx.fillStyle = C.line
   for (let y = 22; y < H; y += 26) {
     for (let x = 22; x < W; x += 26) {
       ctx.beginPath()
@@ -54,31 +86,19 @@ export function generateCertificate(data: CertData): Promise<Blob> {
     }
   }
 
-  // border
-  ctx.strokeStyle = c.ink
+  ctx.strokeStyle = C.ink
   ctx.lineWidth = 3
   ctx.strokeRect(30, 30, W - 60, H - 60)
 
-  // eyebrow
-  ctx.fillStyle = c.sub
-  ctx.font = '600 20px monospace'
-  ctx.fillText('75 CREATE · CERTIFICATE OF COMPLETION', 70, 100)
+  // The title leads; no label line above it.
+  ctx.fillStyle = C.ink
+  ctx.font = fonts.title
+  ctx.fillText(data.title, MARGIN - 2, 150)
 
-  // title
-  ctx.fillStyle = c.ink
-  ctx.font = '800 88px sans-serif'
-  ctx.fillText(data.title, 68, 190)
+  ctx.fillStyle = C.sub
+  ctx.font = fonts.sub
+  ctx.fillText(`A ${data.dayStates.length}-day ${data.medium} challenge, started ${data.startDate}.`, MARGIN, 200)
 
-  // subtitle
-  ctx.fillStyle = c.sub
-  ctx.font = '400 26px sans-serif'
-  ctx.fillText(
-    `A 75-day ${data.medium} challenge, started ${data.startDate}.`,
-    70,
-    236,
-  )
-
-  // stats
   // Only what was recorded: the app never measures time, so no minutes.
   const stats: [string, string][] = [
     [String(data.completedDays), 'days made'],
@@ -86,44 +106,67 @@ export function generateCertificate(data: CertData): Promise<Blob> {
     [String(data.logsWritten), 'logs written'],
     [String(data.artifactsKept), 'pieces kept'],
   ]
-  let sx = 70
-  stats.forEach(([big, label]) => {
-    ctx.fillStyle = c.cobalt
-    ctx.font = '800 64px sans-serif'
-    ctx.fillText(big, sx, 340)
-    ctx.fillStyle = c.sub
-    ctx.font = '600 18px monospace'
-    ctx.fillText(label.toUpperCase(), sx, 372)
-    sx += 265
+  stats.forEach(([big, label], i) => {
+    const sx = MARGIN + i * 265
+    ctx.fillStyle = C.cobalt
+    ctx.font = fonts.stat
+    ctx.fillText(big, sx, 300)
+    ctx.fillStyle = C.sub
+    ctx.font = fonts.label
+    ctx.fillText(label.toUpperCase(), sx, 332)
   })
 
-  // the grid mosaic
-  const cols = 15
-  const gap = 6
-  const cell = 44
-  const gridW = cols * cell + (cols - 1) * gap
+  // The grid, in the app's own marks: rotated cobalt stamps, marigold skips
+  // with a dash, a neutral hatch with a × for a miss, dotted days to come.
+  const gridW = COLS * CELL + (COLS - 1) * GAP
   const gx = (W - gridW) / 2
-  const gy = 420
   data.dayStates.forEach((state, i) => {
-    const col = i % cols
-    const row = Math.floor(i / cols)
-    const x = gx + col * (cell + gap)
-    const y = gy + row * (cell + gap)
-    if (state === 'complete') {
-      ctx.fillStyle = c.cobalt
-      ctx.fillRect(x, y, cell, cell)
-    } else if (state === 'skipped') {
-      ctx.fillStyle = c.marigold
-      ctx.fillRect(x, y, cell, cell)
+    const x = gx + (i % COLS) * (CELL + GAP)
+    const y = GRID_TOP + Math.floor(i / COLS) * (CELL + GAP)
+    ctx.save()
+    ctx.translate(x + CELL / 2, y + CELL / 2)
+    if (state === 'complete' || state === 'skipped') {
+      ctx.rotate((stampRotation(i + 1) * Math.PI) / 180)
+      ctx.fillStyle = state === 'complete' ? C.cobalt : C.marigold
+      roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
+      ctx.fill()
+      if (state === 'skipped') mark(ctx, '–', C.onMarigold, fonts.mark)
     } else if (state === 'missed') {
-      ctx.fillStyle = c.missed
-      ctx.fillRect(x, y, cell, cell)
+      roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
+      ctx.save()
+      ctx.clip()
+      ctx.strokeStyle = C.missed
+      ctx.lineWidth = 2
+      for (let d = -CELL; d < CELL * 2; d += 6) {
+        ctx.beginPath()
+        ctx.moveTo(-CELL / 2 + d, -CELL / 2)
+        ctx.lineTo(-CELL / 2 + d - CELL, CELL / 2)
+        ctx.stroke()
+      }
+      ctx.restore()
+      ctx.strokeStyle = C.missed
+      ctx.lineWidth = 2
+      roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
+      ctx.stroke()
+      ctx.fillStyle = C.paper
+      ctx.fillRect(-9, -11, 18, 22)
+      mark(ctx, '×', C.ink, fonts.mark)
     } else {
-      ctx.strokeStyle = c.line
+      ctx.setLineDash([2, 3])
+      ctx.strokeStyle = C.missed
       ctx.lineWidth = 1.5
-      ctx.strokeRect(x, y, cell, cell)
+      roundRect(ctx, -CELL / 2, -CELL / 2, CELL, CELL, 6)
+      ctx.stroke()
     }
+    ctx.restore()
   })
+
+  // Signed at the foot, in the wordmark's face.
+  ctx.fillStyle = C.ink
+  ctx.font = fonts.brand
+  ctx.textAlign = 'right'
+  ctx.fillText('75 Create', W - MARGIN, H - 62)
+  ctx.textAlign = 'left'
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -131,6 +174,26 @@ export function generateCertificate(data: CertData): Promise<Blob> {
       'image/png',
     )
   })
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath()
+  ctx.moveTo(x + r, y)
+  ctx.arcTo(x + w, y, x + w, y + h, r)
+  ctx.arcTo(x + w, y + h, x, y + h, r)
+  ctx.arcTo(x, y + h, x, y, r)
+  ctx.arcTo(x, y, x + w, y, r)
+  ctx.closePath()
+}
+
+function mark(ctx: CanvasRenderingContext2D, glyph: string, color: string, font: string) {
+  ctx.fillStyle = color
+  ctx.font = font
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(glyph, 0, 1)
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
 }
 
 export function downloadBlob(blob: Blob, filename: string) {

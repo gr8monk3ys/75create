@@ -33,7 +33,7 @@ export default function SharePage() {
       <main className="share-view centered">
         <h1 className="font-display sv-h1">This link is empty or broken.</h1>
         <p className="muted">Ask for a fresh share link, or start your own 75.</p>
-        <Link href="/" className="btn">
+        <Link href="/signin" className="btn">
           Start my 75
         </Link>
         <Styles />
@@ -111,7 +111,7 @@ function Styles() {
       .share-view {
         max-width: 820px;
         margin: 0 auto;
-        padding: 1rem 1.5rem 5rem;
+        padding: 1rem min(1.5rem, 5vw) 5rem;
       }
       .share-view.centered {
         min-height: 80dvh;

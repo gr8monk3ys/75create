@@ -62,7 +62,7 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
           gap: 1.25rem;
           align-items: flex-end;
           justify-content: space-between;
-          padding: 1.4rem 1.5rem;
+          padding: min(1.4rem, 5vw) min(1.5rem, 5vw);
           flex-wrap: wrap;
         }
         .kind-reset {

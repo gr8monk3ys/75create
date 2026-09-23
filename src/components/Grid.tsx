@@ -2,11 +2,8 @@
 
 import { memo, useEffect, useRef, useState } from 'react'
 import { Day } from '@/lib/types'
+import { stampRotation as rotation } from '@/lib/stamp'
 
-/** Deterministic small rotation (-3.5°..3.5°) so stamps feel hand-placed. */
-function rotation(index: number): number {
-  return (((index * 37) % 15) - 7) / 2
-}
 
 const COLS = 15
 

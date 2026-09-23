@@ -260,13 +260,20 @@ export default function Recap() {
           line-height: 1.5;
         }
         .next {
-          padding: 1.75rem;
+          /* Held to the viewport, so large text breaks lines, not the page. */
+          padding: min(1.75rem, 5vw);
           margin-top: 3rem;
         }
         .next-actions {
           display: flex;
           gap: 0.75rem;
           flex-wrap: wrap;
+        }
+        .next-actions :global(.btn) {
+          min-width: 0;
+          max-width: 100%;
+          white-space: normal;
+          overflow-wrap: anywhere;
         }
         .facts {
           display: flex;

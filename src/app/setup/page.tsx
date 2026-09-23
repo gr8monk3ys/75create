@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { RuleEditor } from '@/components/RuleEditor'
 import { Icon } from '@/components/Icon'
@@ -93,6 +94,16 @@ export default function Setup() {
 
   return (
     <main className="setup">
+      {/* A way out for anyone without a challenge (a first visit, or one
+          just ended): Settings has export and sign-out. */}
+      <nav className="page-nav" aria-label="Main">
+        <Link href="/" className="wordmark font-display brand">
+          75 Create
+        </Link>
+        <Link href="/settings" className="back-link">
+          Settings
+        </Link>
+      </nav>
       <ol className="steps font-mono" aria-label="Setup steps">
         {['Medium', 'Rules', 'Stakes'].map((s, i) => (
           <li
@@ -252,11 +263,17 @@ export default function Setup() {
                 {POLICY_NAMES[policy]}: {POLICY_PITCHES[policy]}
               </li>
               <li>
-                Day 1 is{' '}
-                {startChoice === 'today' || !futureDate
-                  ? `today${creativeToday ? `, ${longDay(creativeToday)}` : ''}`
-                  : longDay(futureDate)}
-                ; Day 75 is 74 days later
+                {startChoice !== 'today' && !futureDate ? (
+                  'Day 1: pick a date above; Day 75 is 74 days later'
+                ) : (
+                  <>
+                    Day 1 is{' '}
+                    {startChoice === 'today'
+                      ? `today${creativeToday ? `, ${longDay(creativeToday)}` : ''}`
+                      : longDay(futureDate)}
+                    ; Day 75 is 74 days later
+                  </>
+                )}
               </li>
             </ul>
           </div>
@@ -301,7 +318,7 @@ export default function Setup() {
         }
         .setup {
           max-width: 640px;
-          padding-top: 2rem;
+          padding-top: 1rem;
         }
         .steps {
           list-style: none;

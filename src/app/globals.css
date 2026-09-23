@@ -271,6 +271,13 @@ kbd {
   outline: 3px solid var(--cobalt);
   outline-offset: 2px;
 }
+/* A date or time field's picker button is its own Tab stop, drawn by the
+   browser: its default ring vanishes on dark paper, so it gets ours. */
+::-webkit-calendar-picker-indicator:focus-visible {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* --- shared form primitives: one field, one chip, one small button --- */
 ::placeholder {
