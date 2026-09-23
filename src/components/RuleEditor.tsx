@@ -92,9 +92,11 @@ export function RuleEditor({ rules, onChange }: Props) {
         type="button"
         className="btn btn-ghost add"
         onClick={add}
-        disabled={rules.length >= MAX_RULES}
+        // Stays focusable when the seventh task fills the list.
+        aria-disabled={rules.length >= MAX_RULES}
       >
-        + Add task ({rules.length}/{MAX_RULES})
+        <Icon name="plus" size={16} />
+        Add task ({rules.length}/{MAX_RULES})
       </button>
 
       <style jsx>{`

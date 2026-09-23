@@ -213,7 +213,7 @@
       "refersTo": "chip",
       "description": "One choice among a few (late-night buffer, start date).",
       "html": "<button class=\"ds-chip\" aria-pressed=\"false\">2am</button><button class=\"ds-chip\" aria-pressed=\"true\">3am</button>",
-      "css": ".ds-chip{min-height:44px;padding:.55rem 1.1rem;margin-right:.5rem;border-radius:999px;border:1.5px solid #837968;background:#efe9dc;color:#1b1a17;font-family:ui-monospace,monospace;font-size:.8rem;cursor:pointer}.ds-chip[aria-pressed=true]{border-color:#2340d8;background:color-mix(in srgb,#2340d8 14%,#efe9dc)}.ds-chip:focus-visible{outline:3px solid #2340d8;outline-offset:2px}"
+      "css": ".ds-chip{min-height:44px;padding:.55rem 1.1rem;margin-right:.5rem;border-radius:999px;border:1.5px solid #837968;background:#efe9dc;color:#1b1a17;font-family:ui-monospace,monospace;font-size:.8rem;cursor:pointer}.ds-chip[aria-pressed=true]{border-color:#2340d8;background:color-mix(in srgb,#2340d8 14%,#efe9dc);box-shadow:2px 3px 0 #2340d8;font-weight:700}.ds-chip:focus-visible{outline:3px solid #2340d8;outline-offset:2px}"
     },
     {
       "name": "Grid",

@@ -61,6 +61,9 @@ export default function SignIn() {
               <span className="field-label">Email</span>
               <input
                 type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
                 autoFocus
                 value={email}

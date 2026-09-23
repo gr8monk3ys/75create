@@ -126,6 +126,14 @@ button {
 }
 
 /* Hidden from sight, not from assistive tech. */
+/* A page's loading line: small mono, muted, on the ramp. */
+.status-line {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--muted);
+  padding: 4rem 0;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -303,6 +311,10 @@ textarea.field-input {
 .chip[aria-checked='true'] {
   border-color: var(--cobalt);
   background: color-mix(in srgb, var(--cobalt) 14%, var(--paper));
+  /* Not hue alone: the chosen chip takes the same state offset as a chosen
+     medium or policy, and a heavier label. */
+  box-shadow: 2px 3px 0 var(--cobalt);
+  font-weight: 700;
 }
 .btn.small {
   min-height: 44px;

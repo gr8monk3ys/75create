@@ -19,6 +19,15 @@ export default function ErrorBoundary({
     reportError(error, { boundary: 'route' })
   }, [error])
 
+  // The tab should say what the page says, not the route that failed.
+  useEffect(() => {
+    const previous = document.title
+    document.title = 'Something went wrong · 75 Create'
+    return () => {
+      document.title = previous
+    }
+  }, [])
+
   return (
     <main className="err">
       <h1 className="font-display err-h1">That didn’t load.</h1>

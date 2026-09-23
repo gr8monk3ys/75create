@@ -127,7 +127,8 @@ export const StreakHeader = memo(function StreakHeader({
           font-variant-numeric: tabular-nums;
         }
         .denom {
-          font-size: 0.36em;
+          /* Follows the numeral, held to the ramp (Body to Title-lg). */
+          font-size: clamp(1rem, 0.36em, 1.5rem);
           color: var(--muted);
           margin-left: 0.15em;
           letter-spacing: 0;
@@ -249,12 +250,16 @@ function StakesStat({
             .stakes {
               flex: 1 0 100%;
               flex-direction: row;
+              flex-wrap: wrap;
+              min-width: 0;
               align-items: center;
               gap: 0.75rem;
             }
             .tokens {
               min-height: 0;
               flex-direction: row;
+              flex-wrap: wrap;
+              min-width: 0;
               align-items: center;
               gap: 0.6rem;
             }
@@ -309,6 +314,8 @@ function StakesStat({
           .stakes {
             flex: 1 0 100%;
             flex-direction: row;
+            flex-wrap: wrap;
+            min-width: 0;
             align-items: center;
             gap: 0.75rem;
           }

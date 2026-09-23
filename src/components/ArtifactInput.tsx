@@ -289,7 +289,10 @@ export function ArtifactThumb({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [artifact, repo, near])
+    // Keyed on the stored blob, not the artifact object: every snapshot
+    // rebuilds that object, and re-reading the image on each autosave would
+    // re-decode it for nothing.
+  }, [artifact.blobRef, artifact.kind, repo, near])
 
   useEffect(() => {
     if (!armed) return
@@ -403,7 +406,7 @@ export function ArtifactThumb({
         .ph {
           width: 40%;
           height: 40%;
-          border-radius: 50%;
+          border-radius: 999px;
           background: var(--paper-3);
         }
         .x {

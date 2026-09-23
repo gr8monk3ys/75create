@@ -21,7 +21,9 @@ export default function SharePage() {
   if (snap === undefined) {
     return (
       <main className="share-view">
-        <p className="font-mono muted">Loading…</p>
+        <p className="status-line" role="status">
+          Loading…
+        </p>
       </main>
     )
   }

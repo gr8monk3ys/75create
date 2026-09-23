@@ -81,15 +81,9 @@ export default function Dashboard() {
   if (loading || !user || !challenge) {
     return (
       <main className="dash">
-        <p className="loading font-mono" role="status">
+        <p className="status-line" role="status">
           Loading your grid…
         </p>
-        <style jsx>{`
-          .loading {
-            color: var(--muted);
-            padding: 4rem 0;
-          }
-        `}</style>
       </main>
     )
   }
@@ -423,7 +417,8 @@ export default function Dashboard() {
             grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 1.5rem;
             margin-top: 2rem;
-            align-items: start;
+            /* Columns stretch to the row, so the grid panel has room to
+               stay in view beside a long check-in card (sticky below). */
           }
           .grid-panel {
             padding: 1.25rem;
@@ -484,8 +479,16 @@ export default function Dashboard() {
           }
           .after-list li {
             display: grid;
-            grid-template-columns: 4.5rem 1fr;
+            grid-template-columns: 4.5rem minmax(0, 1fr);
             gap: 0.6rem;
+            overflow-wrap: anywhere;
+          }
+          @media (max-width: 30em) {
+            /* A phone, or large text: the day sits above its log. */
+            .after-list li {
+              grid-template-columns: minmax(0, 1fr);
+              gap: 0.15rem;
+            }
           }
           .after-day {
             color: var(--muted);

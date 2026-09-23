@@ -27,7 +27,7 @@ export default function Settings() {
   if (loading || !user) {
     return (
       <main className="settings">
-        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+        <p className="status-line" role="status">
           Loading settings…
         </p>
       </main>

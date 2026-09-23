@@ -59,7 +59,7 @@ export default function ShareGenerator() {
   if (loading || !user || !challenge) {
     return (
       <main>
-        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+        <p className="status-line" role="status">
           Loading…
         </p>
       </main>

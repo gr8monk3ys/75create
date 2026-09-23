@@ -39,7 +39,7 @@ export default function Recap() {
   if (loading || !user || !challenge) {
     return (
       <main>
-        <p className="font-mono" role="status" style={{ color: 'var(--muted)', padding: '4rem 0' }}>
+        <p className="status-line" role="status">
           Loading your recap…
         </p>
       </main>
@@ -213,6 +213,7 @@ export default function Recap() {
         }
         .empty {
           color: var(--muted);
+          font-size: 0.875rem;
         }
         .timeline {
           display: flex;
@@ -220,8 +221,8 @@ export default function Recap() {
           gap: 1.5rem;
         }
         .tl-day {
-          border-left: 2px solid var(--line);
-          padding-left: 1.25rem;
+          border-top: 1.5px dashed var(--line);
+          padding-top: 1rem;
         }
         .tl-num {
           font-size: 0.8rem;

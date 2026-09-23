@@ -189,9 +189,17 @@ function AttemptRow({
         }
         .log-list li {
           display: grid;
-          grid-template-columns: 4.5rem 1fr;
+          grid-template-columns: 4.5rem minmax(0, 1fr);
           gap: 0.75rem;
           font-size: 0.875rem;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 30em) {
+          /* A phone, or large text: the day sits above its log. */
+          .log-list li {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.15rem;
+          }
         }
         .log-day {
           font-family: var(--font-mono);

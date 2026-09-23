@@ -229,14 +229,14 @@ One ramp, nothing between its steps:
 
 ## Layout
 
-A single centred column (max 1080px on the dashboard and landing, 640–900px on inner pages) with a 1.5rem gutter. The dashboard is two columns above 860px, the check-in card beside a sticky grid panel. Below 860px it is one column with a compact copy of the grid under the header, so the mark is on the first screen. Spacing steps in about 0.25rem increments (0.5, 0.75, 1.25, 1.5, 2.5rem): groups sit tight, panels breathe. Touch targets are 44px throughout. Text reflows cleanly at 320px and at 200% zoom.
+A single centred column (max 1080px on the dashboard and landing, 640–900px on inner pages) with a 1.5rem gutter. The dashboard is two columns above 54em (864px at default text size, so large text gets one column sooner), the check-in card beside a grid panel that stays in view as the card scrolls. Below that it is one column with a compact copy of the grid under the header, so the mark is on the first screen. Spacing steps in about 0.25rem increments (0.5, 0.75, 1.25, 1.5, 2.5rem): groups sit tight, panels breathe. Touch targets are 44px throughout. Text reflows cleanly at 320px and at 200% zoom.
 
 ## Elevation & Depth
 
 The system is flat paper with printed marks. It has no blur shadows and no glass. Depth has one expression: a hard offset of pigment behind an element, as if a second riso pass landed a few pixels off-register. The offset is a state signal, not an ambient lift.
 
 ### Shadow Vocabulary
-- **Misregistration, state** (`box-shadow: 4px 5px 0 var(--cobalt)`): a completed check-in card. Coral for the reset banner, marigold for the finished panel.
+- **Misregistration, state** (`box-shadow: 4px 5px 0 var(--cobalt)`): a completed check-in card. Coral for the reset banner, marigold for the finished panel. Smaller for a chosen option: `3px 4px 0` on a selected medium or policy card, `2px 3px 0` on a selected chip.
 - **Misregistration, hover** (`box-shadow: 4px 6px 0 var(--coral)`, with `translateY(-2px)`): buttons, on hover-capable pointers only.
 - **Stamp** (`box-shadow: 1px 1.5px 0 color-mix(in srgb, var(--ink) 22%, transparent)`): grid stamps and token chips, the ink edge of a rubber stamp.
 - **Moment** (`box-shadow: 6px 8px 0 var(--cobalt)`): the celebration card.
@@ -252,14 +252,15 @@ One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, ch
 
 ### Buttons
 - **Shape:** full pill (999px), 44px minimum height.
-- **Primary:** ink fill with paper text, Space Mono uppercase 0.85rem with 0.04em tracking (0.85rem 1.4rem padding).
+- **Primary:** ink fill with paper text, Space Mono uppercase 0.875rem with 0.04em tracking (0.85rem 1.4rem padding). Labels wrap inside the button at large text rather than widening the page.
+- **Disabled:** 55% opacity, no hover offset. A control that turns off under the keyboard (Add link once the field clears, Upload while compressing, Previous/Next at either end) uses `aria-disabled` so it keeps focus; `disabled` is only for controls that were never reachable.
 - **Hover / Focus:** hover lifts 2px with a coral misregistration offset (hover devices only). Focus is a 3px cobalt outline with a 2px offset.
 - **Ghost:** transparent with an ink border; its hover offset is cobalt.
 - **Danger:** a coral-ink fill with white text (dark: paper text), used only for account deletion.
 
 ### Chips
 - **Style:** a paper pill with a field-border edge, Space Mono 0.8rem, 44px tall.
-- **State:** selected is a cobalt edge on a 14% cobalt tint and is exposed as `aria-pressed`.
+- **State:** selected is a cobalt edge on a 14% cobalt tint, a 2px 3px cobalt state offset and a bold label, exposed as `aria-pressed`. The offset and weight carry the choice without hue.
 
 ### Cards / Containers
 - **Corner Style:** 14px.
@@ -274,7 +275,7 @@ One radius scale: panels 14px, fields, rule rows and thumbnails 10px, stamps, ch
 - **Placeholder:** muted, at least 4.5:1.
 
 ### Navigation
-- **Style:** the wordmark on the left in display 800. Links on the right in Space Mono uppercase 0.78rem, padded to 44px, turning coral-ink on hover.
+- **Style:** the wordmark on the left in display 800. Links on the right in Space Mono uppercase 0.8rem, padded to 44px, turning coral-ink on hover. The row wraps under the wordmark when it can't fit.
 
 ### The Grid (signature)
 - **Structure:** 15 columns by 5 rows for 75 days (more rows when extended), with a 6px gap (4px on phones).
