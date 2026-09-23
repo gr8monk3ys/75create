@@ -58,3 +58,14 @@ describe('mergeDayData carries undos', () => {
     expect(mergeDayData(removed, stale).removedArtifacts).toEqual(['a1'])
   })
 })
+
+describe('mergeDayData keeps a restore', () => {
+  it('drops a stale skip or actioned miss for a day that was made', () => {
+    const stale = { ...emptyDayData(), skips: [2], actionedMisses: [2, 4] }
+    const restored = { ...emptyDayData(), completions: { 2: '2026-01-02T20:00:00Z' } }
+    const m = mergeDayData(restored, stale)
+    expect(m.skips).toEqual([])
+    expect(m.actionedMisses).toEqual([4])
+    expect(mergeDayData(stale, restored).skips).toEqual([])
+  })
+})

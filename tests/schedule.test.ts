@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { BASE_DAYS, reminderDue, secretMatches, todayNeedsMaking } from '../supabase/functions/_shared/schedule'
-import { TOTAL_DAYS } from '@/lib/types'
+import { reminderDue, secretMatches, todayNeedsMaking } from '../supabase/functions/_shared/schedule'
 import { creativeDate } from '@/lib/creativeDay'
 
 describe('reminderDue', () => {
@@ -85,6 +84,5 @@ describe('todayNeedsMaking', () => {
     expect(creativeDate(small, 'UTC', 3)).toBe('2026-01-05')
     expect(todayNeedsMaking([start], { c1: { completions: made(5) } }, 'UTC', 3, small)).toBe(false)
     expect(todayNeedsMaking([start], { c1: { completions: made(5) } }, 'UTC', 0, small)).toBe(true)
-    expect(BASE_DAYS).toBe(TOTAL_DAYS)
   })
 })

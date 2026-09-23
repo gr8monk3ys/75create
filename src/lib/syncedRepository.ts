@@ -1,8 +1,9 @@
 // Local-first sync: wraps LocalRepository so every read/write stays local and
 // synchronous (the app keeps working offline), while mutations are mirrored to
-// Supabase through a persistent outbox. Conflict policy is last-write-wins per
-// row (profile / challenge / day-data blob), which matches a single person
-// tracking one challenge across devices.
+// Supabase through a persistent outbox. The profile and challenge rows are
+// last-write-wins by server stamp; day data is merged, never replaced, on
+// every pull and before every push (mergeDayData, ADR 0004), so nothing one
+// device made can be erased by another's copy.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { DayData, Repository, emptyDayData, mergeDayData, newUser } from './repository'
@@ -24,6 +25,15 @@ interface Outbox {
   dayData: string[]
   uploadBlobs: string[]
   deleteBlobs: string[]
+}
+
+/** JSON with object keys sorted, so equal content compares equal. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  )
 }
 
 function emptyOutbox(): Outbox {
@@ -58,6 +68,7 @@ function isEmptyOutbox(o: Outbox): boolean {
 interface Stamps {
   profile?: string
   challenges: Record<string, string>
+  /** Bookkeeping only: day data is always merged, whatever these say. */
   dayData: Record<string, string>
 }
 
@@ -266,7 +277,10 @@ export class SyncedRepository implements Repository {
     return r > l
   }
 
-  /** Pull remote rows newer than the local stamps into the local store. */
+  /**
+   * Pull remote rows into the local store: newer profile and challenge rows
+   * replace the local ones; every day-data row is merged.
+   */
   private async hydrate(userId: string): Promise<void> {
     const stamps = this.readJson(STAMPS_KEY, emptyStamps())
 
@@ -297,7 +311,9 @@ export class SyncedRepository implements Repository {
       if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
         stamps.dayData[row.challenge_id] = row.updated_at
       }
-      if (JSON.stringify(merged) !== JSON.stringify(mergeDayData(remote, remote))) {
+      // Compared by content: Postgres jsonb stores keys in its own order, so
+      // the same data can come back differently ordered.
+      if (canonical(merged) !== canonical(mergeDayData(remote, remote))) {
         this.dirtyDay(row.challenge_id)
       }
     }
@@ -410,6 +426,8 @@ export class SyncedRepository implements Repository {
           .select('data')
           .eq('challenge_id', id)
           .maybeSingle()
+        // Couldn't read what's there: don't write blind; retry next flush.
+        if (current.error) continue
         if (current.data?.data) {
           const merged = mergeDayData(this.local.getDayData(id), {
             ...emptyDayData(),

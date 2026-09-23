@@ -100,8 +100,13 @@ export function mergeDayData(a: DayData, b: DayData): DayData {
   for (const [key, at] of Object.entries(stampA)) if (!changedAt[key] || at > changedAt[key]) changedAt[key] = at
   if (Object.keys(changedAt).length > 0) out.changedAt = changedAt
   if (removed.size > 0) out.removedArtifacts = [...removed].sort()
-  out.skips = [...new Set([...a.skips, ...b.skips])].sort((x, y) => x - y)
-  out.actionedMisses = [...new Set([...a.actionedMisses, ...b.actionedMisses])].sort((x, y) => x - y)
+  // A made day was never missed: a skip or actioned miss for it (from a copy
+  // that rolled over before the completion arrived) doesn't survive the merge.
+  const missed = (d: number) => !out.completions[d]
+  out.skips = [...new Set([...a.skips, ...b.skips])].filter(missed).sort((x, y) => x - y)
+  out.actionedMisses = [...new Set([...a.actionedMisses, ...b.actionedMisses])]
+    .filter(missed)
+    .sort((x, y) => x - y)
   return out
 }
 

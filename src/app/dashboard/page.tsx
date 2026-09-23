@@ -144,7 +144,8 @@ export default function Dashboard() {
     phase === 'reset-pending'
       ? `Ended on Day ${missedDay}`
       : phase === 'finished' && !checkInOpen
-        ? finish.title
+        ? // The finish panel's own heading says the finish; the page's names the state.
+          'Challenge finished'
         : phase === 'maintenance'
         ? `Maintenance, day ${currentIndex}`
         : phase === 'prestart'
@@ -230,7 +231,7 @@ export default function Dashboard() {
         <div className="main-cols">
           <div className="col-card">
             {phase === 'prestart' && (
-              <section className="panel prestart" aria-labelledby="pre-title">
+              <section className="panel state-panel" aria-labelledby="pre-title">
                 <h2 id="pre-title" className="font-display">
                   Day 1 is {longDay(challenge.startDate)}.
                 </h2>
@@ -253,7 +254,7 @@ export default function Dashboard() {
             {phase === 'finished' && !checkInOpen && (
               // Past the last day, the dashboard is still where they open the
               // app: the next step is offered here, not only on the recap.
-              <section className="panel prestart" aria-labelledby="next-title">
+              <section className="panel state-panel" aria-labelledby="next-title">
                 <h2 id="next-title" className="font-display">
                   Keep the habit, or run it back.
                 </h2>
@@ -278,7 +279,7 @@ export default function Dashboard() {
               </section>
             )}
             {phase === 'reset-pending' && (
-              <section className="panel prestart" aria-labelledby="ended-title">
+              <section className="panel state-panel" aria-labelledby="ended-title">
                 <h2 id="ended-title" className="font-display">
                   Day 1 starts when you do.
                 </h2>
@@ -516,7 +517,7 @@ export default function Dashboard() {
             font-size: 0.8rem;
             padding-top: 0.1rem;
           }
-          .prestart {
+          .state-panel {
             padding: 1.75rem;
           }
           .next-actions {
@@ -525,12 +526,12 @@ export default function Dashboard() {
             gap: 0.6rem;
             margin-top: 1.1rem;
           }
-          .prestart h2 {
+          .state-panel h2 {
             font-size: 1.5rem;
             margin: 0 0 0.6rem;
             text-wrap: balance;
           }
-          .prestart p {
+          .state-panel p {
             color: var(--ink-soft);
             margin: 0;
             line-height: 1.5;

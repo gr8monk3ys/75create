@@ -23,20 +23,18 @@ export default function ErrorBoundary({
   // load the route's own metadata <title> lands after this boundary mounts,
   // so the title is held while the boundary is shown and restored after.
   useEffect(() => {
-    const previous = document.title
     const title = 'Something went wrong · 75 Create'
+    const here = window.location.pathname
+    // Held only while this page is the one on screen: once the person moves
+    // on, the next route's own title stands.
     const hold = () => {
-      if (document.title !== title) document.title = title
+      if (window.location.pathname === here && document.title !== title) document.title = title
     }
     hold()
     const watch = new MutationObserver(hold)
     watch.observe(document.head, { childList: true, subtree: true, characterData: true })
-    return () => {
-      watch.disconnect()
-      document.title = previous
-    }
+    return () => watch.disconnect()
   }, [])
-
 
   return (
     <main className="err">

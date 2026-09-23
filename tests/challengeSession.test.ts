@@ -553,6 +553,18 @@ describe('ending and history', () => {
     expect(past.days[1].state).toBe('missed')
   })
 
+  it('ending while a miss is pending keeps the miss in history', () => {
+    session.start(draft())
+    completeToday()
+    at(3)
+    expect(session.sync().snapshot.phase).toBe('reset-pending')
+    session.endAttempt()
+    const [past] = session.history()
+    expect(past.endedOn).toBe(2)
+    expect(past.days[1].state).toBe('missed')
+    expect(past.tally.missed).toBe(1)
+  })
+
   it('lets a future start be set up again, out of history', () => {
     session.start(draft({ start: '2026-01-10' }))
     expect(session.read().ending).toEqual({ kind: 'redo' })

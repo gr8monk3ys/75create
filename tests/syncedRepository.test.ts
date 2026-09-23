@@ -259,6 +259,23 @@ describe('SyncedRepository', () => {
     expect(repo.getDayData('c1').checks['6:create']).toBe(false)
   })
 
+  it('does not re-push a day row whose content only differs in key order', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    repo.saveCheck('c1', 1, 'sketch', true)
+    repo.saveCheck('c1', 1, 'log', true)
+    await repo.flush()
+    const local = repo.getDayData('c1')
+    // The same content, keys reordered the way jsonb stores them.
+    const reordered = JSON.parse(JSON.stringify(local, (_k, v) =>
+      v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v,
+    ))
+    state.rows.day_data = [{ challenge_id: 'c1', data: reordered, updated_at: '2099-01-01T00:00:00.000Z' }]
+    state.calls = []
+    await repo.pull()
+    expect(state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data')).toEqual([])
+  })
+
   it('does not fire remote calls when signed out', async () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()

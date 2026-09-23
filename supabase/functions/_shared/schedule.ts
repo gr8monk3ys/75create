@@ -1,17 +1,12 @@
 // Scheduling helpers shared by the reminder senders (email and push). Plain
 // TypeScript with no Deno APIs, so bun tests import it directly.
 
-import { creativeDate, daysBetween } from './creativeDay.ts'
+import { creativeDate, daysBetween, localTime } from './creativeDay.ts'
+import { MissPolicy, lengthWith, missesEndAttempt } from './missPolicy.ts'
 
 function localMinutes(tz: string, now: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now)
-  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
-  return g('hour') * 60 + g('minute')
+  const [h, m] = localTime(now, tz).split(':').map(Number)
+  return h * 60 + m
 }
 
 /**
@@ -50,20 +45,18 @@ export function secretMatches(provided: string | null, expected: string): boolea
 
 // ---------- is today still to make? ----------
 //
-// The same rules as the app: the creative day from the shared module, and a
-// challenge that's ended (an unactioned Classic miss, or Grace with no token
-// left for one) no longer gets nudged, even before the app has rolled over.
+// The same rules as the app, from the same shared modules (creativeDay,
+// missPolicy): a challenge that's ended (an unactioned Classic miss, or Grace
+// with no token left for one) no longer gets nudged, even before the app has
+// rolled over.
 
-/** The format's base length; the app's TOTAL_DAYS (a test holds them equal). */
-export const BASE_DAYS = 75
-const MAX_SKIP_TOKENS = 3
 
 /** The stored shape the senders read (a subset of the app's Challenge). */
 export interface StoredChallenge {
   id: string
   status: string
   startDate: string
-  missPolicy?: 'classic' | 'grace' | 'extend'
+  missPolicy?: MissPolicy
   skipTokensUsed?: number
   extraDays?: number
 }
@@ -107,10 +100,9 @@ export function todayNeedsMaking(
   // Misses the app hasn't rolled over yet: under Classic, or Grace without
   // enough tokens, the attempt has already ended.
   const policy = active.missPolicy ?? 'classic'
-  if (pending > 0 && policy === 'classic') return false
-  if (pending > 0 && policy === 'grace' && (active.skipTokensUsed ?? 0) + pending > MAX_SKIP_TOKENS) return false
+  if (missesEndAttempt(policy, active.skipTokensUsed ?? 0, pending)) return false
   // Under Extend, each pending miss will add a day to the end.
-  const length = BASE_DAYS + (active.extraDays ?? 0) + (policy === 'extend' ? pending : 0)
+  const length = lengthWith(policy, active.extraDays ?? 0, pending)
   if (index > length) return false
   return !dd.completions?.[String(index)]
 }

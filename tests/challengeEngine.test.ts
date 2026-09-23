@@ -106,3 +106,15 @@ describe('streaks', () => {
     expect(streaks(days, 6)).toEqual({ current: 2, longest: 3 })
   })
 })
+
+describe('missesEndAttempt (shared with the reminders)', () => {
+  it('ends under Classic, under Grace only past the tokens, never under Extend', async () => {
+    const { missesEndAttempt } = await import('../supabase/functions/_shared/missPolicy')
+    expect(missesEndAttempt('classic', 0, 1)).toBe(true)
+    expect(missesEndAttempt('grace', 2, 1)).toBe(false)
+    expect(missesEndAttempt('grace', 3, 1)).toBe(true)
+    expect(missesEndAttempt('grace', 1, 3)).toBe(true)
+    expect(missesEndAttempt('extend', 9, 5)).toBe(false)
+    expect(missesEndAttempt('classic', 0, 0)).toBe(false)
+  })
+})

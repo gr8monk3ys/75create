@@ -73,7 +73,7 @@ function EndChallenge() {
         {redo ? 'Change your setup' : 'End this challenge'}
       </h2>
       <p className="block-sub">
-        {ending.kind === 'redo'
+        {redo
           ? 'Day 1 hasn’t started, so nothing is lost: set it up again with different rules, stakes or a start date.'
           : `This attempt ends on Day ${ending.day} and moves to past attempts with everything you made. Then you set up a new challenge.`}
       </p>

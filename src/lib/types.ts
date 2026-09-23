@@ -104,8 +104,8 @@ export interface User {
   reminderTime: string | null
 }
 
-export const TOTAL_DAYS = 75
-export const MAX_SKIP_TOKENS = 3
+// Shared with the Edge Functions, so the reminders apply the same stakes.
+export { MAX_SKIP_TOKENS, TOTAL_DAYS } from '../../supabase/functions/_shared/missPolicy'
 export const MAX_LOG_CHARS = 500
 export const MIN_RULES = 3
 export const MAX_RULES = 7

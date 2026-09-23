@@ -573,14 +573,16 @@ export function createChallengeSession(
   }
 
   function endAttempt(): void {
-    const { challenge, ending } = read()
+    const { challenge, ending, phase } = read()
     if (!challenge || !ending) return // finished rounds close with closeForNewRound
     repo.saveChallenge({
       ...challenge,
       status: 'archived',
       // Never started: kept (it's the person's data) but out of history.
       endedOnDay: ending.kind === 'redo' ? 0 : ending.day,
-      endedBy: 'person',
+      // Ended while a miss was pending, the miss ended it: history draws
+      // that day as missed, exactly as a confirmed reset would.
+      endedBy: phase === 'reset-pending' ? 'reset' : 'person',
     })
   }
 
@@ -806,11 +808,9 @@ function noticeOf(events: RolloverEvent[]): RolloverEvent | null {
   if (events.length === 0) return null
   if (events.length === 1) return events[0]
   const costly = events.find((e) => e.kind !== 'restore') ?? events[0]
-  return {
-    kind: costly.kind,
-    days: [...new Set(events.flatMap((e) => e.days))].sort((a, b) => a - b),
-    message: events.map((e) => e.message).join(' '),
-  }
+  // `days` are the costly kind's (the notice is titled by it); the message
+  // says everything.
+  return { kind: costly.kind, days: costly.days, message: events.map((e) => e.message).join(' ') }
 }
 
 /** One event per kind, so a long absence reads as one message, not twenty. */

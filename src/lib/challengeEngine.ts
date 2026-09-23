@@ -2,14 +2,9 @@
 // No I/O and no implicit clock — the current time is always passed in, so
 // every function is deterministic and unit-testable. (Design spec §4.2.)
 
-import {
-  Challenge,
-  Day,
-  DayState,
-  TOTAL_DAYS,
-  MAX_SKIP_TOKENS,
-} from './types'
+import { Challenge, Day, DayState } from './types'
 import { creativeDate, daysBetween } from './creativeDay'
+import { lengthWith, missesEndAttempt } from '../../supabase/functions/_shared/missPolicy'
 
 /**
  * The current 1-based day index of a challenge.
@@ -31,7 +26,7 @@ export function currentDayIndex(
 
 /** Total number of days in the challenge grid (base 75 plus any extensions). */
 export function challengeLength(challenge: Challenge): number {
-  return TOTAL_DAYS + (challenge.extraDays ?? 0)
+  return lengthWith(challenge.missPolicy, challenge.extraDays ?? 0)
 }
 
 /**
@@ -114,13 +109,10 @@ export function missConsequence(challenge: Challenge): MissOutcome {
     newSkipTokensUsed: challenge.skipTokensUsed,
     extraDays: challenge.extraDays ?? 0,
   }
-  switch (challenge.missPolicy) {
-    case 'classic':
-      return { ...base, action: 'reset' }
-    case 'grace':
-      if (challenge.skipTokensUsed >= MAX_SKIP_TOKENS) return { ...base, action: 'reset' }
-      return { ...base, action: 'skip', newSkipTokensUsed: challenge.skipTokensUsed + 1 }
-    case 'extend':
-      return { ...base, action: 'extend', extraDays: base.extraDays + 1 }
+  if (missesEndAttempt(challenge.missPolicy, challenge.skipTokensUsed, 1)) {
+    return { ...base, action: 'reset' }
   }
+  return challenge.missPolicy === 'grace'
+    ? { ...base, action: 'skip', newSkipTokensUsed: challenge.skipTokensUsed + 1 }
+    : { ...base, action: 'extend', extraDays: base.extraDays + 1 }
 }
