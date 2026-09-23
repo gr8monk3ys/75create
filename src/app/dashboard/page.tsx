@@ -265,7 +265,7 @@ export default function Dashboard() {
                 <h2 id="pre-title" className="font-display">
                   Day 1 is {longDay(challenge.startDate)}.
                 </h2>
-                <p>The grid is set and your rules are locked. Come back then for your first check-in.</p>
+                <p>The grid is set. Come back then for your first check-in. Changed your mind before it starts? Ending it in Settings takes you back to setup, at no cost.</p>
               </section>
             )}
             {(checkInOpen || phase === 'maintenance') && (
@@ -296,7 +296,8 @@ export default function Dashboard() {
                   <button className="btn btn-ghost" onClick={startMaintenance}>
                     Maintenance mode
                   </button>
-                  <button className="btn" onClick={startNewRound}>
+                  {/* The recap stays the one primary: this is the other way on. */}
+                  <button className="btn btn-ghost" onClick={startNewRound}>
                     Start a new round
                   </button>
                 </div>
@@ -307,7 +308,7 @@ export default function Dashboard() {
                 <h2 id="ended-title" className="font-display">
                   Day 1 starts when you do.
                 </h2>
-                <p>This attempt’s grid and every log you wrote move to past attempts below.</p>
+                <p>This attempt’s grid and every log you wrote are kept, in your past attempts.</p>
               </section>
             )}
           </div>
@@ -336,6 +337,7 @@ export default function Dashboard() {
                   dayData={dayData}
                   onClose={closeDay}
                   onStep={stepDay}
+                  missPolicy={challenge.missPolicy}
                   hasPrev={pastDays.indexOf(opened.index) > 0}
                   hasNext={pastDays.indexOf(opened.index) < pastDays.length - 1}
                 />

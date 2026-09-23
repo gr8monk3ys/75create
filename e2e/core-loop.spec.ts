@@ -235,6 +235,37 @@ test.describe('settings', () => {
   })
 })
 
+test.describe('setup', () => {
+  test('a blocked Next goes to what blocks it', async ({ page }) => {
+    await page.goto('/signin')
+    await page.locator('input[type=email]').fill('setup@75create.test')
+    await page.getByRole('button', { name: /Send magic link|Continue on this device/ }).click()
+    await page.waitForURL(/\/setup/)
+    await page.getByRole('button', { name: 'Next: rules' }).click()
+
+    const first = page.getByLabel('Rule 1 name')
+    await first.fill('')
+    await expect(page.getByText('This rule needs a name.')).toBeVisible()
+    // Still reachable (aria-disabled, not disabled), and pressing it lands on the cause.
+    const next = page.getByRole('button', { name: 'Next: stakes' })
+    await expect(next).toHaveAttribute('aria-disabled', 'true')
+    // (Playwright won't click an aria-disabled button; a keyboard press is
+    // how it's reached anyway.)
+    await next.focus()
+    await page.keyboard.press('Enter')
+    await expect(first).toBeFocused()
+    await expect(page.getByRole('heading', { name: 'Your daily rules' })).toBeVisible()
+
+    await first.fill('Draw for 30 minutes')
+    await next.click()
+    await expect(page.getByRole('heading', { name: 'Set your stakes' })).toBeVisible()
+    // The lock-in lists the rules themselves, and the real dates.
+    const summary = page.getByRole('heading', { name: 'What you’re locking in' }).locator('..')
+    await expect(summary).toContainText('Draw for 30 minutes')
+    await expect(summary).toContainText(/Day 75 is \w+day \d+ \w+/)
+  })
+})
+
 test.describe('sharing', () => {
   test('a share link renders read-only progress and excludes logs by default', async ({
     page,
@@ -249,7 +280,9 @@ test.describe('sharing', () => {
     expect(link).toContain('#')
 
     await page.goto(link.slice(link.indexOf('/share')))
-    await expect(page.getByText(/Shared progress/)).toBeVisible()
+    // Dated, and never a live-looking "today".
+    await expect(page.getByText(/A snapshot from \w+day \d+ \w+, read only/)).toBeVisible()
+    await expect(page.locator('.cell-today')).toHaveCount(0)
     await expect(page.getByText('a private note')).toHaveCount(0)
   })
 

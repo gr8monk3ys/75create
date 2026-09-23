@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
-import { RuleEditor } from '@/components/RuleEditor'
+import { RuleEditor, ruleNameId } from '@/components/RuleEditor'
 import { Icon } from '@/components/Icon'
 import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
 import { addDays } from '@/lib/creativeDay'
-import { POLICY_NAMES, POLICY_PITCHES, longDay } from '@/lib/format'
+import { POLICY_NAMES, POLICY_PITCHES, clockTime, longDay } from '@/lib/format'
 import {
   DEFAULT_RULES,
   Medium,
@@ -30,7 +30,7 @@ const MEDIA: { id: Medium; label: string }[] = [
 const POLICY_ORDER: MissPolicy[] = ['classic', 'grace', 'extend']
 
 export default function Setup() {
-  const { user, challenge, creativeToday, startChallenge, loading } = useApp()
+  const { user, challenge, creativeToday, dayCloses, startChallenge, loading } = useApp()
   const router = useRouter()
   const [step, setStep] = useState(0)
 
@@ -82,8 +82,24 @@ export default function Setup() {
   // A picked start date is tomorrow at the earliest, in the user's creative day.
   const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
 
+  // Next and Start stay focusable while blocked (aria-disabled): pressing
+  // one goes to what's blocking it, so the reason is never out of reach.
+  const dateRef = useRef<HTMLInputElement>(null)
+  function showProblem() {
+    const nameless = rules.find((r) => r.name.trim() === '')
+    const target =
+      nameless ? document.getElementById(ruleNameId(nameless))
+      : step === 2 && startChoice === 'future' && !futureDate ? dateRef.current
+      : null
+    target?.focus()
+    target?.scrollIntoView({ block: 'center' })
+  }
+
+  const firstDay = startChoice === 'today' ? creativeToday : futureDate
+  const lastDay = firstDay ? addDays(firstDay, 74) : ''
+
   function finish() {
-    if (!canFinish) return
+    if (!canFinish) return showProblem()
     try {
       startChallenge(draft)
       router.push('/dashboard')
@@ -155,23 +171,24 @@ export default function Setup() {
             lock once you begin.
           </p>
           <RuleEditor rules={rules} onChange={setRules} />
+          {/* Always mounted, so a new problem is announced as it appears;
+              right above the button it holds back. */}
+          <p className="form-hint font-mono" role="status" id="rules-problem">
+            {problem ?? ''}
+          </p>
           <div className="nav-row">
             <button className="btn btn-ghost" onClick={() => go(0)}>
               Back
             </button>
             <button
               className="btn"
-              onClick={() => go(2)}
-              disabled={!canFinish}
+              onClick={() => (canFinish ? go(2) : showProblem())}
+              aria-disabled={!canFinish}
               aria-describedby="rules-problem"
             >
               Next: stakes
             </button>
           </div>
-          {/* Always mounted, so a new problem is announced as it appears. */}
-          <p className="form-hint font-mono" role="status" id="rules-problem">
-            {problem ?? ''}
-          </p>
         </section>
       )}
 
@@ -218,6 +235,7 @@ export default function Setup() {
               </button>
               {startChoice === 'future' && (
                 <input
+                  ref={dateRef}
                   type="date"
                   className="field-input date"
                   aria-label="Start date"
@@ -257,27 +275,44 @@ export default function Setup() {
             <ul className="lock-list">
               <li>
                 {rules.length} daily rules, {rules.filter((r) => r.required).length} required to make
-                a day
+                a day:
+                <ol className="lock-rules">
+                  {rules.map((r) => (
+                    <li key={r.id}>
+                      {r.name.trim() || 'A rule with no name yet'}
+                      {r.required ? '' : ' (optional)'}
+                    </li>
+                  ))}
+                </ol>
               </li>
               <li>
                 {POLICY_NAMES[policy]}: {POLICY_PITCHES[policy]}
               </li>
               <li>
-                {startChoice !== 'today' && !futureDate ? (
-                  'Day 1: pick a date above; Day 75 is 74 days later'
+                {!firstDay ? (
+                  'Day 1: pick a date above'
                 ) : (
                   <>
-                    Day 1 is{' '}
-                    {startChoice === 'today'
-                      ? `today${creativeToday ? `, ${longDay(creativeToday)}` : ''}`
-                      : longDay(futureDate)}
-                    ; Day 75 is 74 days later
+                    Day 1 is {startChoice === 'today' ? 'today, ' : ''}
+                    {longDay(firstDay)}; Day 75 is {longDay(lastDay)}
+                    {policy === 'extend' ? ', or later if a miss adds a day' : ''}
                   </>
                 )}
               </li>
+              {dayCloses && (
+                <li>
+                  Each day stays open until {clockTime(dayCloses)}, so late-night work counts
+                  {startChoice === 'today' ? ' (today included)' : ''}
+                </li>
+              )}
             </ul>
           </div>
 
+          {/* What still blocks Start, said politely as it changes; a failure
+              to start is the one thing worth interrupting for. */}
+          <p className="form-hint font-mono" role="status" id="stakes-problem">
+            {error ? '' : (problem ?? '')}
+          </p>
           <div className="nav-row">
             <button className="btn btn-ghost" onClick={() => go(1)}>
               Back
@@ -285,17 +320,12 @@ export default function Setup() {
             <button
               className="btn"
               onClick={finish}
-              disabled={!canFinish}
+              aria-disabled={!canFinish}
               aria-describedby="stakes-problem"
             >
               Start my 75
             </button>
           </div>
-          {/* What still blocks Start, said politely as it changes; a failure
-              to start is the one thing worth interrupting for. */}
-          <p className="form-hint font-mono" role="status" id="stakes-problem">
-            {error ? '' : (problem ?? '')}
-          </p>
           {error && (
             <p className="form-hint font-mono" role="alert">
               {error}
@@ -311,10 +341,14 @@ export default function Setup() {
           margin: 0;
         }
         .form-hint {
-          margin: 0.75rem 0 0;
+          margin: 1.75rem 0 0;
           font-size: 0.75rem;
           color: var(--coral-ink);
           text-align: right;
+        }
+        /* A hint sits right above the button it holds back. */
+        .form-hint:not(:empty) + .nav-row {
+          margin-top: 0.75rem;
         }
         .setup {
           max-width: 640px;
@@ -410,6 +444,13 @@ export default function Setup() {
         .lock-h2 {
           font-size: 1.25rem;
           margin: 0 0 0.6rem;
+        }
+        .lock-rules {
+          margin: 0.35rem 0 0;
+          padding-left: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
         }
         .lock-list {
           margin: 0;

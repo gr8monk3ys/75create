@@ -320,7 +320,6 @@ function SettingsForm({ user }: { user: User }) {
           <input
             id="delete-confirm"
             className="field-input del-input"
-            placeholder="DELETE"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
@@ -466,5 +465,5 @@ function reminderChannelNote(supabaseEnabled: boolean, pushStatus: PushStatus): 
   if (supabaseEnabled) {
     return 'This device gets a browser notification while the app is open. Email reminders are sent by the server at your reminder time, when that function is deployed.'
   }
-  return 'This build runs on this device alone: the reminder is a browser notification, and only arrives while the app is open. Email and push reminders come with the optional server backend.'
+  return 'The reminder is a browser notification on this device, and it only arrives while the app is open.'
 }

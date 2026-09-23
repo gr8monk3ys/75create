@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { DayData } from '@/lib/repository'
-import { Day } from '@/lib/types'
+import { Day, MissPolicy } from '@/lib/types'
 import { ArtifactThumb } from './ArtifactInput'
 import { Icon } from './Icon'
 
@@ -28,6 +28,7 @@ export function DayDetail({
   onStep,
   hasPrev,
   hasNext,
+  missPolicy,
 }: {
   day: Day
   dayData: DayData
@@ -35,6 +36,8 @@ export function DayDetail({
   onStep: (delta: -1 | 1) => void
   hasPrev: boolean
   hasNext: boolean
+  /** Under Extend, a missed day says what it cost. */
+  missPolicy?: MissPolicy
 }) {
   const ref = useRef<HTMLElement>(null)
   const log = dayData.logs[day.index]?.text.trim()
@@ -89,6 +92,9 @@ export function DayDetail({
           </button>
         </div>
       </header>
+      {day.state === 'missed' && missPolicy === 'extend' && dayData.actionedMisses.includes(day.index) && (
+        <p className="d-empty">Extend added a day to the end for it.</p>
+      )}
       {log ? <p className="d-log">{log}</p> : <p className="d-empty">No log that day.</p>}
       {artifacts.length > 0 && (
         <ul className="d-thumbs" aria-label={`Day ${day.index} artifacts`}>

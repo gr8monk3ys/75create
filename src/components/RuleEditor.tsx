@@ -9,6 +9,21 @@ interface Props {
   onChange: (rules: Rule[]) => void
 }
 
+/** The id of a rule's name field, for focusing it from outside. */
+export function ruleNameId(rule: Rule): string {
+  return `rule-name-${rule.id}`
+}
+
+/**
+ * Grows a field to its content, so a rule is read in full before it locks
+ * (CSS field-sizing does this where supported; this covers the rest).
+ */
+function fit(el: HTMLTextAreaElement | null) {
+  if (!el || CSS.supports?.('field-sizing', 'content')) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 export function RuleEditor({ rules, onChange }: Props) {
   function update(id: string, patch: Partial<Rule>) {
     onChange(rules.map((r) => (r.id === id ? { ...r, ...patch } : r)))
@@ -30,7 +45,7 @@ export function RuleEditor({ rules, onChange }: Props) {
     // Straight into naming it: the placeholder name is selected, so typing
     // replaces it.
     requestAnimationFrame(() => {
-      const input = document.getElementById(`rule-name-${rule.id}`) as HTMLInputElement | null
+      const input = document.getElementById(`rule-name-${rule.id}`) as HTMLTextAreaElement | null
       input?.focus()
       input?.select()
     })
@@ -42,14 +57,21 @@ export function RuleEditor({ rules, onChange }: Props) {
         <div key={r.id} className="rule-edit panel">
           <div className="rule-top">
             <span className="idx font-mono">{String(i + 1).padStart(2, '0')}</span>
-            <input
+            {/* A one-line field that wraps: a long name is read whole. */}
+            <textarea
               id={`rule-name-${r.id}`}
+              ref={fit}
+              rows={1}
               className="name-input font-display"
               value={r.name}
-              onChange={(e) => update(r.id, { name: e.target.value })}
+              onChange={(e) => {
+                update(r.id, { name: e.target.value.replace(/\s*\n\s*/g, ' ') })
+                fit(e.currentTarget)
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && e.preventDefault()}
               aria-label={`Rule ${i + 1} name`}
               aria-invalid={r.name.trim() === ''}
-              aria-describedby={r.name.trim() === '' ? 'rules-problem' : undefined}
+              aria-describedby={r.name.trim() === '' ? `rule-error-${r.id}` : undefined}
             />
             <button
               type="button"
@@ -66,6 +88,11 @@ export function RuleEditor({ rules, onChange }: Props) {
               <Icon name="close" size={18} />
             </button>
           </div>
+          {r.name.trim() === '' && (
+            <p className="rule-error" id={`rule-error-${r.id}`}>
+              This rule needs a name.
+            </p>
+          )}
           {r.evidence && (
             <p className="evidence-note">
               {r.evidence === 'log'
@@ -74,9 +101,13 @@ export function RuleEditor({ rules, onChange }: Props) {
             </p>
           )}
           <textarea
+            ref={fit}
             className="field-input desc-input"
             value={r.description}
-            onChange={(e) => update(r.id, { description: e.target.value })}
+            onChange={(e) => {
+              update(r.id, { description: e.target.value })
+              fit(e.currentTarget)
+            }}
             placeholder="Describe what counts…"
             rows={2}
             aria-label={`Rule ${i + 1} description`}
@@ -136,10 +167,23 @@ export function RuleEditor({ rules, onChange }: Props) {
           border: none;
           border-bottom: 1.5px dashed var(--field-border);
           color: var(--ink);
-          padding: 0.15rem 0;
+          padding: 0.3rem 0 0.15rem;
+          line-height: 1.25;
+          resize: none;
+          overflow: hidden;
+          field-sizing: content;
         }
         .name-input:focus {
           border-bottom-color: var(--cobalt);
+        }
+        /* A nameless rule says so where it is, not only in the form's hint. */
+        .name-input[aria-invalid='true'] {
+          border-bottom: 1.5px solid var(--coral-ink);
+        }
+        .rule-error {
+          margin: 0;
+          font-size: 0.875rem;
+          color: var(--coral-ink);
         }
         .remove {
           flex: none;
@@ -164,6 +208,11 @@ export function RuleEditor({ rules, onChange }: Props) {
         .desc-input {
           /* Stays at the field's 16px so iOS doesn't zoom; quieter by colour. */
           color: var(--ink-soft);
+          /* Grows with the text: nothing is locked in half-read. */
+          resize: none;
+          overflow: hidden;
+          field-sizing: content;
+          min-height: 3.2em;
         }
         .evidence-note {
           margin: 0;

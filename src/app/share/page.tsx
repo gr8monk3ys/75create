@@ -6,6 +6,7 @@ import { Grid, GridLegend } from '@/components/Grid'
 import { StreakHeader } from '@/components/StreakHeader'
 import { decodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 import { Day } from '@/lib/types'
+import { longDay } from '@/lib/format'
 
 export default function SharePage() {
   const [snap, setSnap] = useState<ShareSnapshot | null | undefined>(undefined)
@@ -41,10 +42,12 @@ export default function SharePage() {
     )
   }
 
+  // A snapshot, not a live view: the day that was open when it was shared
+  // is drawn as still to come, never as a "today" that may be long past.
   const days: Day[] = snap.dayStates.map((state, i) => ({
     challengeId: 'shared',
     index: i + 1,
-    state,
+    state: state === 'today' ? 'future' : state,
     completedAt: null,
   }))
   // Older links carry no day index: the day after the last settled day is the
@@ -64,7 +67,11 @@ export default function SharePage() {
       <h1 className="font-display sv-h1">
         A 75-day {snap.medium} challenge.
       </h1>
-      <p className="sv-sub">Shared progress, read only. The owner chose to share this snapshot.</p>
+      <p className="sv-sub">
+        {snap.takenAt
+          ? `A snapshot from ${longDay(snap.takenAt)}, read only. The owner chose to share it.`
+          : 'Shared progress, read only. The owner chose to share this snapshot.'}
+      </p>
 
       <div className="sv-head">
         <StreakHeader

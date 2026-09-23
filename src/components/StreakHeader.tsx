@@ -63,7 +63,8 @@ export const StreakHeader = memo(function StreakHeader({
           )}
         </dd>
       </div>
-      {!after && !ended && (
+      {/* No streak before Day 1: a zero for a challenge not yet begun. */}
+      {!after && !ended && day > 0 && (
         <div className="stat">
           <dt>Streak</dt>
           <dd className="num font-display">

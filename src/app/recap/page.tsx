@@ -134,39 +134,15 @@ export default function Recap() {
         )}
       </div>
 
-      <section className="gallery">
-        <h2 className="font-display cert-h2">The work, day by day</h2>
-        {artifactDays.length === 0 ? (
-          <p className="empty font-mono">
-            No artifacts captured yet — they’ll appear here as you add them.
-          </p>
-        ) : (
-          <div className="timeline">
-            {artifactDays.map(({ day, artifacts }) => (
-              <div key={day} className="tl-day">
-                <span className="tl-num font-mono">Day {day}</span>
-                <div className="tl-arts">
-                  {artifacts.map((a) => (
-                    <ArtifactThumb key={a.id} artifact={a} size={120} dayIndex={day} />
-                  ))}
-                </div>
-                {dayData.logs[day]?.text && (
-                  <p className="tl-log">{dayData.logs[day].text}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
+      {/* The next step sits with the certificate, not after 75 days of work. */}
       {(phase === 'finished' || phase === 'maintenance') && (
         <section className="next panel">
           <div>
             <h2 className="font-display cert-h2">Keep the habit, or run it back.</h2>
             <p className="cert-sub">
               {phase === 'maintenance'
-                ? 'You are in maintenance mode: a daily log, no rules, no resets. Start a fresh 75 whenever you like.'
-                : 'Maintenance mode keeps a daily log with no rules and no reset stakes. Or start a fresh 75.'}
+                ? 'You are in maintenance mode: a daily log and artifact with no rules and no resets. Start a fresh 75 whenever you like.'
+                : 'Maintenance mode keeps a daily log and artifact with no rules and no resets. Or start a fresh 75.'}
             </p>
           </div>
           <div className="next-actions">
@@ -175,12 +151,38 @@ export default function Recap() {
                 Maintenance mode
               </button>
             )}
-            <button className="btn" onClick={newRound}>
+            <button className="btn btn-ghost" onClick={newRound}>
               Start a new round
             </button>
           </div>
         </section>
       )}
+
+      <section className="gallery">
+        <h2 className="font-display cert-h2">The work, day by day</h2>
+        {artifactDays.length === 0 ? (
+          <p className="empty font-mono">
+            No artifacts captured yet — they’ll appear here as you add them.
+          </p>
+        ) : (
+          <ol className="timeline">
+            {artifactDays.map(({ day, artifacts }) => (
+              <li key={day} id={`day-${day}`} className="tl-day">
+                <h3 className="tl-num font-mono">Day {day}</h3>
+                <div className="tl-arts">
+                  {artifacts.map((a) => (
+                    <ArtifactThumb key={a.id} artifact={a} size={120} dayIndex={day} />
+                  ))}
+                </div>
+                {dayData.logs[day]?.text && (
+                  <p className="tl-log">{dayData.logs[day].text}</p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
 
       <style jsx>{`
         .recap {
@@ -233,6 +235,9 @@ export default function Recap() {
           font-size: 0.875rem;
         }
         .timeline {
+          list-style: none;
+          margin: 0;
+          padding: 0;
           display: flex;
           flex-direction: column;
           gap: 1.5rem;
@@ -242,6 +247,8 @@ export default function Recap() {
           padding-top: 1rem;
         }
         .tl-num {
+          margin: 0;
+          font-weight: 400;
           font-size: 0.8rem;
           color: var(--muted);
           text-transform: uppercase;
@@ -262,7 +269,7 @@ export default function Recap() {
         .next {
           /* Held to the viewport, so large text breaks lines, not the page. */
           padding: min(1.75rem, 5vw);
-          margin-top: 3rem;
+          margin-top: 1.5rem;
         }
         .next-actions {
           display: flex;
@@ -276,9 +283,10 @@ export default function Recap() {
           overflow-wrap: anywhere;
         }
         .facts {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 1.25rem 2.5rem;
+          /* Columns, so a wrapped row lines up with the one above. */
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(min(9rem, 100%), 1fr));
+          gap: 1.25rem 2rem;
           margin: 0 0 2rem;
         }
       `}</style>

@@ -23,7 +23,7 @@ describe('format', () => {
 describe('finishLine', () => {
   const t = { made: 75, skipped: 0, missed: 0, logsWritten: 0, artifactsKept: 0 }
   it('says "made" only when every day was', () => {
-    expect(finishLine(t, 75)).toEqual({ title: '75 days, made.', detail: '75 days made.' })
+    expect(finishLine(t, 75)).toEqual({ title: '75 days, made.', detail: 'Every one of them, no skips and no misses.' })
   })
   it('names skip tokens and extensions', () => {
     expect(finishLine({ ...t, made: 73, skipped: 2 }, 75)).toEqual({

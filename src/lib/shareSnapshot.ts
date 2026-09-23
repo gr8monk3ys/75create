@@ -10,6 +10,8 @@ export interface ShareSnapshot {
   dayStates: DayState[]
   /** The day index when shared. Absent from links made before it existed. */
   dayIndex?: number
+  /** The creative date it was shared (YYYY-MM-DD): a snapshot, not live. */
+  takenAt?: string
   current: number
   longest: number
   includeLogs: boolean
@@ -49,6 +51,8 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
     // shape it expects, or the page could throw on a crafted fragment.
     if (!parsed.dayStates.every((s: unknown) => typeof s === 'string' && STATES.has(s))) return null
     if (parsed.dayIndex !== undefined && !Number.isInteger(parsed.dayIndex)) delete parsed.dayIndex
+    const takenAt =
+      typeof parsed.takenAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.takenAt) ? parsed.takenAt : undefined
     const logs: Record<number, string> = {}
     if (parsed.logs && typeof parsed.logs === 'object') {
       for (const [day, text] of Object.entries(parsed.logs)) {
@@ -61,6 +65,7 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
       missPolicy: ['classic', 'grace', 'extend'].includes(parsed.missPolicy) ? parsed.missPolicy : 'classic',
       dayStates: parsed.dayStates,
       dayIndex: parsed.dayIndex,
+      takenAt,
       current: Number.isFinite(parsed.current) ? parsed.current : 0,
       longest: Number.isFinite(parsed.longest) ? parsed.longest : 0,
       includeLogs: parsed.includeLogs === true,

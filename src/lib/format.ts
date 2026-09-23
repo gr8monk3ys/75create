@@ -78,7 +78,11 @@ export function finishLine(t: Tally, totalDays: number): { title: string; detail
   if (t.skipped > 0) parts.push(`${t.skipped} covered by ${t.skipped === 1 ? 'a skip token' : 'skip tokens'}`)
   if (t.missed > 0) parts.push(`${t.missed} missed and added to the end`)
   const detail = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
-  return { title: `${totalDays} days, ${clean ? 'made' : 'done'}.`, detail: `${detail}.` }
+  // A clean run's count is already the title: say what it means instead.
+  return {
+    title: `${totalDays} days, ${clean ? 'made' : 'done'}.`,
+    detail: clean ? 'Every one of them, no skips and no misses.' : `${detail}.`,
+  }
 }
 
 /** What completing a milestone day says; `totalDays` is the challenge's real length. */

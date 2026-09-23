@@ -7,7 +7,7 @@ import { useApp } from '@/components/AppProvider'
 import { encodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 
 export default function ShareGenerator() {
-  const { loading, user, challenge, dayData, derived } = useApp()
+  const { loading, user, challenge, dayData, derived, creativeToday } = useApp()
   const router = useRouter()
   const [includeLogs, setIncludeLogs] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -32,6 +32,7 @@ export default function ShareGenerator() {
       missPolicy: challenge.missPolicy,
       dayStates: derived.days.map((d) => d.state),
       dayIndex: derived.currentIndex,
+      takenAt: creativeToday || undefined,
       current: derived.streak.current,
       longest: derived.streak.longest,
       includeLogs,
@@ -39,7 +40,7 @@ export default function ShareGenerator() {
     }
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     return `${origin}/share#${encodeSnapshot(snap)}`
-  }, [challenge, dayData.logs, derived, includeLogs])
+  }, [challenge, dayData.logs, derived, includeLogs, creativeToday])
 
   // One status node, always mounted, so assistive tech hears each change.
   // Cleared first, then filled on the next frame: the same message twice
@@ -50,6 +51,23 @@ export default function ShareGenerator() {
   function say(message: string) {
     setStatus('')
     requestAnimationFrame(() => setStatus(message))
+  }
+
+  // A phone's share sheet is the quick way to send it; Copy stays for the rest.
+  const [canShare, setCanShare] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCanShare(typeof navigator.share === 'function')
+  }, [])
+
+  async function share() {
+    try {
+      await navigator.share({ title: 'My 75 Create grid', url: link })
+    } catch (e) {
+      // Closing the sheet isn't a failure; anything else falls back to Copy.
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      await copy()
+    }
   }
 
   async function copy() {
@@ -125,9 +143,16 @@ export default function ShareGenerator() {
           value={link}
           onFocus={(e) => e.currentTarget.select()}
         />
-        <button className="btn" onClick={copy}>
-          {copied ? 'Copied' : 'Copy link'}
-        </button>
+        <div className="link-actions">
+          {canShare && (
+            <button className="btn" onClick={share}>
+              Share…
+            </button>
+          )}
+          <button className={canShare ? 'btn btn-ghost' : 'btn'} onClick={copy}>
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+        </div>
       </div>
       <p className="copy-status" role="status">
         {status}
@@ -179,6 +204,11 @@ export default function ShareGenerator() {
           gap: 0.75rem;
           align-items: center;
           padding: 0.75rem 0.75rem 0.75rem 1rem;
+        }
+        .link-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
         }
         .link {
           flex: 1;
