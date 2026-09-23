@@ -3,6 +3,7 @@ import { LocalRepository } from '@/lib/localRepository'
 import {
   ChallengeDraft,
   ChallengeSession,
+  attemptDays,
   createChallengeSession,
 } from '@/lib/challengeSession'
 import { DEFAULT_RULES, Rule, User } from '@/lib/types'
@@ -69,6 +70,8 @@ describe('phases', () => {
     expect(s.phase).toBe('active')
     expect(s.currentIndex).toBe(1)
     expect(s.totalDays).toBe(75)
+    expect(s.dayCloses).toBe('03:00')
+    expect(s.stakes).toEqual({ policy: 'classic', tokensLeft: null, extraDays: 0 })
   })
 
   it('is prestart until a future start date arrives', () => {
@@ -143,6 +146,59 @@ describe('check-in', () => {
   })
 })
 
+describe('evidence rules', () => {
+  const EVIDENCE: Rule[] = [
+    { id: 'make', name: 'Make', description: '', required: true },
+    { id: 'words', name: 'Write it down', description: '', required: true, evidence: 'log' },
+    { id: 'proof', name: 'Keep a piece', description: '', required: true, evidence: 'artifact' },
+  ]
+  beforeEach(() => {
+    session.start(draft({ rules: EVIDENCE }))
+  })
+
+  it('cannot be ticked by hand', () => {
+    expect(session.toggleTask(1, 'words')).toEqual({ ok: false })
+    expect(session.toggleTask(1, 'proof')).toEqual({ ok: false })
+  })
+
+  it('are met by the evidence, and the last piece completes the day', async () => {
+    expect(session.toggleTask(1, 'make')).toEqual({ ok: true, justCompleted: false })
+    expect(session.saveLog(1, '   ')).toEqual({ ok: true, justCompleted: false })
+    expect(session.saveLog(1, 'Two thumbnails.')).toEqual({ ok: true, justCompleted: false })
+    expect(session.attachLink(1, 'https://example.com/a')).toEqual({ ok: true, justCompleted: true })
+    expect(session.read().days[0].state).toBe('complete')
+  })
+
+  it('removing the only artifact reopens the day', async () => {
+    session.toggleTask(1, 'make')
+    session.saveLog(1, 'x')
+    await session.attachImage(1, new Blob([new Uint8Array([1])], { type: 'image/png' }))
+    expect(session.read().days[0].state).toBe('complete')
+    const [artifact] = session.read().dayData.artifacts[1]
+    expect(await session.removeArtifact(1, artifact.id)).toEqual({ ok: true, justCompleted: false })
+    expect(session.read().days[0].state).toBe('today')
+    expect(await repo.getArtifactBlob(artifact.blobRef!)).toBeNull()
+  })
+
+  it('refuses artifacts for a day that is no longer today', async () => {
+    at(2)
+    expect(session.attachLink(1, 'https://example.com')).toEqual({ ok: false })
+    expect(await session.attachImage(1, new Blob(['x']))).toEqual({ ok: false })
+  })
+
+  it('recognises the untouched default rules on challenges started before evidence existed', () => {
+    const c = session.read().challenge!
+    repo.saveChallenge({
+      ...c,
+      rules: DEFAULT_RULES.map(({ evidence: _e, ...r }) => r),
+    })
+    for (const id of ['create', 'study', 'no-passive']) session.toggleTask(1, id)
+    expect(session.toggleTask(1, 'log')).toEqual({ ok: false })
+    session.saveLog(1, 'did it')
+    expect(session.attachLink(1, 'https://example.com')).toEqual({ ok: true, justCompleted: true })
+  })
+})
+
 describe('an all-optional challenge (legacy data)', () => {
   it('needs every rule checked, so one tap cannot complete the day', () => {
     // draftProblem forbids this now, but older stored challenges may have it.
@@ -161,7 +217,10 @@ describe('rollover and miss policies', () => {
     at(3) // day 2 missed
     const { snapshot, events } = session.sync()
     expect(snapshot.phase).toBe('reset-pending')
-    expect(snapshot.resetMessage).toMatch(/Day 1/)
+    expect(snapshot.missedDay).toBe(2)
+    expect(snapshot.resetMessage).toBe(
+      'Day 2 was missed. Under Classic, that ends this attempt. Restarting keeps your 3 rules and makes today Day 1.',
+    )
     expect(events).toEqual([])
     // Pending is state, not a one-shot banner: it survives every re-read...
     expect(session.sync().snapshot.phase).toBe('reset-pending')
@@ -173,7 +232,10 @@ describe('rollover and miss policies', () => {
     expect(after.phase).toBe('active')
     expect(after.currentIndex).toBe(1)
     expect(after.challenge!.startDate).toBe('2026-01-03')
-    expect(repo.getChallenges().filter((c) => c.status === 'archived')).toHaveLength(1)
+    const [archived] = repo.getChallenges().filter((c) => c.status === 'archived')
+    expect(archived.endedOnDay).toBe(2)
+    const grid = attemptDays(archived, repo.getDayData(archived.id))
+    expect(grid.slice(0, 3).map((d) => d.state)).toEqual(['complete', 'missed', 'future'])
   })
 
   it('confirmReset does nothing unless a reset is pending', () => {
@@ -186,22 +248,46 @@ describe('rollover and miss policies', () => {
     session.start(draft({ missPolicy: 'grace' }))
     at(2) // day 1 missed
     const first = session.sync()
-    expect(first.events).toEqual([{ kind: 'skip', message: expect.stringContaining('1 of 3') }])
+    expect(first.events).toEqual([
+      {
+        kind: 'skip',
+        days: [1],
+        message: 'Day 1 was missed. A skip token covered it, so your streak is intact — 2 of 3 left.',
+      },
+    ])
     expect(first.snapshot.days[0].state).toBe('skipped')
-    expect(first.snapshot.challenge!.skipTokensUsed).toBe(1)
+    expect(first.snapshot.stakes).toEqual({ policy: 'grace', tokensLeft: 2, extraDays: 0 })
     // Idempotent: syncing again spends nothing.
     expect(session.sync().events).toEqual([])
-    expect(session.read().challenge!.skipTokensUsed).toBe(1)
+    expect(session.read().stakes!.tokensLeft).toBe(2)
 
     at(4) // days 2 and 3 missed: tokens 2 and 3
     const second = session.sync()
     expect(second.events).toHaveLength(1)
-    expect(second.events[0].message).toMatch(/^2 days were missed/)
-    expect(second.snapshot.challenge!.skipTokensUsed).toBe(3)
+    expect(second.events[0].message).toBe(
+      'Days 2–3 were missed. Skip tokens covered them, so your streak is intact — 0 of 3 left.',
+    )
+    expect(second.snapshot.stakes!.tokensLeft).toBe(0)
     expect(second.snapshot.phase).toBe('active')
 
     at(5) // day 4 missed with no tokens left
-    expect(session.sync().snapshot.phase).toBe('reset-pending')
+    const ended = session.sync().snapshot
+    expect(ended.phase).toBe('reset-pending')
+    expect(ended.missedDay).toBe(4)
+    expect(ended.resetMessage).toBe(
+      'Day 4 was missed with no skip tokens left, so this attempt ends here. Restarting keeps your 3 rules and makes today Day 1.',
+    )
+  })
+
+  it('a skip token protects the streak', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    at(2)
+    completeToday()
+    at(4) // day 3 missed, covered
+    session.sync()
+    completeToday()
+    expect(session.read().streak).toEqual({ current: 3, longest: 3 })
   })
 
   it('extend: each miss adds a day and the challenge continues', () => {
@@ -212,7 +298,10 @@ describe('rollover and miss policies', () => {
     expect(snapshot.totalDays).toBe(77)
     expect(snapshot.phase).toBe('active')
     expect(events).toHaveLength(1)
-    expect(events[0].message).toMatch(/added 2 days/)
+    expect(events[0].message).toBe(
+      'Days 2–3 were missed. Extend adds them to the end: the challenge now runs 77 days.',
+    )
+    expect(snapshot.stakes).toEqual({ policy: 'extend', tokensLeft: null, extraDays: 2 })
   })
 
   it('extend after a long absence leaves exactly the unfinished days ahead', () => {

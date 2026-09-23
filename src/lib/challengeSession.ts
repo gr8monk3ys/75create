@@ -16,10 +16,13 @@ import {
 } from './challengeEngine'
 import { creativeDate } from './creativeDay'
 import {
+  Artifact,
   Challenge,
   Day,
+  Evidence,
   MAX_LOG_CHARS,
   MAX_RULES,
+  MAX_SKIP_TOKENS,
   MIN_RULES,
   Medium,
   MissPolicy,
@@ -60,14 +63,30 @@ export interface Snapshot {
   completedCount: number
   /** Why the attempt ended, when `phase` is `reset-pending`. */
   resetMessage: string | null
+  /** The missed day that ended the attempt, when `phase` is `reset-pending`. */
+  missedDay: number | null
   /** The creative date the snapshot was taken on; changes at day rollover. */
   creativeToday: string
+  /** Local wall-clock time ("HH:MM") at which today's creative day closes. */
+  dayCloses: string
+  /** What a miss costs, so the dashboard can keep the stakes visible. */
+  stakes: Stakes | null
+}
+
+export interface Stakes {
+  policy: MissPolicy
+  /** Grace only: skip tokens still unspent. */
+  tokensLeft: number | null
+  /** Extend only: days added to the end so far. */
+  extraDays: number
 }
 
 /** A consequence applied during rollover, worth telling the user about once. */
 export interface RolloverEvent {
   kind: 'skip' | 'extend'
   message: string
+  /** The missed days this consequence covered. */
+  days: number[]
 }
 
 export interface ChallengeDraft {
@@ -80,9 +99,10 @@ export interface ChallengeDraft {
 }
 
 export type ToggleResult =
-  /** The check was saved. `justCompleted` is true when it finished the day. */
+  /** The write was saved. `justCompleted` is true when it finished the day. */
   | { ok: true; justCompleted: boolean }
-  /** The day on screen is no longer today (or check-ins are closed). */
+  /** The day on screen is no longer today, check-ins are closed, or the rule
+   *  is met by evidence rather than a tick. */
   | { ok: false }
 
 export interface ChallengeSession {
@@ -93,7 +113,13 @@ export interface ChallengeSession {
   /** Toggle one of today's tasks. `dayIndex` is the day the user is looking at. */
   toggleTask(dayIndex: number, ruleId: string): ToggleResult
   /** Save the log for a day up to and including today. */
-  saveLog(dayIndex: number, text: string): void
+  saveLog(dayIndex: number, text: string): ToggleResult
+  /** Attach an image (already compressed) to today. */
+  attachImage(dayIndex: number, blob: Blob): Promise<ToggleResult>
+  /** Attach a web link to today. The URL must already be validated. */
+  attachLink(dayIndex: number, url: string): ToggleResult
+  /** Remove one of today's artifacts (and its stored image). */
+  removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult>
   /** Begin a new challenge. Throws if the draft is invalid or one is running. */
   start(draft: ChallengeDraft): Challenge
   /** Archive the ended attempt and restart at Day 1 today, same rules. */
@@ -133,7 +159,10 @@ export function createChallengeSession(
       streak: { current: 0, longest: 0 },
       completedCount: 0,
       resetMessage: null,
+      missedDay: null,
       creativeToday,
+      dayCloses: user ? closesAt(user.lateNightBufferHrs) : '00:00',
+      stakes: null,
     }
     if (!user || !challenge) return empty
 
@@ -161,8 +190,18 @@ export function createChallengeSession(
       totalDays,
       streak: streaks(days, currentIndex),
       completedCount: Object.keys(dayData.completions).length,
-      resetMessage: phase === 'reset-pending' ? consequence!.message : null,
+      resetMessage: phase === 'reset-pending' ? resetCopy(challenge, pending!.index) : null,
+      missedDay: phase === 'reset-pending' ? pending!.index : null,
       creativeToday,
+      dayCloses: closesAt(user.lateNightBufferHrs),
+      stakes: {
+        policy: challenge.missPolicy,
+        tokensLeft:
+          challenge.missPolicy === 'grace'
+            ? Math.max(0, MAX_SKIP_TOKENS - challenge.skipTokensUsed)
+            : null,
+        extraDays: challenge.extraDays ?? 0,
+      },
     }
   }
 
@@ -207,35 +246,31 @@ export function createChallengeSession(
           extraDays: outcome.extraDays,
         }
         repo.saveChallenge(challenge)
-        events.push({ kind: outcome.action, message: outcome.message })
+        events.push({ kind: outcome.action, message: '', days: [miss.index] })
       }
     }
 
-    return { snapshot: snapshotOf(user, challenge, now), events: summarize(events) }
+    return {
+      snapshot: snapshotOf(user, challenge, now),
+      events: challenge ? summarize(events, challenge) : [],
+    }
   }
 
-  function toggleTask(dayIndex: number, ruleId: string): ToggleResult {
+  /** Today's challenge, when check-ins for `dayIndex` are open. */
+  function openDay(dayIndex: number): Challenge | null {
     const snap = read()
-    const { challenge } = snap
     const open =
-      challenge &&
       (snap.phase === 'active' || snap.phase === 'finished') &&
       dayIndex === snap.currentIndex &&
       dayIndex >= 1 &&
       dayIndex <= snap.totalDays
-    const rule = challenge?.rules.find((r) => r.id === ruleId)
-    if (!open || !challenge || !rule) return { ok: false }
+    return open ? snap.challenge : null
+  }
 
-    // Always decide from storage, never from what the UI last rendered, so a
-    // double tap toggles back instead of setting the same value twice.
-    const key = `${dayIndex}:${ruleId}`
-    const checked = repo.getDayData(challenge.id).checks[key] === true
-    repo.saveCheck(challenge.id, dayIndex, ruleId, !checked)
-
+  /** Re-decide whether today is complete after any write to it. */
+  function settle(challenge: Challenge, dayIndex: number): ToggleResult {
     const fresh = repo.getDayData(challenge.id)
-    const complete = completionRules(challenge).every(
-      (r) => fresh.checks[`${dayIndex}:${r.id}`] === true,
-    )
+    const complete = completionRules(challenge).every((r) => ruleMet(r, fresh, dayIndex))
     const wasComplete = Boolean(fresh.completions[dayIndex])
     if (complete && !wasComplete) {
       repo.saveDayCompletion(challenge.id, dayIndex, clock().toISOString())
@@ -245,15 +280,65 @@ export function createChallengeSession(
     return { ok: true, justCompleted: false }
   }
 
-  function saveLog(dayIndex: number, text: string): void {
+  function toggleTask(dayIndex: number, ruleId: string): ToggleResult {
+    const challenge = openDay(dayIndex)
+    const rule = challenge?.rules.find((r) => r.id === ruleId)
+    if (!challenge || !rule || evidenceOf(rule)) return { ok: false }
+
+    // Always decide from storage, never from what the UI last rendered, so a
+    // double tap toggles back instead of setting the same value twice.
+    const key = `${dayIndex}:${ruleId}`
+    const checked = repo.getDayData(challenge.id).checks[key] === true
+    repo.saveCheck(challenge.id, dayIndex, ruleId, !checked)
+    return settle(challenge, dayIndex)
+  }
+
+  function saveLog(dayIndex: number, text: string): ToggleResult {
     const snap = read()
     const { challenge } = snap
-    if (!challenge || dayIndex < 1 || dayIndex > snap.currentIndex) return
+    if (!challenge || dayIndex < 1 || dayIndex > snap.currentIndex) return { ok: false }
     repo.saveLog(challenge.id, dayIndex, {
       dayId: `${challenge.id}:${dayIndex}`,
       text: text.slice(0, MAX_LOG_CHARS),
       updatedAt: clock().toISOString(),
     })
+    // A log typed for a closed day is still saved (it was written for that
+    // day), but only today's completion can change.
+    const today = openDay(dayIndex)
+    return today ? settle(today, dayIndex) : { ok: true, justCompleted: false }
+  }
+
+  function attach(challenge: Challenge, dayIndex: number, artifact: Omit<Artifact, 'id' | 'dayId' | 'createdAt'>) {
+    repo.saveArtifactMeta(challenge.id, dayIndex, {
+      ...artifact,
+      id: newId(),
+      dayId: `${challenge.id}:${dayIndex}`,
+      createdAt: clock().toISOString(),
+    })
+    return settle(challenge, dayIndex)
+  }
+
+  async function attachImage(dayIndex: number, blob: Blob): Promise<ToggleResult> {
+    const challenge = openDay(dayIndex)
+    if (!challenge) return { ok: false }
+    const blobRef = await repo.saveArtifactBlob(blob)
+    return attach(challenge, dayIndex, { kind: 'image', blobRef })
+  }
+
+  function attachLink(dayIndex: number, url: string): ToggleResult {
+    const challenge = openDay(dayIndex)
+    if (!challenge) return { ok: false }
+    return attach(challenge, dayIndex, { kind: 'url', url })
+  }
+
+  async function removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult> {
+    const challenge = openDay(dayIndex)
+    if (!challenge) return { ok: false }
+    const artifact = repo.getDayData(challenge.id).artifacts[dayIndex]?.find((a) => a.id === artifactId)
+    if (!artifact) return { ok: false }
+    if (artifact.blobRef) await repo.deleteArtifactBlob(artifact.blobRef)
+    repo.deleteArtifactMeta(challenge.id, dayIndex, artifactId)
+    return settle(challenge, dayIndex)
   }
 
   function start(draft: ChallengeDraft): Challenge {
@@ -287,7 +372,7 @@ export function createChallengeSession(
     const snap = read()
     const { challenge, user } = snap
     if (snap.phase !== 'reset-pending' || !challenge || !user) return
-    repo.saveChallenge({ ...challenge, status: 'archived' })
+    repo.saveChallenge({ ...challenge, status: 'archived', endedOnDay: snap.missedDay ?? undefined })
     repo.saveChallenge({
       ...challenge,
       id: newId(),
@@ -311,7 +396,19 @@ export function createChallengeSession(
     repo.saveChallenge({ ...snap.challenge, status: 'completed' })
   }
 
-  return { sync, read, toggleTask, saveLog, start, confirmReset, enterMaintenance, closeForNewRound }
+  return {
+    sync,
+    read,
+    toggleTask,
+    saveLog,
+    attachImage,
+    attachLink,
+    removeArtifact,
+    start,
+    confirmReset,
+    enterMaintenance,
+    closeForNewRound,
+  }
 }
 
 /**
@@ -322,6 +419,58 @@ export function createChallengeSession(
 export function completionRules(challenge: Challenge): Rule[] {
   const required = challenge.rules.filter((r) => r.required)
   return required.length > 0 ? required : challenge.rules
+}
+
+/**
+ * What satisfies a rule. Challenges started before evidence rules existed
+ * still have the untouched default "Log the day" / "Capture an artifact"
+ * rules; those are recognised by id and name.
+ */
+export function evidenceOf(rule: Rule): Evidence | undefined {
+  if (rule.evidence) return rule.evidence
+  if (rule.id === 'log' && rule.name === 'Log the day') return 'log'
+  if (rule.id === 'artifact' && rule.name === 'Capture an artifact') return 'artifact'
+  return undefined
+}
+
+/** Whether a rule is met on a day: ticked, or its evidence is present. */
+export function ruleMet(rule: Rule, dayData: DayData, dayIndex: number): boolean {
+  switch (evidenceOf(rule)) {
+    case 'log':
+      return (dayData.logs[dayIndex]?.text ?? '').trim().length > 0
+    case 'artifact':
+      return (dayData.artifacts[dayIndex]?.length ?? 0) > 0
+    default:
+      return dayData.checks[`${dayIndex}:${rule.id}`] === true
+  }
+}
+
+/**
+ * The grid of an archived attempt, frozen where it ended: days after the miss
+ * that ended it are drawn as never reached, not as a wall of misses.
+ */
+export function attemptDays(challenge: Challenge, dayData: DayData): Day[] {
+  const total = TOTAL_DAYS + (challenge.extraDays ?? 0)
+  const done = (i: number) => Boolean(dayData.completions[i]) || dayData.skips.includes(i)
+  let end = challenge.endedOnDay
+  if (!end) {
+    // Attempts archived before the end day was recorded: the first gap.
+    end = 1
+    while (end <= total && done(end)) end++
+  }
+  const days: Day[] = []
+  for (let index = 1; index <= total; index++) {
+    const completedAt = dayData.completions[index] ?? null
+    const state: Day['state'] = completedAt
+      ? 'complete'
+      : dayData.skips.includes(index)
+        ? 'skipped'
+        : index <= end
+          ? 'missed'
+          : 'future'
+    days.push({ challengeId: challenge.id, index, state, completedAt })
+  }
+  return days
 }
 
 /** Why a draft can't start, or null when it can. */
@@ -342,20 +491,53 @@ function isFinished(days: Day[], currentIndex: number): boolean {
   return currentIndex > days.length || last?.state === 'complete'
 }
 
+/** The local time the creative day closes: midnight plus the buffer. */
+function closesAt(bufferHrs: number): string {
+  const h = ((Math.round(bufferHrs) % 24) + 24) % 24
+  return `${String(h).padStart(2, '0')}:00`
+}
+
+function dayList(days: number[]): string {
+  if (days.length === 1) return `Day ${days[0]}`
+  const contiguous = days.every((d, i) => i === 0 || d === days[i - 1] + 1)
+  if (contiguous) return `Days ${days[0]}–${days[days.length - 1]}`
+  return `Days ${days.slice(0, -1).join(', ')} and ${days[days.length - 1]}`
+}
+
+function resetCopy(challenge: Challenge, missedDay: number): string {
+  const why =
+    challenge.missPolicy === 'grace'
+      ? 'with no skip tokens left, so this attempt ends here'
+      : 'Under Classic, that ends this attempt'
+  const n = challenge.rules.length
+  return challenge.missPolicy === 'grace'
+    ? `Day ${missedDay} was missed ${why}. Restarting keeps your ${n} rules and makes today Day 1.`
+    : `Day ${missedDay} was missed. ${why}. Restarting keeps your ${n} rules and makes today Day 1.`
+}
+
 /** One event per kind, so a long absence reads as one message, not twenty. */
-function summarize(events: RolloverEvent[]): RolloverEvent[] {
+function summarize(events: RolloverEvent[], challenge: Challenge): RolloverEvent[] {
   const out: RolloverEvent[] = []
-  for (const kind of ['skip', 'extend'] as const) {
-    const of = events.filter((e) => e.kind === kind)
-    if (of.length === 1) out.push(of[0])
-    else if (of.length > 1)
-      out.push({
-        kind,
-        message:
-          kind === 'skip'
-            ? `${of.length} days were missed. ${of[of.length - 1].message.replace(/^A day was missed\. /, '')}`
-            : `${of.length} days were missed. Extend mode added ${of.length} days to the end — your streak display resets but the challenge continues.`,
-      })
+  const skips = events.filter((e) => e.kind === 'skip').flatMap((e) => e.days)
+  if (skips.length > 0) {
+    const left = Math.max(0, MAX_SKIP_TOKENS - challenge.skipTokensUsed)
+    const were = skips.length === 1 ? 'was' : 'were'
+    const covered = skips.length === 1 ? 'A skip token covered it' : 'Skip tokens covered them'
+    out.push({
+      kind: 'skip',
+      days: skips,
+      message: `${dayList(skips)} ${were} missed. ${covered}, so your streak is intact — ${left} of ${MAX_SKIP_TOKENS} left.`,
+    })
+  }
+  const extended = events.filter((e) => e.kind === 'extend').flatMap((e) => e.days)
+  if (extended.length > 0) {
+    const were = extended.length === 1 ? 'was' : 'were'
+    const total = TOTAL_DAYS + (challenge.extraDays ?? 0)
+    out.push({
+      kind: 'extend',
+      days: extended,
+      message: `${dayList(extended)} ${were} missed. Extend adds ${extended.length === 1 ? 'it' : 'them'} to the end: the challenge now runs ${total} days.`,
+    })
   }
   return out
 }

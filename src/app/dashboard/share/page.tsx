@@ -60,12 +60,11 @@ export default function ShareGenerator() {
           75 Create
         </Link>
         <Link href="/dashboard" className="font-mono back">
-          ← back to grid
+          Back to your grid
         </Link>
       </nav>
 
-      <span className="eyebrow">Share your progress</span>
-      <h1 className="font-display sg-h1">A read-only link to your grid.</h1>
+      <h1 className="font-display sg-h1">Share a read-only link to your grid.</h1>
       <p className="sg-sub">
         Anyone with the link sees your grid and streak — nothing else, no account
         needed. The link carries a snapshot from right now; generate a fresh one to
@@ -94,7 +93,7 @@ export default function ShareGenerator() {
       </div>
 
       <a href={link} target="_blank" rel="noreferrer" className="preview-link font-mono">
-        Preview the shared page →
+        Preview the shared page
       </a>
 
       <style jsx>{`

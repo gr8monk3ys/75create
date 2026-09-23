@@ -17,6 +17,7 @@ import {
   ChallengeSession,
   Phase,
   Snapshot,
+  Stakes,
   ToggleResult,
   createChallengeSession,
 } from '@/lib/challengeSession'
@@ -47,8 +48,12 @@ interface AppValue {
   phase: Phase
   /** Why the attempt ended, while `phase` is 'reset-pending'. */
   resetMessage: string | null
+  missedDay: number | null
   /** Today's creative date (YYYY-MM-DD), late-night buffer applied. */
   creativeToday: string
+  /** Local "HH:MM" at which today's creative day closes. */
+  dayCloses: string
+  stakes: Stakes | null
   /** A one-time note about a consequence applied at rollover (skip/extend). */
   banner: Banner | null
   dismissBanner: () => void
@@ -61,7 +66,10 @@ interface AppValue {
   /** Re-read and roll over (after a write that bypassed the session). */
   refresh: () => void
   toggleTask: (dayIndex: number, ruleId: string) => ToggleResult
-  saveLog: (dayIndex: number, text: string) => void
+  saveLog: (dayIndex: number, text: string) => ToggleResult
+  attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
+  attachLink: (dayIndex: number, url: string) => ToggleResult
+  removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
   startChallenge: (draft: ChallengeDraft) => Challenge
   confirmReset: () => void
   enterMaintenance: () => void
@@ -81,7 +89,32 @@ const EMPTY: Snapshot = {
   streak: { current: 0, longest: 0 },
   completedCount: 0,
   resetMessage: null,
+  missedDay: null,
   creativeToday: '',
+  dayCloses: '00:00',
+  stakes: null,
+}
+
+// A skip or extension notice stays until dismissed, not until the next reload:
+// it is the only place the user learns a token was spent while they were away.
+const NOTICE_KEY = '75create.notice.v1'
+
+function readNotice(): Banner | null {
+  try {
+    const raw = localStorage.getItem(NOTICE_KEY)
+    return raw ? (JSON.parse(raw) as Banner) : null
+  } catch {
+    return null
+  }
+}
+
+function writeNotice(banner: Banner | null) {
+  try {
+    if (banner) localStorage.setItem(NOTICE_KEY, JSON.stringify(banner))
+    else localStorage.removeItem(NOTICE_KEY)
+  } catch {
+    /* storage unavailable: the notice just won't survive a reload */
+  }
 }
 
 /** How often to check whether the creative day has rolled over. */
@@ -109,7 +142,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const { snapshot, events } = session.sync()
     setSnap(snapshot)
     const last = events[events.length - 1]
-    if (last) setBanner({ kind: last.kind, message: last.message })
+    if (last) {
+      const notice: Banner = { kind: last.kind, message: last.message }
+      writeNotice(notice)
+      setBanner(notice)
+    } else if (snapshot.phase === 'signed-out') {
+      setBanner(null)
+    } else {
+      setBanner((b) => b ?? readNotice())
+    }
     setLoading(false)
   }, [session])
 
@@ -208,6 +249,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
     repo?.setSignedIn(false)
+    writeNotice(null)
     setBanner(null)
     sync()
   }, [sync, repo])
@@ -223,8 +265,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         sync()
         return result
       },
-      saveLog(dayIndex: number, text: string) {
-        session?.saveLog(dayIndex, text)
+      saveLog(dayIndex: number, text: string): ToggleResult {
+        if (!session) return noop
+        const result = session.saveLog(dayIndex, text)
+        sync()
+        return result
+      },
+      async attachImage(dayIndex: number, blob: Blob): Promise<ToggleResult> {
+        if (!session) return noop
+        const result = await session.attachImage(dayIndex, blob)
+        sync()
+        return result
+      },
+      attachLink(dayIndex: number, url: string): ToggleResult {
+        if (!session) return noop
+        const result = session.attachLink(dayIndex, url)
+        sync()
+        return result
+      },
+      async removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult> {
+        if (!session) return noop
+        const result = await session.removeArtifact(dayIndex, artifactId)
+        sync()
+        return result
       },
       startChallenge(draft: ChallengeDraft): Challenge {
         if (!session) throw new Error('Storage is unavailable.')
@@ -234,6 +297,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       confirmReset() {
         session?.confirmReset()
+        writeNotice(null)
         setBanner(null)
         sync()
       },
@@ -263,9 +327,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
     phase: snap.phase,
     resetMessage: snap.resetMessage,
+    missedDay: snap.missedDay,
     creativeToday: snap.creativeToday,
+    dayCloses: snap.dayCloses,
+    stakes: snap.stakes,
     banner,
-    dismissBanner: () => setBanner(null),
+    dismissBanner: () => {
+      writeNotice(null)
+      setBanner(null)
+    },
     signIn,
     signInWithGoogle,
     supabaseEnabled: isSupabaseConfigured(),

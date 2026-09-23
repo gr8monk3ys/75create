@@ -1,27 +1,35 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Repository, newId } from '@/lib/repository'
+import { Repository } from '@/lib/repository'
 import { Artifact } from '@/lib/types'
 import { compressImage } from '@/lib/image'
 import { normalizeArtifactUrl, safeHref } from '@/lib/safeUrl'
+import { ToggleResult } from '@/lib/challengeSession'
+import { Icon } from './Icon'
 
 interface Props {
   repo: Repository
-  challengeId: string
   dayIndex: number
   artifacts: Artifact[]
-  onChange: () => void
-  readOnly?: boolean
+  attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
+  attachLink: (dayIndex: number, url: string) => ToggleResult
+  removeArtifact: (dayIndex: number, artifactId: string) => Promise<ToggleResult>
+  /** Called with each write's result, so the card can celebrate completion. */
+  onResult: (result: ToggleResult) => void
+  /** Id of the element that labels this group (the rule or field heading). */
+  labelledBy?: string
 }
 
 export function ArtifactInput({
   repo,
-  challengeId,
   dayIndex,
   artifacts,
-  onChange,
-  readOnly = false,
+  attachImage,
+  attachLink,
+  removeArtifact,
+  onResult,
+  labelledBy,
 }: Props) {
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
@@ -35,18 +43,13 @@ export function ArtifactInput({
     setBusy(true)
     try {
       const { blob } = await compressImage(file)
-      const blobRef = await repo.saveArtifactBlob(blob)
-      const artifact: Artifact = {
-        id: newId(),
-        dayId: `${challengeId}:${dayIndex}`,
-        kind: 'image',
-        blobRef,
-        createdAt: new Date().toISOString(),
-      }
-      repo.saveArtifactMeta(challengeId, dayIndex, artifact)
-      onChange()
+      onResult(await attachImage(dayIndex, blob))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.')
+      setError(
+        err instanceof Error
+          ? `${err.message} Try a JPEG or PNG under 5 MB, or paste a link instead.`
+          : 'That upload didn’t work. Try a JPEG or PNG under 5 MB, or paste a link instead.',
+      )
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -56,79 +59,69 @@ export function ArtifactInput({
   function addUrl() {
     const value = normalizeArtifactUrl(url)
     if (!value) {
-      if (url.trim()) setError('That doesn’t look like a web link (http or https).')
+      if (url.trim()) setError('That isn’t a web link. Paste an address that starts with https://.')
       return
     }
     setError(null)
-    const artifact: Artifact = {
-      id: newId(),
-      dayId: `${challengeId}:${dayIndex}`,
-      kind: 'url',
-      url: value,
-      createdAt: new Date().toISOString(),
-    }
-    repo.saveArtifactMeta(challengeId, dayIndex, artifact)
+    onResult(attachLink(dayIndex, value))
     setUrl('')
-    onChange()
-  }
-
-  async function removeArtifact(a: Artifact) {
-    if (a.blobRef) await repo.deleteArtifactBlob(a.blobRef)
-    repo.deleteArtifactMeta(challengeId, dayIndex, a.id)
-    onChange()
   }
 
   return (
-    <div className="artifact">
+    <div className="artifact" role="group" aria-labelledby={labelledBy}>
       {artifacts.length > 0 && (
-        <div className="thumbs">
+        <ul className="thumbs" aria-label="Today's artifacts">
           {artifacts.map((a) => (
-            <ArtifactThumb
-              key={a.id}
-              artifact={a}
-              repo={repo}
-              onRemove={readOnly ? undefined : () => removeArtifact(a)}
-            />
+            <li key={a.id}>
+              <ArtifactThumb
+                artifact={a}
+                repo={repo}
+                onRemove={async () => onResult(await removeArtifact(dayIndex, a.id))}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
-      {!readOnly && (
-        <div className="controls">
-          <button
-            type="button"
-            className="btn btn-ghost small"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
-          >
-            {busy ? 'Compressing…' : 'Upload image'}
-          </button>
-          <span className="or font-mono">or</span>
-          <div className="url-row">
-            <input
-              className="url-input"
-              placeholder="paste a link"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
-            />
-            <button type="button" className="btn btn-ghost small" onClick={addUrl}>
-              Add
-            </button>
-          </div>
+      <div className="controls">
+        <button
+          type="button"
+          className="btn btn-ghost small"
+          onClick={() => fileRef.current?.click()}
+          disabled={busy}
+          aria-busy={busy}
+        >
+          <Icon name="image" size={18} />
+          {busy ? 'Compressing…' : 'Upload image'}
+        </button>
+        <div className="url-row">
+          <label className="sr-only" htmlFor={`url-${dayIndex}`}>
+            Or paste a link to the work
+          </label>
           <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            onChange={onFile}
-            hidden
+            id={`url-${dayIndex}`}
+            className="url-input"
+            type="url"
+            inputMode="url"
+            placeholder="or paste a link"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
           />
+          <button type="button" className="btn btn-ghost small" onClick={addUrl} disabled={!url.trim()}>
+            Add link
+          </button>
         </div>
-      )}
-      {error && <p className="err font-mono">{error}</p>}
+        <input ref={fileRef} type="file" accept="image/*" onChange={onFile} hidden />
+      </div>
+      <p className="err" role="alert">
+        {error}
+      </p>
 
       <style jsx>{`
         .artifact {
+          width: 100%;
+          min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
@@ -137,6 +130,9 @@ export function ArtifactInput({
           display: flex;
           gap: 0.6rem;
           flex-wrap: wrap;
+          list-style: none;
+          margin: 0;
+          padding: 0;
         }
         .controls {
           display: flex;
@@ -146,56 +142,76 @@ export function ArtifactInput({
         }
         .small {
           /* 44px min height: comfortable thumb target on a phone. */
-          padding: 0.7rem 1rem;
+          padding: 0.6rem 1rem;
           min-height: 44px;
-          font-size: 0.7rem;
-        }
-        .or {
-          font-size: 0.7rem;
-          color: var(--muted);
+          font-size: 0.75rem;
         }
         .url-row {
           display: flex;
           gap: 0.4rem;
-          flex: 1;
-          min-width: 180px;
+          flex: 1 1 14rem;
+          min-width: 0;
         }
         .url-input {
           flex: 1;
+          min-width: 0;
           font-family: var(--font-body);
           /* 16px stops iOS Safari zooming the viewport on focus. */
           font-size: 1rem;
           min-height: 44px;
-          padding: 0.5rem 0.7rem;
+          padding: 0.5rem 0.75rem;
           border-radius: 8px;
           border: 1.5px solid var(--line);
           background: var(--paper);
           color: var(--ink);
         }
+        .url-input::placeholder {
+          color: var(--muted);
+        }
         .url-input:focus {
-          outline: none;
           border-color: var(--cobalt);
         }
         .err {
-          font-size: 0.72rem;
-          color: var(--coral);
+          font-size: 0.8rem;
+          line-height: 1.4;
+          color: var(--coral-ink);
           margin: 0;
+        }
+        .err:empty {
+          display: none;
         }
       `}</style>
     </div>
   )
 }
 
-function ArtifactThumb({
+/** The host of a link, for a thumbnail that says where it goes. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return 'link'
+  }
+}
+
+/**
+ * One artifact. With `onRemove`, removal takes two taps: the first arms it and
+ * says so, the second deletes. An image is gone for good once removed, so a
+ * stray tap on a phone must not be enough.
+ */
+export function ArtifactThumb({
   artifact,
   repo,
   onRemove,
+  size = 84,
 }: {
   artifact: Artifact
   repo: Repository
   onRemove?: () => void
+  size?: number
 }) {
   const [src, setSrc] = useState<string | null>(null)
+  const [armed, setArmed] = useState(false)
 
   useEffect(() => {
     let objectUrl: string | null = null
@@ -214,43 +230,52 @@ function ArtifactThumb({
     }
   }, [artifact, repo])
 
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => setArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+
+  // Re-checked at render: a row synced from another device, or stored before
+  // validation existed, can still carry an unsafe scheme.
+  const href = artifact.kind === 'url' ? safeHref(artifact.url) : null
+  const what = artifact.kind === 'image' ? 'image' : `link to ${href ? hostOf(href) : 'an unsafe address'}`
+
   return (
-    <div className="thumb">
+    <div className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
       {artifact.kind === 'image' ? (
         // eslint-disable-next-line @next/next/no-img-element
-        src ? <img src={src} alt="Day artifact" /> : <span className="ph">…</span>
+        src ? <img src={src} alt="Artifact image" /> : <span className="ph" aria-label="Loading image" />
+      ) : href ? (
+        <a href={href} target="_blank" rel="noreferrer" className="link">
+          <Icon name="link" size={20} />
+          <span className="host">{hostOf(href)}</span>
+        </a>
       ) : (
-        // Re-checked at render: a row synced from another device, or stored
-        // before validation existed, can still carry an unsafe scheme.
-        safeHref(artifact.url) ? (
-          <a
-            href={safeHref(artifact.url)!}
-            target="_blank"
-            rel="noreferrer"
-            className="link font-mono"
-          >
-            🔗 link
-          </a>
-        ) : (
-          <span className="link font-mono">⚠ unsafe link</span>
-        )
+        <span className="link unsafe">Unsafe link hidden</span>
       )}
       {onRemove && (
-        <button className="x" onClick={onRemove} aria-label="Remove artifact">
-          ✕
+        <button
+          type="button"
+          className="x"
+          onClick={() => (armed ? onRemove() : setArmed(true))}
+          aria-label={armed ? `Confirm: remove this ${what}` : `Remove this ${what}`}
+        >
+          {armed ? <span className="confirm">Remove?</span> : <Icon name="close" size={16} />}
         </button>
       )}
       <style jsx>{`
         .thumb {
           position: relative;
-          width: 76px;
-          height: 76px;
-          border-radius: 8px;
+          border-radius: 10px;
           overflow: hidden;
           border: 1.5px solid var(--line);
           background: var(--paper);
           display: grid;
           place-items: center;
+        }
+        .thumb.armed {
+          border-color: var(--coral);
         }
         .thumb :global(img) {
           width: 100%;
@@ -258,28 +283,68 @@ function ArtifactThumb({
           object-fit: cover;
         }
         .link {
-          font-size: 0.68rem;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: 0.3rem;
+          font-family: var(--font-mono);
+          font-size: 0.72rem;
           color: var(--cobalt);
           text-align: center;
-          padding: 0.3rem;
+          padding: 0.4rem;
+          text-decoration: none;
+          max-width: 100%;
+        }
+        .host {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .unsafe {
+          color: var(--coral-ink);
         }
         .ph {
-          color: var(--muted);
+          width: 40%;
+          height: 40%;
+          border-radius: 50%;
+          background: var(--paper-3);
         }
         .x {
           position: absolute;
-          top: 3px;
-          right: 3px;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
+          top: 0;
+          right: 0;
+          /* The visible chip is small; the hit area is a full 44px corner. */
+          min-width: 44px;
+          height: 44px;
+          padding: 0;
           border: none;
-          background: color-mix(in srgb, var(--ink) 70%, transparent);
+          background: transparent;
           color: var(--paper);
-          font-size: 0.65rem;
           cursor: pointer;
           display: grid;
-          place-items: center;
+          place-items: start end;
+        }
+        .x :global(svg),
+        .confirm {
+          background: color-mix(in srgb, var(--ink) 78%, transparent);
+          border-radius: 999px;
+          margin: 4px;
+        }
+        .x :global(svg) {
+          padding: 3px;
+          width: 24px;
+          height: 24px;
+        }
+        .confirm {
+          font-family: var(--font-mono);
+          font-size: 0.72rem;
+          padding: 0.3rem 0.5rem;
+          background: var(--coral-ink);
+          color: #fff;
         }
       `}</style>
     </div>

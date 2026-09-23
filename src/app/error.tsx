@@ -21,7 +21,6 @@ export default function ErrorBoundary({
 
   return (
     <main className="err">
-      <span className="eyebrow">Something broke</span>
       <h1 className="font-display err-h1">That didn’t load.</h1>
       <p className="err-body">
         Your challenge is safe — every day you’ve logged is stored on this device

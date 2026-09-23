@@ -49,7 +49,6 @@ export default function SignIn() {
       </Link>
 
       <div className="auth-card panel">
-        <span className="eyebrow">Start or resume</span>
         <h1 className="font-display auth-h1">
           {sent ? 'Check your email' : 'Sign in with your email'}
         </h1>
@@ -150,7 +149,6 @@ export default function SignIn() {
         }
         .input:focus {
           border-color: var(--cobalt);
-          outline: none;
         }
         .google {
           border-style: solid;

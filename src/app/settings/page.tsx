@@ -116,7 +116,7 @@ function SettingsForm({ user }: { user: User }) {
           75 Create
         </Link>
         <Link href="/dashboard" className="font-mono back">
-          ← back to grid
+          Back to your grid
         </Link>
       </nav>
 

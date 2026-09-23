@@ -1,73 +1,126 @@
 'use client'
 
-import { TOTAL_DAYS } from '@/lib/types'
+import type { Phase, Stakes } from '@/lib/challengeSession'
+import { MAX_SKIP_TOKENS, TOTAL_DAYS } from '@/lib/types'
 
 interface Props {
   dayIndex: number
   current: number
   longest: number
   totalDays: number
+  /** Omitted on the read-only share page. */
+  phase?: Phase
+  stakes?: Stakes | null
+  missedDay?: number | null
 }
 
-export function StreakHeader({ dayIndex, current, longest, totalDays }: Props) {
+/**
+ * The always-visible status line: where you are, how the run is going, and
+ * what a miss costs. The stakes stay on screen for all 75 days because
+ * they're the point of the format, not a setting you chose once.
+ */
+export function StreakHeader({
+  dayIndex,
+  current,
+  longest,
+  totalDays,
+  phase,
+  stakes,
+  missedDay,
+}: Props) {
   const day = Math.min(Math.max(dayIndex, 0), totalDays)
+  const ended = phase === 'reset-pending'
+  const after = phase === 'maintenance' || (phase === 'finished' && dayIndex > totalDays)
+
   return (
-    <div className="head">
+    <dl className="head">
       <div className="stat stat-day">
-        <span className="eyebrow">Day</span>
-        <div className="big font-display">
-          {day}
-          <span className="denom">/{totalDays}</span>
-        </div>
+        <dt>{ended && missedDay ? 'Ended on day' : after ? 'Finished' : 'Day'}</dt>
+        <dd className="big font-display">
+          {ended && missedDay ? (
+            <>
+              {missedDay}
+              <span className="denom">/{totalDays}</span>
+            </>
+          ) : after ? (
+            <>
+              {totalDays}
+              <span className="denom">/{totalDays}</span>
+            </>
+          ) : (
+            <>
+              {day}
+              <span className="denom">/{totalDays}</span>
+            </>
+          )}
+        </dd>
       </div>
-      <div className="stat">
-        <span className="eyebrow">Streak</span>
-        <div className="num font-display">
-          {current}
-          <span className="unit" aria-hidden>
-            {current > 0 ? 'day' + (current === 1 ? '' : 's') : ''}
-          </span>
-        </div>
-      </div>
-      <div className="stat">
-        <span className="eyebrow">Longest</span>
-        <div className="num font-display">{longest}</div>
-      </div>
-      {totalDays > TOTAL_DAYS && (
+      {!after && (
         <div className="stat">
-          <span className="eyebrow">Extended</span>
-          <div className="num font-display">+{totalDays - TOTAL_DAYS}</div>
+          <dt>Streak</dt>
+          <dd className="num font-display">
+            {current}
+            <span className="unit">{current === 1 ? 'day' : 'days'}</span>
+          </dd>
+        </div>
+      )}
+      <div className="stat">
+        <dt>Longest</dt>
+        <dd className="num font-display">
+          {longest}
+          <span className="unit">{longest === 1 ? 'day' : 'days'}</span>
+        </dd>
+      </div>
+      {stakes && !after && <StakesStat stakes={stakes} totalDays={totalDays} />}
+      {!stakes && totalDays > TOTAL_DAYS && (
+        <div className="stat">
+          <dt>Extended</dt>
+          <dd className="num font-display">+{totalDays - TOTAL_DAYS}</dd>
         </div>
       )}
       <style jsx>{`
         .head {
           display: flex;
-          gap: 1.5rem;
+          gap: 1.25rem 1.75rem;
           align-items: flex-end;
           flex-wrap: wrap;
+          margin: 0;
         }
         .stat {
           display: flex;
           flex-direction: column;
           gap: 0.35rem;
         }
+        dt {
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+        dd {
+          margin: 0;
+        }
         .big {
           font-size: clamp(2.8rem, 12vw, 4.5rem);
           color: var(--ink);
+          font-variant-numeric: tabular-nums;
         }
         .denom {
-          font-size: 0.42em;
+          font-size: 0.36em;
           color: var(--muted);
-          margin-left: 0.1em;
+          margin-left: 0.15em;
+          letter-spacing: 0;
         }
         .num {
           font-size: clamp(1.8rem, 7vw, 2.6rem);
           display: flex;
           align-items: baseline;
-          gap: 0.25rem;
+          gap: 0.3rem;
+          font-variant-numeric: tabular-nums;
         }
         .unit {
-          font-size: 0.32em;
+          font-size: 0.34em;
           font-family: var(--font-mono);
           text-transform: uppercase;
           letter-spacing: 0.1em;
@@ -75,6 +128,108 @@ export function StreakHeader({ dayIndex, current, longest, totalDays }: Props) {
         }
         .stat-day {
           margin-right: auto;
+        }
+      `}</style>
+    </dl>
+  )
+}
+
+function StakesStat({ stakes, totalDays }: { stakes: Stakes; totalDays: number }) {
+  if (stakes.policy === 'grace') {
+    const left = stakes.tokensLeft ?? 0
+    return (
+      <div className="stat">
+        <dt>Grace</dt>
+        <dd className="tokens">
+          <span className="pips" aria-hidden>
+            {Array.from({ length: MAX_SKIP_TOKENS }, (_, i) => (
+              <i key={i} className={i < left ? 'pip on' : 'pip'} />
+            ))}
+          </span>
+          <span className="tok-label">
+            {left} {left === 1 ? 'skip' : 'skips'} left
+          </span>
+        </dd>
+        <style jsx>{`
+          .stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+          }
+          dt {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--muted);
+          }
+          .tokens {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            min-height: 2.6rem;
+            justify-content: flex-end;
+          }
+          .pips {
+            display: flex;
+            gap: 0.35rem;
+          }
+          .pip {
+            width: 1.1rem;
+            height: 1.1rem;
+            border-radius: 3px;
+            border: 1.5px dashed var(--muted);
+          }
+          .pip.on {
+            border: 0;
+            background: var(--cell-skipped);
+            transform: rotate(-4deg);
+            box-shadow: 1px 1.5px 0 color-mix(in srgb, var(--ink) 22%, transparent);
+          }
+          .pip.on:nth-child(2) {
+            transform: rotate(3deg);
+          }
+          .tok-label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: var(--ink-soft);
+          }
+        `}</style>
+      </div>
+    )
+  }
+  const line =
+    stakes.policy === 'classic'
+      ? 'A miss restarts'
+      : stakes.extraDays > 0
+        ? `${totalDays} days (+${stakes.extraDays})`
+        : 'A miss adds a day'
+  return (
+    <div className="stat">
+      <dt>{stakes.policy === 'classic' ? 'Classic' : 'Extend'}</dt>
+      <dd className="line">{line}</dd>
+      <style jsx>{`
+        .stat {
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+        }
+        dt {
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          color: var(--muted);
+        }
+        .line {
+          margin: 0;
+          font-family: var(--font-mono);
+          font-size: 0.85rem;
+          color: var(--ink-soft);
+          min-height: 2.6rem;
+          display: flex;
+          align-items: flex-end;
         }
       `}</style>
     </div>

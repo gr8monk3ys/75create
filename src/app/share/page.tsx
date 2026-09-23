@@ -59,10 +59,10 @@ export default function SharePage() {
         </Link>
       </nav>
 
-      <span className="eyebrow">Shared progress · read only</span>
       <h1 className="font-display sv-h1">
         A 75-day {snap.medium} challenge.
       </h1>
+      <p className="sv-sub">Shared progress, read only. The owner chose to share this snapshot.</p>
 
       <div className="sv-head">
         <StreakHeader
@@ -79,7 +79,7 @@ export default function SharePage() {
 
       {snap.includeLogs && Object.keys(snap.logs).length > 0 && (
         <section className="logs">
-          <span className="eyebrow">Daily logs</span>
+          <h2 className="font-display logs-h2">Daily logs</h2>
           <div className="log-list">
             {Object.entries(snap.logs)
               .sort((a, b) => Number(a[0]) - Number(b[0]))
@@ -122,12 +122,22 @@ function Styles() {
         padding: 0.5rem 0 2rem;
       }
       .sv-nav .small {
-        padding: 0.5rem 0.9rem;
-        font-size: 0.7rem;
+        min-height: 44px;
+        padding: 0.5rem 0.95rem;
+        font-size: 0.75rem;
       }
       .sv-h1 {
         font-size: clamp(2rem, 6vw, 3rem);
-        margin: 0.5rem 0 1.75rem;
+        margin: 0.5rem 0 0.5rem;
+        text-wrap: balance;
+      }
+      .sv-sub {
+        margin: 0 0 1.75rem;
+        color: var(--ink-soft);
+      }
+      .logs-h2 {
+        font-size: 1.4rem;
+        margin: 0;
       }
       .grid-panel {
         padding: 1.5rem;
@@ -151,7 +161,7 @@ function Styles() {
       }
       .log-day {
         color: var(--muted);
-        font-size: 0.72rem;
+        font-size: 0.78rem;
       }
       .log-text {
         color: var(--ink-soft);

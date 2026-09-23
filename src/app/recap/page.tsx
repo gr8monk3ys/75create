@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { Grid } from '@/components/Grid'
+import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
-import { safeHref } from '@/lib/safeUrl'
-import { Artifact } from '@/lib/types'
 
 export default function Recap() {
-  const { loading, user, challenge, dayData, derived, phase, enterMaintenance, closeForNewRound } = useApp()
+  const { loading, user, challenge, dayData, derived, phase, repo, enterMaintenance, closeForNewRound } = useApp()
   const router = useRouter()
   const [building, setBuilding] = useState(false)
 
@@ -73,12 +72,11 @@ export default function Recap() {
           75 Create
         </Link>
         <Link href="/dashboard" className="font-mono back">
-          ← back to grid
+          Back to your grid
         </Link>
       </nav>
 
       <header className="recap-head">
-        <span className="eyebrow">Your recap</span>
         <h1 className="font-display recap-h1">
           {stats.completedDays >= 75 ? '75 days, made.' : 'Here’s what you made.'}
         </h1>
@@ -87,7 +85,7 @@ export default function Recap() {
       <div className="stat-row">
         <Stat big={String(stats.completedDays)} label="days completed" />
         <Stat big={String(stats.longest)} label="longest streak" />
-        <Stat big={`${stats.totalMinutes.toLocaleString()}+`} label="minutes created" />
+        <Stat big={`${stats.totalMinutes.toLocaleString()}+`} label="minutes, at 30 a day" />
       </div>
 
       <div className="grid-panel panel">
@@ -108,8 +106,7 @@ export default function Recap() {
       </div>
 
       <section className="gallery">
-        <span className="eyebrow">The work</span>
-        <h2 className="font-display cert-h2">Your artifact timeline</h2>
+        <h2 className="font-display cert-h2">The work, day by day</h2>
         {artifactDays.length === 0 ? (
           <p className="empty font-mono">
             No artifacts captured yet — they’ll appear here as you add them.
@@ -121,7 +118,7 @@ export default function Recap() {
                 <span className="tl-num font-mono">Day {day}</span>
                 <div className="tl-arts">
                   {artifacts.map((a) => (
-                    <GalleryItem key={a.id} artifact={a} />
+                    <ArtifactThumb key={a.id} artifact={a} repo={repo} size={120} />
                   ))}
                 </div>
                 {dayData.logs[day]?.text && (
@@ -136,7 +133,6 @@ export default function Recap() {
       {(phase === 'finished' || phase === 'maintenance') && (
         <section className="next panel">
           <div>
-            <span className="eyebrow">What now?</span>
             <h2 className="font-display cert-h2">Keep the habit, or run it back.</h2>
             <p className="cert-sub">
               {phase === 'maintenance'
@@ -237,7 +233,7 @@ export default function Recap() {
         }
         .tl-num {
           font-size: 0.72rem;
-          color: var(--coral);
+          color: var(--coral-ink);
           text-transform: uppercase;
           letter-spacing: 0.1em;
         }
@@ -292,77 +288,6 @@ function Stat({ big, label }: { big: string; label: string }) {
           letter-spacing: 0.1em;
           color: var(--muted);
           margin-top: 0.3rem;
-        }
-      `}</style>
-    </div>
-  )
-}
-
-function GalleryItem({ artifact }: { artifact: Artifact }) {
-  const { repo } = useApp()
-  const [src, setSrc] = useState<string | null>(null)
-
-  useEffect(() => {
-    let url: string | null = null
-    let cancelled = false
-    if (artifact.kind === 'image' && artifact.blobRef) {
-      repo.getArtifactBlob(artifact.blobRef).then((blob) => {
-        if (blob && !cancelled) {
-          url = URL.createObjectURL(blob)
-          setSrc(url)
-        }
-      })
-    }
-    return () => {
-      cancelled = true
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [artifact, repo])
-
-  if (artifact.kind === 'url') {
-    const href = safeHref(artifact.url)
-    return (
-      <a
-        href={href ?? undefined}
-        target="_blank"
-        rel="noreferrer"
-        className="g-link font-mono"
-      >
-        {href ? '🔗 link' : '⚠ unsafe link'}
-        <style jsx>{`
-          .g-link {
-            display: grid;
-            place-items: center;
-            width: 96px;
-            height: 96px;
-            border: 1.5px solid var(--line);
-            border-radius: 10px;
-            color: var(--cobalt);
-            font-size: 0.72rem;
-            text-decoration: none;
-          }
-        `}</style>
-      </a>
-    )
-  }
-
-  return (
-    <div className="g-img">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {src && <img src={src} alt={`Artifact from day`} />}
-      <style jsx>{`
-        .g-img {
-          width: 96px;
-          height: 96px;
-          border-radius: 10px;
-          overflow: hidden;
-          border: 1.5px solid var(--line);
-          background: var(--paper-2);
-        }
-        .g-img :global(img) {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
         }
       `}</style>
     </div>

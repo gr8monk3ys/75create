@@ -13,7 +13,20 @@ export async function startChallenge(page: Page, email: string): Promise<void> {
     await page.getByRole('button', { name: /Start my 75/ }).click()
   }
   await page.waitForURL(/\/dashboard/)
-  await expect(page.getByRole('heading', { name: /Day 1/ })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Day 1 of 75' })).toBeAttached()
+}
+
+/**
+ * Meet every rule on the default set: tick the plain rules, write the log and
+ * attach a link (the log and artifact rules are met by the evidence itself).
+ */
+export async function completeToday(page: Page): Promise<void> {
+  const checks = page.locator('button.check')
+  const count = await checks.count()
+  for (let i = 0; i < count; i++) await checks.nth(i).click()
+  await page.locator('textarea.log-input').fill('ink studies of the harbour')
+  await page.getByPlaceholder('paste a link').fill('example.com/study.png')
+  await page.getByRole('button', { name: 'Add link' }).click()
 }
 
 /** Fail the test on any console error, so a silent regression can't slip past. */

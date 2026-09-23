@@ -46,14 +46,13 @@ export default function Home() {
 
       <section className="hero">
         <div className="hero-copy">
-          <span className="eyebrow">A 75-day creative challenge</span>
           <h1 className="font-display hero-h1">
             75 marks.
             <br />
             One a day.
           </h1>
           <p className="lede">
-            Pick your craft, do five things every day for 75 days, and watch the
+            A 75-day creative challenge. Pick your craft, do five things every day for 75 days, and watch the
             grid fill in. Miss nothing and it&apos;s a wall of pigment. Finish and
             you walk away with 75 days of proof you made something.
           </p>
@@ -69,11 +68,17 @@ export default function Home() {
 
         <div className="hero-grid panel">
           <div className="grid-caption">
-            <span className="eyebrow">Day 34 of 75</span>
-            <span className="grid-legend font-mono">
-              <i className="sw sw-c" /> made&nbsp;&nbsp;
-              <i className="sw sw-s" /> skipped&nbsp;&nbsp;
-              <i className="sw sw-m" /> missed
+            <span className="grid-sample font-mono">Example grid · day 34 of 75</span>
+            <span className="grid-legend font-mono" aria-hidden>
+              <span>
+                <i className="sw sw-c" /> made
+              </span>
+              <span>
+                <i className="sw sw-s" /> skipped
+              </span>
+              <span>
+                <i className="sw sw-m" /> missed
+              </span>
             </span>
           </div>
           <Grid days={days} />
@@ -81,13 +86,12 @@ export default function Home() {
       </section>
 
       <section className="rules">
-        <span className="eyebrow">The daily five</span>
         <h2 className="font-display sec-h2">Same five things, every day.</h2>
         <ol className="rule-list">
           {DEFAULT_RULES.map((r, i) => (
             <li key={r.id} className="rule">
               <span className="rule-num font-mono">
-                {String(i + 1).padStart(2, '0')}
+                {i + 1}
               </span>
               <div>
                 <h3 className="font-display rule-h3">{r.name}</h3>
@@ -103,8 +107,7 @@ export default function Home() {
       </section>
 
       <section className="policies">
-        <span className="eyebrow">Choose your stakes</span>
-        <h2 className="font-display sec-h2">What happens when you miss.</h2>
+        <h2 className="font-display sec-h2">Choose what a miss costs.</h2>
         <p className="policy-intro">
           The full reset is iconic — and the top reason people quit for good. You
           pick the rule up front, and it locks. No softening it at 2 a.m. on Day 40.

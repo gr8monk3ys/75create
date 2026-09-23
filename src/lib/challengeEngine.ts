@@ -64,7 +64,9 @@ export function computeDayStates(
 
 /**
  * Current streak (run of completed days ending at, or just before, the current
- * day) and the longest completed run anywhere in the challenge.
+ * day) and the longest completed run anywhere in the challenge. A skipped day
+ * (covered by a skip token) neither adds to a run nor breaks it: spending a
+ * token is what protects the streak.
  */
 export function streaks(
   days: Day[],
@@ -76,7 +78,7 @@ export function streaks(
     if (day.state === 'complete') {
       run++
       if (run > longest) longest = run
-    } else {
+    } else if (day.state !== 'skipped') {
       run = 0
     }
   }
@@ -87,9 +89,10 @@ export function streaks(
   const byIndex = new Map(days.map((d) => [d.index, d]))
   let i = currentIndex
   if (byIndex.get(i)?.state !== 'complete') i -= 1
-  while (i >= 1 && byIndex.get(i)?.state === 'complete') {
-    current++
-    i--
+  for (; i >= 1; i--) {
+    const state = byIndex.get(i)?.state
+    if (state === 'complete') current++
+    else if (state !== 'skipped') break
   }
 
   return { current, longest }
@@ -97,7 +100,6 @@ export function streaks(
 
 export interface MissOutcome {
   action: 'reset' | 'skip' | 'extend'
-  message: string
   newSkipTokensUsed: number
   extraDays: number
 }
@@ -113,37 +115,11 @@ export function missConsequence(challenge: Challenge): MissOutcome {
   }
   switch (challenge.missPolicy) {
     case 'classic':
-      return {
-        ...base,
-        action: 'reset',
-        message: 'A day was missed. Classic mode restarts you at Day 1.',
-      }
-    case 'grace': {
-      if (challenge.skipTokensUsed >= MAX_SKIP_TOKENS) {
-        return {
-          ...base,
-          action: 'reset',
-          message:
-            'A day was missed and your 3 skip tokens are spent. Restarting at Day 1.',
-        }
-      }
-      const used = challenge.skipTokensUsed + 1
-      return {
-        ...base,
-        action: 'skip',
-        newSkipTokensUsed: used,
-        message: `A day was missed. You used skip token ${used} of ${MAX_SKIP_TOKENS}.`,
-      }
-    }
-    case 'extend': {
-      const extra = (challenge.extraDays ?? 0) + 1
-      return {
-        ...base,
-        action: 'extend',
-        extraDays: extra,
-        message:
-          'A day was missed. Extend mode adds a day to the end — your streak display resets but the challenge continues.',
-      }
-    }
+      return { ...base, action: 'reset' }
+    case 'grace':
+      if (challenge.skipTokensUsed >= MAX_SKIP_TOKENS) return { ...base, action: 'reset' }
+      return { ...base, action: 'skip', newSkipTokensUsed: challenge.skipTokensUsed + 1 }
+    case 'extend':
+      return { ...base, action: 'extend', extraDays: base.extraDays + 1 }
   }
 }

@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect } from 'react'
+import { Day } from '@/lib/types'
+import { Grid } from './Grid'
 
 interface Props {
   show: boolean
   milestone?: number | null
+  /** The day just completed, stamped into the grid inside the card. */
+  dayIndex: number
+  days: Day[]
   onDone: () => void
 }
 
@@ -18,20 +23,29 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
   rot: ((i * 53) % 90) - 45,
 }))
 
-export function Celebration({ show, milestone, onDone }: Props) {
+/**
+ * The day's peak: the grid itself, with today's mark stamping in. The grid is
+ * the reward, so the moment shows it rather than describing it.
+ */
+export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) {
   // Visibility is the `show` prop itself; the timer just hands control back to
   // the parent. `onDone` must be referentially stable or the timer restarts.
   useEffect(() => {
     if (!show) return
-    const t = setTimeout(onDone, 2600)
-    return () => clearTimeout(t)
+    const t = setTimeout(onDone, 3200)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onDone()
+    document.addEventListener('keydown', onKey)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('keydown', onKey)
+    }
   }, [show, onDone])
 
   if (!show) return null
 
   const message = milestone
     ? milestoneMessage(milestone)
-    : { title: 'Day done.', sub: 'One more mark on the grid.' }
+    : { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
   return (
     <div className="cel" role="status" aria-live="polite">
@@ -40,19 +54,23 @@ export function Celebration({ show, milestone, onDone }: Props) {
           <span
             key={i}
             className="bit"
-            style={{
-              left: `${c.left}%`,
-              background: c.color,
-              animationDelay: `${c.delay}s`,
-              transform: `rotate(${c.rot}deg)`,
-            }}
+            style={
+              {
+                left: `${c.left}%`,
+                background: c.color,
+                animationDelay: `${c.delay}s`,
+                '--r': `${c.rot}deg`,
+              } as React.CSSProperties
+            }
           />
         ))}
       </div>
       <div className="card panel">
-        {milestone && <span className="milestone font-mono">Day {milestone}</span>}
         <h2 className="font-display">{message.title}</h2>
         <p>{message.sub}</p>
+        <div className="mini" aria-hidden>
+          <Grid days={days} compact stamp={dayIndex} />
+        </div>
       </div>
 
       <style jsx>{`
@@ -62,46 +80,60 @@ export function Celebration({ show, milestone, onDone }: Props) {
           z-index: 50;
           display: grid;
           place-items: center;
+          padding: 1rem;
+          background: color-mix(in srgb, var(--paper) 55%, transparent);
+          /* Never in the way: the next tap still reaches the page. */
           pointer-events: none;
-          background: color-mix(in srgb, var(--paper) 40%, transparent);
         }
         .card {
+          width: min(100%, 22rem);
           text-align: center;
-          padding: 1.75rem 2.5rem;
+          padding: 1.6rem 1.6rem 1.4rem;
           background: var(--paper);
           box-shadow: 6px 8px 0 var(--cobalt);
-          animation: pop-in 0.4s ease both;
+          animation: pop-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
         }
         .card h2 {
           font-size: 2rem;
-          margin: 0.3rem 0;
+          margin: 0 0 0.35rem;
+          text-wrap: balance;
         }
         .card p {
           color: var(--ink-soft);
-          margin: 0;
+          margin: 0 0 1.1rem;
+          line-height: 1.45;
         }
-        .milestone {
-          font-size: 0.72rem;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: var(--coral);
+        .mini {
+          padding: 0.6rem;
+          border-radius: 8px;
+          background: var(--paper-2);
         }
         .confetti {
           position: absolute;
           inset: 0;
           overflow: hidden;
+          pointer-events: none;
         }
         .bit {
           position: absolute;
-          top: -5%;
+          top: -16px;
           width: 9px;
           height: 14px;
           border-radius: 2px;
-          animation: fall 2.4s linear forwards;
+          transform: rotate(var(--r));
+          animation: fall 2.4s cubic-bezier(0.3, 0.1, 0.6, 1) forwards;
         }
         @keyframes fall {
           to {
-            top: 105%;
+            transform: translateY(105vh) rotate(calc(var(--r) + 220deg));
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .confetti {
+            display: none;
+          }
+          .card {
+            animation: none;
           }
         }
       `}</style>
@@ -114,9 +146,9 @@ function milestoneMessage(day: number): { title: string; sub: string } {
     case 7:
       return { title: 'One week in.', sub: 'The hardest part is starting. You started.' }
     case 25:
-      return { title: 'A third of the way.', sub: 'This is a habit now, not a whim.' }
+      return { title: 'A third of the way.', sub: 'Day 25. This is a habit now, not a whim.' }
     case 50:
-      return { title: 'Two-thirds done.', sub: '25 to go. You can see the finish.' }
+      return { title: 'Two-thirds done.', sub: 'Day 50. 25 to go. You can see the finish.' }
     case 75:
       return { title: '75 days.', sub: 'You finished. Go see what you made.' }
     default:

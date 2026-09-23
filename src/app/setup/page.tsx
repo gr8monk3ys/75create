@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
 import { RuleEditor } from '@/components/RuleEditor'
+import { Icon } from '@/components/Icon'
 import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
 import { addDays } from '@/lib/creativeDay'
 import {
@@ -13,15 +14,15 @@ import {
   Rule,
 } from '@/lib/types'
 
-const MEDIA: { id: Medium; label: string; glyph: string }[] = [
-  { id: 'writing', label: 'Writing', glyph: '✍' },
-  { id: 'drawing', label: 'Drawing', glyph: '✎' },
-  { id: 'music', label: 'Music', glyph: '♪' },
-  { id: 'photography', label: 'Photography', glyph: '◉' },
-  { id: 'video', label: 'Video', glyph: '▶' },
-  { id: 'code', label: 'Code / generative', glyph: '⌘' },
-  { id: 'mixed', label: 'Mixed', glyph: '✦' },
-  { id: 'other', label: 'Other', glyph: '◇' },
+const MEDIA: { id: Medium; label: string }[] = [
+  { id: 'writing', label: 'Writing' },
+  { id: 'drawing', label: 'Drawing' },
+  { id: 'music', label: 'Music' },
+  { id: 'photography', label: 'Photography' },
+  { id: 'video', label: 'Video' },
+  { id: 'code', label: 'Code / generative' },
+  { id: 'mixed', label: 'Mixed' },
+  { id: 'other', label: 'Other' },
 ]
 
 const POLICIES: { id: MissPolicy; name: string; line: string }[] = [
@@ -78,17 +79,20 @@ export default function Setup() {
 
   return (
     <main className="setup">
-      <div className="steps font-mono">
+      <ol className="steps font-mono" aria-label="Setup steps">
         {['Medium', 'Rules', 'Stakes'].map((s, i) => (
-          <span key={s} className={`step ${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`}>
-            {String(i + 1).padStart(2, '0')} {s}
-          </span>
+          <li
+            key={s}
+            className={`step ${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`}
+            aria-current={i === step ? 'step' : undefined}
+          >
+            {i + 1} {s}
+          </li>
         ))}
-      </div>
+      </ol>
 
       {step === 0 && (
         <section className="pane">
-          <span className="eyebrow">Step one</span>
           <h1 className="font-display setup-h1">What are you making?</h1>
           <p className="sub">This just tailors the wording. You can mix media freely.</p>
           <div className="media-grid">
@@ -98,8 +102,9 @@ export default function Setup() {
                 type="button"
                 className={`media ${medium === m.id ? 'sel' : ''}`}
                 onClick={() => setMedium(m.id)}
+                aria-pressed={medium === m.id}
               >
-                <span className="glyph">{m.glyph}</span>
+                <Icon name={m.id} size={26} className="glyph" />
                 {m.label}
               </button>
             ))}
@@ -115,7 +120,6 @@ export default function Setup() {
 
       {step === 1 && (
         <section className="pane">
-          <span className="eyebrow">Step two</span>
           <h1 className="font-display setup-h1">Your daily rules</h1>
           <p className="sub">
             Start from the default five or make them yours — 3 to 7 tasks. These
@@ -140,7 +144,6 @@ export default function Setup() {
 
       {step === 2 && (
         <section className="pane">
-          <span className="eyebrow">Step three</span>
           <h1 className="font-display setup-h1">Set your stakes</h1>
 
           <div className="policy-choices">
@@ -150,6 +153,7 @@ export default function Setup() {
                 type="button"
                 className={`policy-pick ${policy === p.id ? 'sel' : ''}`}
                 onClick={() => setPolicy(p.id)}
+                aria-pressed={policy === p.id}
               >
                 <span className="pname font-display">{p.name}</span>
                 <span className="pline">{p.line}</span>
@@ -159,12 +163,13 @@ export default function Setup() {
           <p className="lock-note font-mono">This choice locks when you start. Choose honestly.</p>
 
           <div className="start-block">
-            <span className="field-label font-mono">Start date</span>
-            <div className="start-row">
+            <span className="field-label font-mono" id="start-label">Start date</span>
+            <div className="start-row" role="group" aria-labelledby="start-label">
               <button
                 type="button"
                 className={`chip ${startChoice === 'today' ? 'sel' : ''}`}
                 onClick={() => setStartChoice('today')}
+                aria-pressed={startChoice === 'today'}
               >
                 Today
               </button>
@@ -172,6 +177,7 @@ export default function Setup() {
                 type="button"
                 className={`chip ${startChoice === 'future' ? 'sel' : ''}`}
                 onClick={() => setStartChoice('future')}
+                aria-pressed={startChoice === 'future'}
               >
                 Pick a date
               </button>
@@ -179,6 +185,7 @@ export default function Setup() {
                 <input
                   type="date"
                   className="date"
+                  aria-label="Start date"
                   value={futureDate}
                   min={tomorrow}
                   onChange={(e) => setFutureDate(e.target.value)}
@@ -188,11 +195,15 @@ export default function Setup() {
           </div>
 
           <div className="why-block">
-            <span className="field-label font-mono">Why are you starting?</span>
-            <p className="why-hint">
+            <label className="field-label font-mono" htmlFor="why">
+              Why are you starting?
+            </label>
+            <p className="why-hint" id="why-hint">
               We&apos;ll show this back to you on the hard days. One or two lines.
             </p>
             <textarea
+              id="why"
+              aria-describedby="why-hint"
               className="why-input"
               rows={3}
               value={why}
@@ -206,7 +217,7 @@ export default function Setup() {
               Back
             </button>
             <button className="btn" onClick={finish} disabled={!canFinish}>
-              Start my 75 →
+              Start my 75
             </button>
           </div>
           {(error || problem) && (
@@ -221,7 +232,7 @@ export default function Setup() {
         .form-hint {
           margin: 0.75rem 0 0;
           font-size: 0.75rem;
-          color: var(--coral);
+          color: var(--coral-ink);
           text-align: right;
         }
         .setup {
@@ -229,9 +240,11 @@ export default function Setup() {
           padding-top: 2rem;
         }
         .steps {
+          list-style: none;
+          padding: 0;
           display: flex;
           gap: 1rem;
-          font-size: 0.7rem;
+          font-size: 0.75rem;
           letter-spacing: 0.1em;
           text-transform: uppercase;
           color: var(--muted);
@@ -239,7 +252,7 @@ export default function Setup() {
           flex-wrap: wrap;
         }
         .step.on {
-          color: var(--coral);
+          color: var(--coral-ink);
         }
         .step.done {
           color: var(--ink);
@@ -269,8 +282,11 @@ export default function Setup() {
           color: var(--ink);
           font-family: var(--font-body);
           font-size: 1rem;
+          min-height: 56px;
           cursor: pointer;
-          transition: all 0.12s ease;
+          transition:
+            border-color 0.12s ease,
+            box-shadow 0.12s ease;
         }
         .media:hover {
           border-color: var(--ink-soft);
@@ -279,8 +295,8 @@ export default function Setup() {
           border-color: var(--cobalt);
           box-shadow: 3px 4px 0 var(--cobalt);
         }
-        .glyph {
-          font-size: 1.3rem;
+        .media :global(.glyph) {
+          flex: none;
           color: var(--cobalt);
         }
         .nav-row {
@@ -307,7 +323,9 @@ export default function Setup() {
           background: var(--paper-2);
           cursor: pointer;
           color: var(--ink);
-          transition: all 0.12s ease;
+          transition:
+            border-color 0.12s ease,
+            box-shadow 0.12s ease;
         }
         .policy-pick.sel {
           border-color: var(--cobalt);
@@ -340,7 +358,8 @@ export default function Setup() {
           align-items: center;
         }
         .chip {
-          padding: 0.55rem 1rem;
+          min-height: 44px;
+          padding: 0.55rem 1.1rem;
           border-radius: 999px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);
@@ -355,6 +374,8 @@ export default function Setup() {
         }
         .date {
           font-family: var(--font-body);
+          font-size: 1rem;
+          min-height: 44px;
           padding: 0.5rem 0.75rem;
           border-radius: 8px;
           border: 1.5px solid var(--line);
@@ -366,7 +387,7 @@ export default function Setup() {
           margin-top: 2rem;
         }
         .why-hint {
-          color: var(--muted);
+          color: var(--ink-soft);
           font-size: 0.85rem;
           margin: 0.4rem 0 0.7rem;
         }
@@ -382,7 +403,6 @@ export default function Setup() {
           resize: vertical;
         }
         .why-input:focus {
-          outline: none;
           border-color: var(--cobalt);
         }
       `}</style>

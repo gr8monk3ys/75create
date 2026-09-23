@@ -2,6 +2,7 @@
 
 import { MAX_RULES, MIN_RULES, Rule } from '@/lib/types'
 import { newId } from '@/lib/repository'
+import { Icon } from './Icon'
 
 interface Props {
   rules: Rule[]
@@ -48,7 +49,7 @@ export function RuleEditor({ rules, onChange }: Props) {
                   : 'Remove task'
               }
             >
-              ✕
+              <Icon name="close" size={18} />
             </button>
           </div>
           <textarea
@@ -97,7 +98,7 @@ export function RuleEditor({ rules, onChange }: Props) {
           gap: 0.75rem;
         }
         .idx {
-          color: var(--coral);
+          color: var(--coral-ink);
           font-size: 0.85rem;
         }
         .name-input {
@@ -110,19 +111,23 @@ export function RuleEditor({ rules, onChange }: Props) {
           padding: 0.15rem 0;
         }
         .name-input:focus {
-          outline: none;
           border-bottom-color: var(--cobalt);
         }
         .remove {
+          flex: none;
+          width: 44px;
+          height: 44px;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
           background: transparent;
           border: none;
-          color: var(--muted);
+          color: var(--ink-soft);
           cursor: pointer;
-          font-size: 0.9rem;
-          padding: 0.25rem;
         }
         .remove:hover:not(:disabled) {
-          color: var(--coral);
+          color: var(--coral-ink);
+          background: var(--paper);
         }
         .remove:disabled {
           opacity: 0.3;
@@ -139,7 +144,6 @@ export function RuleEditor({ rules, onChange }: Props) {
           resize: vertical;
         }
         .desc-input:focus {
-          outline: none;
           border-color: var(--cobalt);
         }
         .req-toggle {

@@ -2,6 +2,10 @@
 
 import { useState } from 'react'
 import { useApp } from './AppProvider'
+import { Grid } from './Grid'
+import { Icon } from './Icon'
+import { attemptDays } from '@/lib/challengeSession'
+import { POLICY_NAMES, shortDate } from '@/lib/format'
 import { Challenge } from '@/lib/types'
 
 export function PastAttempts() {
@@ -9,28 +13,31 @@ export function PastAttempts() {
   const archived = repo
     .getChallenges()
     .filter((c) => c.status === 'archived')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const [open, setOpen] = useState<string | null>(null)
 
   if (archived.length === 0) return null
 
   return (
-    <section className="past">
-      <span className="eyebrow">Past attempts</span>
-      <h2 className="font-display past-h2">Nothing here is deleted.</h2>
+    <section className="past" aria-labelledby="past-title">
+      <h2 id="past-title" className="font-display past-h2">
+        Past attempts
+      </h2>
       <p className="past-sub">
-        Every reset archives the attempt, logs and all. It still counts as work you
-        made.
+        Nothing here is deleted. Every reset archives the attempt, logs and all. It still counts
+        as work you made.
       </p>
-      <div className="attempts">
-        {archived.map((c) => (
+      <ul className="attempts">
+        {archived.map((c, i) => (
           <AttemptRow
             key={c.id}
+            number={archived.length - i}
             challenge={c}
             open={open === c.id}
             onToggle={() => setOpen(open === c.id ? null : c.id)}
           />
         ))}
-      </div>
+      </ul>
 
       <style jsx>{`
         .past {
@@ -40,15 +47,18 @@ export function PastAttempts() {
         }
         .past-h2 {
           font-size: 1.6rem;
-          margin: 0.4rem 0 0.5rem;
+          margin: 0 0 0.5rem;
         }
         .past-sub {
           color: var(--ink-soft);
           margin: 0 0 1.5rem;
-          max-width: 48ch;
+          max-width: 52ch;
           line-height: 1.5;
         }
         .attempts {
+          list-style: none;
+          margin: 0;
+          padding: 0;
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
@@ -59,44 +69,53 @@ export function PastAttempts() {
 }
 
 function AttemptRow({
+  number,
   challenge,
   open,
   onToggle,
 }: {
+  number: number
   challenge: Challenge
   open: boolean
   onToggle: () => void
 }) {
   const { repo } = useApp()
   const dd = repo.getDayData(challenge.id)
-  const completed = Object.keys(dd.completions).length
-  const logs = Object.entries(dd.logs).sort((a, b) => Number(a[0]) - Number(b[0]))
+  const made = Object.keys(dd.completions).length
+  const logs = Object.entries(dd.logs)
+    .filter(([, log]) => log.text.trim())
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+  const bodyId = `attempt-${challenge.id}`
 
   return (
-    <div className="attempt panel">
-      <button className="attempt-head" onClick={onToggle} aria-expanded={open}>
-        <div>
-          <span className="a-medium font-mono">{challenge.medium}</span>
+    <li className="attempt panel">
+      <button className="attempt-head" onClick={onToggle} aria-expanded={open} aria-controls={bodyId}>
+        <span className="a-title">
+          <span className="a-name font-display">Attempt {number}</span>
           <span className="a-meta">
-            started {challenge.startDate} · {challenge.missPolicy} · reached day{' '}
-            {completed}
+            {POLICY_NAMES[challenge.missPolicy]} · started {shortDate(challenge.startDate)} ·{' '}
+            {made} {made === 1 ? 'day' : 'days'} made
+            {challenge.endedOnDay ? ` · ended on Day ${challenge.endedOnDay}` : ''}
           </span>
-        </div>
-        <span className="chev">{open ? '−' : '+'}</span>
+        </span>
+        <Icon name={open ? 'minus' : 'plus'} size={20} className="chev" />
       </button>
       {open && (
-        <div className="attempt-body">
+        <div className="attempt-body" id={bodyId}>
+          <div className="a-grid">
+            <Grid days={attemptDays(challenge, dd)} compact />
+          </div>
           {logs.length === 0 ? (
-            <p className="empty font-mono">No logs recorded in this attempt.</p>
+            <p className="empty">No logs were written in this attempt.</p>
           ) : (
-            <ul className="log-list">
+            <ol className="log-list">
               {logs.map(([idx, log]) => (
                 <li key={idx}>
-                  <span className="log-day font-mono">Day {idx}</span>
-                  <span className="log-text">{log.text || '—'}</span>
+                  <span className="log-day">Day {idx}</span>
+                  <span className="log-text">{log.text}</span>
                 </li>
               ))}
-            </ul>
+            </ol>
           )}
         </div>
       )}
@@ -111,6 +130,7 @@ function AttemptRow({
           justify-content: space-between;
           align-items: center;
           padding: 1rem 1.25rem;
+          min-height: 56px;
           background: transparent;
           border: none;
           cursor: pointer;
@@ -118,52 +138,59 @@ function AttemptRow({
           text-align: left;
           gap: 1rem;
         }
-        .a-medium {
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-size: 0.75rem;
-          color: var(--coral);
-          margin-right: 0.75rem;
+        .a-title {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .a-name {
+          font-size: 1.1rem;
         }
         .a-meta {
-          color: var(--muted);
-          font-size: 0.85rem;
+          color: var(--ink-soft);
+          font-size: 0.875rem;
         }
-        .chev {
-          font-size: 1.2rem;
+        .attempt-head :global(.chev) {
+          flex: none;
           color: var(--muted);
         }
         .attempt-body {
-          padding: 0 1.25rem 1.25rem;
+          padding: 1rem 1.25rem 1.25rem;
           border-top: 1.5px solid var(--line);
+        }
+        .a-grid {
+          max-width: 360px;
         }
         .empty {
           color: var(--muted);
-          font-size: 0.8rem;
+          font-size: 0.875rem;
+          margin: 1rem 0 0;
         }
         .log-list {
           list-style: none;
           padding: 0;
-          margin: 1rem 0 0;
+          margin: 1.1rem 0 0;
           display: flex;
           flex-direction: column;
           gap: 0.6rem;
         }
         .log-list li {
           display: grid;
-          grid-template-columns: 70px 1fr;
+          grid-template-columns: 4.5rem 1fr;
           gap: 0.75rem;
-          font-size: 0.9rem;
+          font-size: 0.92rem;
         }
         .log-day {
+          font-family: var(--font-mono);
           color: var(--muted);
-          font-size: 0.72rem;
+          font-size: 0.78rem;
+          padding-top: 0.1rem;
         }
         .log-text {
           color: var(--ink-soft);
-          line-height: 1.4;
+          line-height: 1.45;
         }
       `}</style>
-    </div>
+    </li>
   )
 }

@@ -11,7 +11,8 @@
   --paper-3: #ded5c2;
   --ink: #1b1a17;
   --ink-soft: #4a463d;
-  --muted: #8a8274;
+  /* ≥4.5:1 on every paper tone: secondary text is still text. */
+  --muted: #625b4e;
   --line: #d6ccb8;
 
   /* pigments */
@@ -20,6 +21,9 @@
   --marigold: #e0910f;
   --pink: #ff48b0;
   --moss: #2f7d4f;
+  /* Pigments dark enough to carry text (the raw pigments are for fills). */
+  --coral-ink: #ad2f1a;
+  --marigold-ink: #8c5906;
 
   /* grid semantics */
   --cell-complete: var(--cobalt);
@@ -40,9 +44,11 @@
     --paper-3: #272419;
     --ink: #f3ecdd;
     --ink-soft: #cdc5b4;
-    --muted: #8f8877;
+    --muted: #9a9382;
     --line: #322e22;
-    --cobalt: #5b74ff;
+    --cobalt: #6f85ff;
+    --coral-ink: #ff7a63;
+    --marigold-ink: #f0b04a;
     --cell-missed: #3a3526;
   }
 }
@@ -91,6 +97,65 @@ body {
 
 a {
   color: inherit;
+  text-underline-offset: 0.2em;
+}
+
+/* The parts of the page the browser draws still wear the palette. */
+::selection {
+  background: color-mix(in srgb, var(--cobalt) 28%, transparent);
+  color: var(--ink);
+}
+html {
+  caret-color: var(--coral);
+  accent-color: var(--cobalt);
+  scrollbar-color: var(--line) transparent;
+}
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+/* Hidden from sight, not from assistive tech. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  z-index: 60;
+  padding: 0.75rem 1.1rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.78em;
+  padding: 0.1em 0.45em;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 /* centred single-message pages (404, and anything else that just needs to
@@ -171,10 +236,15 @@ a {
   outline-offset: 2px;
 }
 
+/* Reduced motion keeps every state change, just without travel: hover lifts
+   and press offsets become instant, and components drop their decorative
+   loops (the today pulse, confetti) themselves. */
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
+  .btn,
+  .btn:hover,
+  .btn:active {
+    transition: box-shadow 0.12s ease, background 0.12s ease;
+    transform: none;
   }
 }
 
@@ -256,6 +326,12 @@ main {
 .hero-grid {
   padding: 1.25rem;
 }
+.grid-sample {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .grid-caption {
   display: flex;
   justify-content: space-between;
@@ -265,10 +341,17 @@ main {
   flex-wrap: wrap;
 }
 .grid-legend {
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   color: var(--muted);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+}
+.grid-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .sw {
   display: inline-block;
@@ -285,7 +368,20 @@ main {
   background: var(--cell-skipped);
 }
 .sw-m {
-  background: var(--cell-missed);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--cell-missed),
+    var(--cell-missed) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  box-shadow: inset 0 0 0 1px var(--cell-missed);
+}
+.sw-t {
+  border: 2px solid var(--cell-today);
+}
+.sw-f {
+  border: 1.5px dotted var(--muted);
 }
 
 .sec-h2 {
@@ -314,7 +410,7 @@ main {
 }
 .rule-num {
   font-size: 1rem;
-  color: var(--coral);
+  color: var(--coral-ink);
   padding-top: 0.35rem;
 }
 .rule-h3 {

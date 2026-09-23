@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { startChallenge, failOnConsoleErrors } from './helpers'
+import { startChallenge, completeToday, failOnConsoleErrors } from './helpers'
 
 // The daily loop is the product. Every assertion here corresponds to a way a
 // user could lose a day of work or a streak.
@@ -10,38 +10,52 @@ test.describe('core loop', () => {
     await startChallenge(page, 'core@75create.test')
 
     // No day is complete yet.
-    await expect(page.locator('.stamp')).toHaveCount(0)
+    await expect(page.locator('.daycard .stamp')).toHaveCount(0)
 
+    // Ticking the plain rules is not enough: the log and artifact rules are
+    // met by the work itself.
     const checks = page.locator('button.check')
     const count = await checks.count()
     expect(count).toBeGreaterThan(0)
-    for (let i = 0; i < count; i++) {
-      await checks.nth(i).click()
-    }
+    for (let i = 0; i < count; i++) await checks.nth(i).click()
+    await expect(page.locator('.daycard .stamp')).toHaveCount(0)
+    await expect(page.getByText(/of 5 done/)).toHaveText(/3 of 5 done/)
 
-    // All required rules checked marks the day done and stamps the grid.
-    await expect(page.locator('.stamp')).toBeVisible()
-    await expect(page.locator('.cell-complete').first()).toBeVisible()
+    await page.locator('textarea.log-input').fill('ink studies of the harbour')
+    await page.getByPlaceholder('paste a link').fill('example.com/study.png')
+    await page.getByRole('button', { name: 'Add link' }).click()
+
+    // Every rule met marks the day done and stamps the grid.
+    await expect(page.locator('.daycard .stamp')).toBeVisible()
+    await expect(page.locator('.grid-panel .cell-complete').first()).toBeVisible()
     expect(errors).toEqual([])
   })
 
   test('unchecking a rule takes the day back off the grid', async ({ page }) => {
     await startChallenge(page, 'uncheck@75create.test')
 
-    const checks = page.locator('button.check')
-    const count = await checks.count()
-    for (let i = 0; i < count; i++) await checks.nth(i).click()
-    await expect(page.locator('.stamp')).toBeVisible()
+    await completeToday(page)
+    await expect(page.locator('.daycard .stamp')).toBeVisible()
 
-    await checks.first().click()
-    await expect(page.locator('.stamp')).toHaveCount(0)
+    await page.locator('button.check').first().click()
+    await expect(page.locator('.daycard .stamp')).toHaveCount(0)
+  })
+
+  test('keyboard shortcuts tick rules and jump to the log', async ({ page, isMobile }) => {
+    test.skip(isMobile, 'keyboard shortcuts are a desktop accelerator')
+    await startChallenge(page, 'keys@75create.test')
+
+    await page.keyboard.press('1')
+    await expect(page.locator('button.check').first()).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.press('n')
+    await expect(page.locator('textarea.log-input')).toBeFocused()
   })
 
   test('the daily log survives a reload', async ({ page }) => {
     await startChallenge(page, 'log-reload@75create.test')
 
     await page.locator('textarea').first().fill('made a study of the harbour light')
-    await expect(page.locator('.count')).toHaveText('saved')
+    await expect(page.locator('.count').first()).toHaveText(/Saved/)
 
     await page.reload()
     await expect(page.locator('textarea').first()).toHaveValue(
@@ -75,11 +89,11 @@ test.describe('artifact links', () => {
     await startChallenge(page, 'artifact@75create.test')
 
     const input = page.getByPlaceholder('paste a link')
-    const add = page.getByRole('button', { name: 'Add', exact: true })
+    const add = page.getByRole('button', { name: 'Add link' })
 
     await input.fill('javascript:alert(1)')
     await add.click()
-    await expect(page.getByText(/doesn’t look like a web link/)).toBeVisible()
+    await expect(page.getByText(/isn’t a web link/)).toBeVisible()
     await expect(page.locator('.thumb')).toHaveCount(0)
 
     await input.fill('example.com/study.png')
@@ -133,7 +147,7 @@ test.describe('sharing', () => {
     await startChallenge(page, 'share@75create.test')
 
     await page.locator('textarea').first().fill('a private note')
-    await expect(page.locator('.count')).toHaveText('saved')
+    await expect(page.locator('.count').first()).toHaveText(/Saved/)
 
     await page.goto('/dashboard/share')
     const link = (await page.locator('code.link').innerText()).trim()
