@@ -33,13 +33,18 @@ bun run test:e2e   # Playwright, against a real production build
 - **Auth** — passwordless local sign-in (prototype: magic link / OAuth are stubbed).
 - **Setup wizard** — medium, customizable rules (3–7, lock at start), miss policy,
   start date, and a "why I started" note.
-- **Daily check-in** — task checkboxes, ≤500-char log, image artifact (compressed,
-  ≤5 MB) or link, all autosaved.
-- **The grid** — the signature 75-cell hand-stamped pigment grid; streak + day
-  counter always visible.
-- **Miss-policy engine** — Classic / Grace (3 skip tokens) / Extend, applied at day
-  rollover per the user's timezone and late-night buffer. Failed attempts are
-  archived, never deleted.
+- **Daily check-in** — the day's rules, a ≤500-char log and an image artifact
+  (compressed, ≤5 MB) or link, all autosaved. "Log the day" and "Capture an
+  artifact" are met by the log and the artifact themselves, not a checkbox.
+  Keyboard shortcuts (1–7 tick a rule, N jumps to the log) and a "How today
+  works" explainer; the card says when today closes.
+- **The grid** — the signature 75-cell hand-stamped pigment grid; streak, day
+  counter and the stakes (policy, Grace skip tokens left, extensions) always
+  visible. Past days open from the grid to show their log and artifacts.
+- **Miss-policy engine** — Classic / Grace (3 skip tokens; a spent token keeps
+  the streak) / Extend, applied at day rollover per the user's timezone and
+  late-night buffer. Failed attempts are archived with their grid, never
+  deleted.
 - **Reminders** — opt-in daily reminder at a chosen local time: Web Push (reaches
   a closed app, including an installed PWA on iOS), email, or an in-page
   notification as the no-server fallback.
@@ -59,10 +64,17 @@ day.
 - **Next.js (App Router) + TypeScript + Tailwind**, styled-jsx for component styles.
 - **Bun** for installs, scripts, and tests (`bun test` with happy-dom +
   fake-indexeddb, wired up in `tests/setup.ts` via `bunfig.toml`).
-- `src/lib/challengeEngine.ts` — pure, deterministic day/streak/miss-policy logic
-  (time is injected, never read inside). This is the tested correctness core.
-- `src/lib/repository.ts` + `localRepository.ts` — persistence abstraction.
-- `src/components/AppProvider.tsx` — loads state, runs rollover, exposes `useApp()`.
+- `src/lib/challengeSession.ts` — the challenge session: rollover, the completion
+  rule, start / reset / maintenance / new round, all behind one interface that
+  takes a Repository and a clock and returns a snapshot. This is the tested
+  correctness core; `challengeEngine.ts` (day states, streaks, miss
+  consequences) and `creativeDay.ts` (the buffer-aware "what day is it") sit
+  behind it.
+- `src/lib/repository.ts` + `localRepository.ts` — persistence abstraction;
+  accounts sharing a device are parked per account, never merged.
+- `src/components/AppProvider.tsx` — a thin React adapter over the session:
+  re-syncs on a minute tick and on visibility, exposes `useApp()`.
+- `CONTEXT.md` — the domain glossary; `PRODUCT.md` — product context.
 
 See `docs/superpowers/specs/` for the design spec and `docs/superpowers/plans/` for
 the implementation plan.
