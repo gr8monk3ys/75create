@@ -57,6 +57,24 @@ test.describe('core loop', () => {
     await expect(page.locator('textarea.log-input')).toBeFocused()
   })
 
+  test('a log that completes the day lets the writer finish first', async ({ page }) => {
+    await startChallenge(page, 'held@75create.test')
+    const checks = page.locator('button.check')
+    const count = await checks.count()
+    for (let i = 0; i < count; i++) await checks.nth(i).click()
+    await page.getByPlaceholder('paste a link').fill('example.com/study.png')
+    await page.getByRole('button', { name: 'Add link' }).click()
+
+    // The log is the last rule: the day is made as soon as it saves, but the
+    // full-screen moment waits until the writer leaves the field.
+    const log = page.locator('textarea.log-input')
+    await log.fill('ink studies')
+    await expect(page.locator('.daycard .stamp')).toBeVisible()
+    await expect(page.locator('.cel')).toHaveCount(0)
+    await log.blur()
+    await expect(page.locator('.cel')).toBeAttached()
+  })
+
   test('the daily log survives a reload', async ({ page }) => {
     await startChallenge(page, 'log-reload@75create.test')
 
@@ -112,13 +130,34 @@ test.describe('artifact links', () => {
 })
 
 test.describe('settings', () => {
+  // A buffer change can be refused in the small hours (it must never decide a
+  // day), so the clock is pinned where each test needs it.
+  test.use({ timezoneId: 'UTC' })
+
   test('the late-night buffer persists', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-23T12:00:00Z'))
     await startChallenge(page, 'buffer@75create.test')
 
     await page.goto('/settings')
     await page.getByRole('button', { name: '6am' }).click()
     await page.reload()
     await expect(page.getByRole('button', { name: '6am' })).toHaveClass(/sel/)
+  })
+
+  test('a buffer change that would close an unmade day is refused, with the reason', async ({
+    page,
+  }) => {
+    // 01:30 with the default 3am buffer: still Day 1, and it isn't made yet.
+    await page.clock.setFixedTime(new Date('2026-09-23T01:30:00Z'))
+    await startChallenge(page, 'refuse@75create.test')
+
+    await page.goto('/settings')
+    await page.getByRole('button', { name: 'Midnight' }).click()
+    await expect(page.getByRole('alert').filter({ hasText: 'Day 1 isn’t made yet' })).toBeVisible()
+    await expect(page.getByRole('button', { name: '3am' })).toHaveAttribute('aria-pressed', 'true')
+
+    await page.goto('/dashboard')
+    await expect(page.getByRole('heading', { level: 1, name: 'Day 1 of 75' })).toBeAttached()
   })
 
   test('the time zone is shown and matches the device', async ({ page }) => {

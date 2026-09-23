@@ -33,6 +33,9 @@ _Avoid_: Calendar day, today (when the buffer matters)
 **Late-night buffer**:
 The hours after midnight that still belong to the previous creative day (default 3).
 
+**Day boundary**:
+When the creative day rolls over: set by the time zone and the late-night buffer. Changing it may never decide a day, so a change that would close today before it's made, or reopen a day that has closed, is refused until it wouldn't.
+
 **Day index**:
 The 1-based position of a creative day within a challenge; Day 1 is the start date.
 
@@ -81,10 +84,16 @@ _Avoid_: Fail, restart (in code)
 ### After Day 75
 
 **Finished**:
-A challenge whose last day is complete, or whose window has closed.
+A challenge whose last day is complete, or whose last day has passed with every miss covered (a Grace skip). "Made" when every day was made; "done" when skip tokens or extensions carried it there.
+
+**Tally**:
+What a challenge adds up to: days made, skipped and missed, logs written and pieces kept, counted once over the challenge's own days. Every summary (header, recap, certificate, past attempts) shows the same tally.
+
+**Milestone**:
+A day worth marking when it's completed: Day 7, 25 and 50, and the last day, which is the finish. Measured against the challenge's real length, so an extended challenge doesn't finish at Day 75.
 
 **Maintenance**:
-The optional mode after finishing: a daily log and artifact with no rules and no misses.
+The optional mode after finishing: a daily log and artifact with no rules, no misses and nothing to complete.
 
 **New round**:
 Closing a finished challenge so a fresh one can be set up.

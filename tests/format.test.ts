@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import { clockTime, longDay, shortDate } from '@/lib/format'
+import { clockTime, finishLine, longDay, milestoneCopy, shortDate } from '@/lib/format'
 
 describe('format', () => {
   it('formats creative days without any timezone shift', () => {
@@ -17,5 +17,26 @@ describe('format', () => {
     expect(clockTime('00:00')).toBe('midnight')
     expect(clockTime('12:00')).toBe('12:00 pm')
     expect(clockTime('20:30')).toBe('8:30 pm')
+  })
+})
+
+describe('finishLine', () => {
+  const t = { made: 75, skipped: 0, missed: 0, logsWritten: 0, artifactsKept: 0 }
+  it('says "made" only when every day was', () => {
+    expect(finishLine(t, 75)).toEqual({ title: '75 days, made.', detail: '75 days made.' })
+  })
+  it('names skip tokens and extensions', () => {
+    expect(finishLine({ ...t, made: 73, skipped: 2 }, 75)).toEqual({
+      title: '75 days, done.',
+      detail: '73 days made and 2 covered by skip tokens.',
+    })
+    expect(finishLine({ ...t, missed: 1 }, 76).detail).toBe('75 days made and 1 missed and added to the end.')
+  })
+})
+
+describe('milestoneCopy', () => {
+  it('counts down from the real length', () => {
+    expect(milestoneCopy('two-thirds', 50, 77).sub).toContain('27 to go')
+    expect(milestoneCopy('final', 77, 77).title).toBe('77 days.')
   })
 })

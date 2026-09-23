@@ -3,6 +3,7 @@
 // formatted as UTC calendar dates (no timezone shift can move them).
 
 import { MissPolicy } from './types'
+import type { Milestone, Tally } from './challengeSession'
 
 function utcDate(iso: string): Date | null {
   const [y, m, d] = iso.split('-').map(Number)
@@ -54,4 +55,35 @@ export const POLICY_LINES: Record<MissPolicy, string> = {
   classic: 'A missed day ends the attempt and you restart at Day 1 with the same rules.',
   grace: 'A missed day spends one of three skip tokens and your streak survives. With none left, a miss ends the attempt.',
   extend: 'A missed day is added to the end of the challenge. Your streak restarts; the challenge carries on.',
+}
+
+function plural(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+/**
+ * How a finished challenge reads, true to its policy: "made" only when every
+ * day was, "done" when skip tokens or extensions carried it to the end.
+ */
+export function finishLine(t: Tally, totalDays: number): { title: string; detail: string } {
+  const clean = t.skipped === 0 && t.missed === 0
+  const parts = [plural(t.made, 'day made', 'days made')]
+  if (t.skipped > 0) parts.push(`${t.skipped} covered by ${t.skipped === 1 ? 'a skip token' : 'skip tokens'}`)
+  if (t.missed > 0) parts.push(`${t.missed} missed and added to the end`)
+  const detail = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+  return { title: `${totalDays} days, ${clean ? 'made' : 'done'}.`, detail: `${detail}.` }
+}
+
+/** What completing a milestone day says; `totalDays` is the challenge's real length. */
+export function milestoneCopy(m: Milestone, dayIndex: number, totalDays: number): { title: string; sub: string } {
+  switch (m) {
+    case 'week':
+      return { title: 'One week in.', sub: 'The hardest part is starting. You started.' }
+    case 'third':
+      return { title: 'A third of the way.', sub: `Day ${dayIndex}. This is a habit now, not a whim.` }
+    case 'two-thirds':
+      return { title: 'Two-thirds done.', sub: `Day ${dayIndex}. ${totalDays - dayIndex} to go. You can see the finish.` }
+    case 'final':
+      return { title: `${totalDays} days.`, sub: 'You finished. Go see what you made.' }
+  }
 }

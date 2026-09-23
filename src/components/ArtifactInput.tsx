@@ -168,7 +168,13 @@ export function ArtifactInput({
           min-width: 0;
         }
         @media (max-width: 360px) {
+          /* One-handed on a small phone: the link gets the full width, and
+             Add link its own line. */
           .url-row {
+            flex-basis: 100%;
+            flex-wrap: wrap;
+          }
+          .url-input {
             flex-basis: 100%;
           }
         }
@@ -335,6 +341,7 @@ export function ArtifactThumb({
           border: 1.5px solid var(--line);
           background: var(--paper);
           display: grid;
+          grid-template-columns: minmax(0, 1fr);
           place-items: center;
         }
         .thumb.armed .frame {
@@ -360,6 +367,7 @@ export function ArtifactThumb({
           padding: 0.4rem;
           text-decoration: none;
           max-width: 100%;
+          min-width: 0;
         }
         .host {
           display: block;
@@ -417,6 +425,8 @@ export function ArtifactThumb({
           line-height: 1.25;
           text-align: center;
           padding: 0.35rem 0.5rem;
+          /* A card-like block, not a pill: it wraps to two lines. */
+          border-radius: 10px;
           background: var(--coral-ink);
           color: var(--on-coral-ink);
         }

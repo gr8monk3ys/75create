@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useApp } from './AppProvider'
 import { Grid } from './Grid'
 import { Icon } from './Icon'
-import { attemptDays } from '@/lib/challengeSession'
+import { attemptDays, tally } from '@/lib/challengeSession'
 import { POLICY_NAMES, shortDate } from '@/lib/format'
 import { Challenge } from '@/lib/types'
 
@@ -81,7 +81,9 @@ function AttemptRow({
 }) {
   const { repo } = useApp()
   const dd = repo.getDayData(challenge.id)
-  const made = Object.keys(dd.completions).length
+  const days = attemptDays(challenge, dd)
+  const { made } = tally(days, dd)
+  const endedOn = challenge.endedOnDay ?? days.find((d) => d.state === 'missed')?.index ?? null
   const logs = Object.entries(dd.logs)
     .filter(([, log]) => log.text.trim())
     .sort((a, b) => Number(a[0]) - Number(b[0]))
@@ -103,7 +105,7 @@ function AttemptRow({
       {open && (
         <div className="attempt-body" id={bodyId}>
           <div className="a-grid">
-            <Grid days={attemptDays(challenge, dd)} compact />
+            <Grid days={days} compact endedOn={endedOn} />
           </div>
           {logs.length === 0 ? (
             <p className="empty">No logs were written in this attempt.</p>

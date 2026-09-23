@@ -4,6 +4,7 @@ import {
   ChallengeDraft,
   ChallengeSession,
   attemptDays,
+  milestoneAt,
   createChallengeSession,
 } from '@/lib/challengeSession'
 import { DEFAULT_RULES, Rule, User } from '@/lib/types'
@@ -113,7 +114,7 @@ describe('check-in', () => {
     expect(session.toggleTask(1, 'b')).toEqual({ ok: true, justCompleted: true })
     const s = session.read()
     expect(s.days[0].state).toBe('complete')
-    expect(s.completedCount).toBe(1)
+    expect(s.tally.made).toBe(1)
     expect(s.streak.current).toBe(1)
   })
 
@@ -121,7 +122,7 @@ describe('check-in', () => {
     completeToday()
     expect(session.toggleTask(1, 'b')).toEqual({ ok: true, justCompleted: false, reopened: true })
     expect(session.read().days[0].state).toBe('today')
-    expect(session.read().completedCount).toBe(0)
+    expect(session.read().tally.made).toBe(0)
   })
 
   it('toggles from storage, so a double tap toggles back', () => {
@@ -359,4 +360,130 @@ describe('finishing, maintenance, new round', () => {
 
 it('the default rule set is a valid draft', () => {
   expect(() => session.start(draft({ rules: DEFAULT_RULES }))).not.toThrow()
+})
+
+/** Complete every day from the current one up to `last`, skipping `except`. */
+function runTo(last: number, except: number[] = []) {
+  for (let d = session.read().currentIndex; d <= last; d++) {
+    at(d)
+    session.sync()
+    if (!except.includes(d)) completeToday()
+  }
+}
+
+describe('outcome', () => {
+  it('counts made, skipped and missed days once, for every caller', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    completeToday()
+    session.saveLog(1, 'first')
+    session.attachLink(1, 'https://example.com')
+    at(3)
+    session.sync()
+    expect(session.read().tally).toEqual({ made: 1, skipped: 1, missed: 0, logsWritten: 1, artifactsKept: 1 })
+  })
+
+  it('finishes a Grace run with skips, and says so in the tally', () => {
+    session.start(draft({ missPolicy: 'grace' }))
+    runTo(75, [10, 20])
+    const s = session.sync().snapshot
+    expect(s.phase).toBe('finished')
+    expect(s.tally).toMatchObject({ made: 73, skipped: 2, missed: 0 })
+  })
+
+  it('an Extend run is not finished at Day 75 when days were added', () => {
+    session.start(draft({ missPolicy: 'extend' }))
+    runTo(75, [10])
+    let s = session.sync().snapshot
+    expect(s.totalDays).toBe(76)
+    expect(s.phase).toBe('active')
+    at(76)
+    s = session.sync().snapshot
+    completeToday()
+    s = session.read()
+    expect(s.phase).toBe('finished')
+    expect(s.tally).toMatchObject({ made: 75, missed: 1 })
+  })
+
+  it('places milestones against the real length', () => {
+    expect(milestoneAt(7, 75)).toBe('week')
+    expect(milestoneAt(50, 77)).toBe('two-thirds')
+    expect(milestoneAt(75, 75)).toBe('final')
+    expect(milestoneAt(75, 77)).toBeNull()
+    expect(milestoneAt(77, 77)).toBe('final')
+    expect(milestoneAt(12, 75)).toBeNull()
+  })
+
+  it('draws no today and closes the check-in once an attempt has ended', () => {
+    session.start(draft())
+    at(3)
+    const s = session.sync().snapshot
+    expect(s.phase).toBe('reset-pending')
+    expect(s.checkInOpen).toBe(false)
+    expect(s.days.some((d) => d.state === 'today')).toBe(false)
+  })
+})
+
+describe('maintenance', () => {
+  it('keeps artifacts on a maintenance day without completing anything', async () => {
+    session.start(draft())
+    runTo(75)
+    session.enterMaintenance()
+    at(80)
+    const s = session.sync().snapshot
+    expect(s.phase).toBe('maintenance')
+    expect(session.attachLink(s.currentIndex, 'https://example.com')).toEqual({ ok: true, justCompleted: false })
+    const dd = session.read().dayData
+    expect(dd.artifacts[s.currentIndex]).toHaveLength(1)
+    expect(dd.completions[s.currentIndex]).toBeUndefined()
+    const id = dd.artifacts[s.currentIndex][0].id
+    expect((await session.removeArtifact(s.currentIndex, id)).ok).toBe(true)
+    expect(session.toggleTask(s.currentIndex, 'a')).toEqual({ ok: false })
+  })
+})
+
+describe('day boundary', () => {
+  beforeEach(() => {
+    session.start(draft())
+    runTo(1)
+    at(3, 1) // 01:00 on Jan 3: still Day 2 under the 3h buffer
+    session.sync()
+  })
+
+  it('refuses a change that would close today before it is made', () => {
+    expect(session.read().currentIndex).toBe(2)
+    const r = session.changeDayBoundary({ lateNightBufferHrs: 0 })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toMatch(/Day 2 isn’t made yet/)
+    expect(session.sync().snapshot.phase).toBe('active')
+    expect(repo.getUser()!.lateNightBufferHrs).toBe(3)
+  })
+
+  it('allows it once today is made', () => {
+    completeToday()
+    expect(session.changeDayBoundary({ lateNightBufferHrs: 0 })).toEqual({ ok: true })
+    const s = session.sync().snapshot
+    expect(s.currentIndex).toBe(3)
+    expect(s.phase).toBe('active')
+  })
+
+  it('refuses a change that would reopen a day that has closed', () => {
+    at(3, 4) // 04:00 on Jan 3: Day 3 under the 3h buffer
+    session.sync()
+    completeToday()
+    const r = session.changeDayBoundary({ lateNightBufferHrs: 6 })
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.reason).toMatch(/already closed.*after 6:00 am/)
+  })
+
+  it('applies a change that keeps the same creative day', () => {
+    expect(session.changeDayBoundary({ lateNightBufferHrs: 4 })).toEqual({ ok: true })
+    expect(session.read().dayCloses).toBe('04:00')
+  })
+
+  it('sets the reminder through the session', () => {
+    session.setReminder('20:30')
+    expect(repo.getUser()!.reminderTime).toBe('20:30')
+    session.setReminder(null)
+    expect(repo.getUser()!.reminderTime).toBeNull()
+  })
 })

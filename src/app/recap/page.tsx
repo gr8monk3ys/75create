@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { Grid } from '@/components/Grid'
-import { shortDate } from '@/lib/format'
+import { finishLine, shortDate } from '@/lib/format'
 import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
 
@@ -20,13 +20,14 @@ export default function Recap() {
     else if (!challenge) router.replace('/setup')
   }, [loading, user, challenge, router])
 
-  // Only facts the app recorded. It never measures time, so no "minutes".
-  const stats = useMemo(() => {
-    const completedDays = Object.keys(dayData.completions).length
-    const logsWritten = Object.values(dayData.logs).filter((l) => l.text.trim()).length
-    const artifactsKept = Object.values(dayData.artifacts).reduce((n, list) => n + list.length, 0)
-    return { completedDays, longest: derived.streak.longest, logsWritten, artifactsKept }
-  }, [dayData, derived])
+  // Only facts the app recorded (the session counts them). It never measures
+  // time, so no "minutes".
+  const { tally } = derived
+  const longest = derived.streak.longest
+  const ended = phase === 'finished' || phase === 'maintenance'
+  const title = ended
+    ? finishLine(tally, derived.totalDays).title
+    : `${tally.made} ${tally.made === 1 ? 'day' : 'days'}, made.`
 
   const artifactDays = useMemo(() => {
     return Object.entries(dayData.artifacts)
@@ -51,10 +52,11 @@ export default function Recap() {
     try {
       const blob = await generateCertificate({
         dayStates: derived.days.map((d) => d.state),
-        longest: stats.longest,
-        completedDays: stats.completedDays,
-        logsWritten: stats.logsWritten,
-        artifactsKept: stats.artifactsKept,
+        title,
+        longest,
+        completedDays: tally.made,
+        logsWritten: tally.logsWritten,
+        artifactsKept: tally.artifactsKept,
         medium: challenge.medium,
         startDate: shortDate(challenge.startDate),
       })
@@ -87,15 +89,15 @@ export default function Recap() {
 
       <header className="recap-head">
         <h1 className="font-display recap-h1">
-          {stats.completedDays >= 75 ? '75 days, made.' : 'Here’s what you made.'}
+          {ended ? title : 'Here’s what you made.'}
         </h1>
       </header>
 
       <dl className="facts">
-        <Fact n={stats.completedDays} label={stats.completedDays === 1 ? 'day made' : 'days made'} made />
-        <Fact n={stats.longest} label="longest streak" />
-        <Fact n={stats.logsWritten} label={stats.logsWritten === 1 ? 'log written' : 'logs written'} />
-        <Fact n={stats.artifactsKept} label={stats.artifactsKept === 1 ? 'piece kept' : 'pieces kept'} />
+        <Fact n={tally.made} label={tally.made === 1 ? 'day made' : 'days made'} made />
+        <Fact n={longest} label="longest streak" />
+        <Fact n={tally.logsWritten} label={tally.logsWritten === 1 ? 'log written' : 'logs written'} />
+        <Fact n={tally.artifactsKept} label={tally.artifactsKept === 1 ? 'piece kept' : 'pieces kept'} />
       </dl>
 
       <div className="grid-panel panel">

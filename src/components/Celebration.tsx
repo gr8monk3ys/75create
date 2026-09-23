@@ -6,7 +6,8 @@ import { Grid } from './Grid'
 
 interface Props {
   show: boolean
-  milestone?: number | null
+  /** Headline and line for a milestone day; the plain "made" copy otherwise. */
+  milestone?: { title: string; sub: string } | null
   /** The day just completed, stamped into the grid inside the card. */
   dayIndex: number
   days: Day[]
@@ -43,9 +44,7 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
 
   if (!show) return null
 
-  const message = milestone
-    ? milestoneMessage(milestone)
-    : { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
+  const message = milestone ?? { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
   return (
     // Visual only: the check-in card's own live region announces the day.
@@ -141,19 +140,4 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
       `}</style>
     </div>
   )
-}
-
-function milestoneMessage(day: number): { title: string; sub: string } {
-  switch (day) {
-    case 7:
-      return { title: 'One week in.', sub: 'The hardest part is starting. You started.' }
-    case 25:
-      return { title: 'A third of the way.', sub: 'Day 25. This is a habit now, not a whim.' }
-    case 50:
-      return { title: 'Two-thirds done.', sub: 'Day 50. 25 to go. You can see the finish.' }
-    case 75:
-      return { title: '75 days.', sub: 'You finished. Go see what you made.' }
-    default:
-      return { title: `Day ${day}.`, sub: 'Keep the grid going.' }
-  }
 }

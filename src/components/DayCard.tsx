@@ -70,18 +70,23 @@ export function DayCard({
 }: Props) {
   const { toggleTask, saveLog, attachImage, attachLink, removeArtifact, wouldReopen } = useApp()
   const completed = !maintenance && Boolean(dayData.completions[dayIndex])
-  // Seeded from storage once. It is deliberately NOT re-synced from `dayData`:
-  // an autosave round-trip re-reads storage, and copying that back into the
-  // textarea would drop characters typed while the save was in flight. The
-  // dashboard mounts one card per day (`key={dayIndex}`), so a day rollover
-  // still picks up the stored log.
-  const [log, setLog] = useState(dayData.logs[dayIndex]?.text ?? '')
+  // Seeded from storage. Our own autosaves are never copied back (that would
+  // drop characters typed while a save was in flight); a log that changes in
+  // storage for another reason, such as a sync from another device, is taken
+  // in whenever nothing typed here is waiting to be saved.
+  const storedLog = dayData.logs[dayIndex]?.text ?? ''
+  const [log, setLog] = useState(storedLog)
+  /** The stored text this card last wrote or took in. */
+  const knownLog = useRef(storedLog)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Pending debounced write, run immediately if the card goes away first. */
   const pendingSave = useRef<(() => void) | null>(null)
   const logRef = useRef<HTMLTextAreaElement>(null)
   const ruleRefs = useRef<Record<string, HTMLElement | null>>({})
+  /** A completion reached by the log, held until the writer pauses or leaves the field. */
+  const heldCelebration = useRef(false)
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
   const [announce, setAnnounce] = useState('')
   const [notesShown, toggleNotes] = useRuleNotes(dayIndex)
@@ -126,6 +131,7 @@ export function DayCard({
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onHidden)
       if (flashTimer.current) clearTimeout(flashTimer.current)
+      if (holdTimer.current) clearTimeout(holdTimer.current)
       flush()
     }
   }, [])
@@ -133,22 +139,45 @@ export function DayCard({
   // One always-present live region speaks for the card: completion, a day
   // that came back off the grid, rule toggles. (A region that mounts with its
   // text already inside, like the celebration, is often never read.)
+  const releaseCelebration = useCallback(() => {
+    if (holdTimer.current) clearTimeout(holdTimer.current)
+    holdTimer.current = null
+    if (!heldCelebration.current) return
+    heldCelebration.current = false
+    onComplete(dayIndex)
+  }, [dayIndex, onComplete])
+
   const handle = useCallback(
     (result: ToggleResult) => {
       if (!result.ok) return false
       if (result.justCompleted) {
         setAnnounce(`Day ${dayIndex}, made.`)
-        onComplete(dayIndex)
+        // Finished by the log while still writing it: the stamp and the
+        // announcement land now, the full-screen moment once they stop.
+        if (document.activeElement === logRef.current) {
+          heldCelebration.current = true
+          if (holdTimer.current) clearTimeout(holdTimer.current)
+          holdTimer.current = setTimeout(releaseCelebration, 4000)
+        } else onComplete(dayIndex)
         return true
       }
       if (result.reopened) {
+        heldCelebration.current = false
         setAnnounce(`Day ${dayIndex} is no longer complete.`)
         return true
       }
       return false
     },
-    [dayIndex, onComplete],
+    [dayIndex, onComplete, releaseCelebration],
   )
+
+  // Take in a log that changed in storage without being typed here.
+  useEffect(() => {
+    if (storedLog === knownLog.current) return
+    knownLog.current = storedLog
+    if (pendingSave.current) return // what's typed here wins; it saves next
+    setLog(storedLog)
+  }, [storedLog])
 
   const toggle = useCallback(
     (rule: Rule) => {
@@ -197,7 +226,15 @@ export function DayCard({
   function onLogChange(value: string) {
     const clipped = value.slice(0, MAX_LOG_CHARS)
     setLog(clipped)
-    const write = () => handle(saveLog(dayIndex, clipped))
+    // Still writing: the held celebration waits for the next pause.
+    if (heldCelebration.current && holdTimer.current) {
+      clearTimeout(holdTimer.current)
+      holdTimer.current = setTimeout(releaseCelebration, 4000)
+    }
+    const write = () => {
+      knownLog.current = clipped
+      handle(saveLog(dayIndex, clipped))
+    }
     pendingSave.current = write
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
@@ -227,6 +264,7 @@ export function DayCard({
         aria-describedby={[statusId, `log-count-${dayIndex}`].filter(Boolean).join(' ')}
         placeholder="What did you make or learn today?"
         onChange={(e) => onLogChange(e.target.value)}
+        onBlur={releaseCelebration}
       />
       <span id={`log-count-${dayIndex}`} className={`count ${savedFlash ? 'flash' : ''}`}>
         {savedFlash ? (
@@ -561,8 +599,8 @@ export function DayCard({
         }
         .box {
           flex: none;
-          width: 24px;
-          height: 24px;
+          width: 1.5rem;
+          height: 1.5rem;
           border-radius: 4px;
           border: 2px solid var(--muted);
           display: grid;

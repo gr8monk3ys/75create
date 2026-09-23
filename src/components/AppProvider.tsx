@@ -14,11 +14,14 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import { supabaseConfigured } from '@/lib/backend'
 import { DayData, Repository, emptyDayData, newId, newUser } from '@/lib/repository'
 import {
+  BoundaryResult,
   ChallengeDraft,
   ChallengeSession,
+  DayBoundary,
   Phase,
   Snapshot,
   Stakes,
+  Tally,
   ToggleResult,
   createChallengeSession,
 } from '@/lib/challengeSession'
@@ -36,7 +39,9 @@ interface Derived {
   currentIndex: number
   totalDays: number
   streak: { current: number; longest: number }
-  completedCount: number
+  tally: Tally
+  /** Whether today's challenge day takes check-ins. */
+  checkInOpen: boolean
 }
 
 interface AppValue {
@@ -64,8 +69,9 @@ interface AppValue {
   /** True when a Supabase backend is configured (real auth + sync). */
   supabaseEnabled: boolean
   signOut: () => void
-  /** Re-read and roll over (after a write that bypassed the session). */
-  refresh: () => void
+  /** Move the day boundary; refused, with the reason, if it would decide a day. */
+  changeDayBoundary: (change: DayBoundary) => BoundaryResult
+  setReminder: (time: string | null) => void
   toggleTask: (dayIndex: number, ruleId: string) => ToggleResult
   saveLog: (dayIndex: number, text: string) => ToggleResult
   attachImage: (dayIndex: number, blob: Blob) => Promise<ToggleResult>
@@ -89,7 +95,8 @@ const EMPTY: Snapshot = {
   currentIndex: 0,
   totalDays: TOTAL_DAYS,
   streak: { current: 0, longest: 0 },
-  completedCount: 0,
+  tally: { made: 0, skipped: 0, missed: 0, logsWritten: 0, artifactsKept: 0 },
+  checkInOpen: false,
   resetMessage: null,
   missedDay: null,
   creativeToday: '',
@@ -169,6 +176,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [stack])
 
   const [loading, setLoading] = useState(true)
+  // With a backend, being signed in is only known once Supabase reports its
+  // session (and any account data is pulled). Until then the app is still
+  // loading: rendering "signed out" first would bounce a magic-link arrival
+  // to /signin.
+  const [authKnown, setAuthKnown] = useState(!supabaseConfigured)
   const [snap, setSnap] = useState<Snapshot>(EMPTY)
   const [banner, setBanner] = useState<Banner | null>(null)
 
@@ -192,10 +204,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     setLoading(false)
   }, [session])
-
-  // Refreshing is a sync: it writes nothing unless a day has newly been
-  // missed, and a settings change (timezone, buffer) can move the day.
-  const refresh = sync
 
   useEffect(() => {
     // Hydration from localStorage/IndexedDB, which are unreadable during
@@ -238,14 +246,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (session?.user) {
           void synced
             .connectRemote(session.user.id, session.user.email ?? '')
-            .then(() => {
-              synced.setSignedIn(true)
+            .then(() => synced.setSignedIn(true))
+            // Offline or the pull failed: the local copy is still this
+            // account's, so carry on with it rather than hang on loading.
+            .catch(() => synced.setSignedIn(true))
+            .finally(() => {
               sync()
+              setAuthKnown(true)
             })
         } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
           synced.disconnectRemote()
           synced.setSignedIn(false)
           sync()
+          setAuthKnown(true)
         }
       }, 0)
     })
@@ -255,12 +268,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(
     async (email: string): Promise<'local' | 'magic-link-sent'> => {
       if (supabase) {
-        await supabase.auth.signInWithOtp({
+        const { error } = await supabase.auth.signInWithOtp({
           email,
           options: { emailRedirectTo: `${window.location.origin}/dashboard` },
         })
+        // Rate limits and bad addresses come back here: never claim an email
+        // is on its way when it isn't.
+        if (error) throw new Error(error.message)
         return 'magic-link-sent'
       }
+      // The storage layer is still being built (a backend build fetching its
+      // SDK): nothing can be signed into yet.
+      if (!repo) throw new Error('Still starting up. Try again in a moment.')
       if (!(repo instanceof LocalRepository)) return 'local'
       // Prototype auth: an email is an account. A different email switches
       // to that account's data (parking the current one), never inherits it.
@@ -331,6 +350,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       wouldReopen(dayIndex: number, artifactId: string): boolean {
         return session ? session.wouldReopen(dayIndex, artifactId) : false
       },
+      changeDayBoundary(change: DayBoundary): BoundaryResult {
+        if (!session) return { ok: false, reason: 'Still starting up. Try again in a moment.' }
+        const result = session.changeDayBoundary(change)
+        sync()
+        return result
+      },
+      setReminder(time: string | null) {
+        session?.setReminder(time)
+        sync()
+      },
       startChallenge(draft: ChallengeDraft): Challenge {
         if (!session) throw new Error('Storage is unavailable.')
         const c = session.start(draft)
@@ -366,18 +395,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       currentIndex: snap.currentIndex,
       totalDays: snap.totalDays,
       streak: snap.streak,
-      completedCount: snap.completedCount,
+      tally: snap.tally,
+      checkInOpen: snap.checkInOpen,
     }),
-    // streak is rebuilt per snapshot; its numbers are what matter.
+    // streak and tally are rebuilt per snapshot; their numbers are what matter.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [snap.days, snap.currentIndex, snap.totalDays, snap.streak.current, snap.streak.longest, snap.completedCount],
+    [
+      snap.days,
+      snap.currentIndex,
+      snap.totalDays,
+      snap.checkInOpen,
+      snap.streak.current,
+      snap.streak.longest,
+      snap.tally.made,
+      snap.tally.skipped,
+      snap.tally.missed,
+      snap.tally.logsWritten,
+      snap.tally.artifactsKept,
+    ],
   )
 
   // Stable unless something it carries changes, so a banner or a snapshot
   // update doesn't re-render every consumer for nothing.
   const value = useMemo<AppValue>(
     () => ({
-      loading,
+      loading: loading || !authKnown,
       repo: repo as Repository,
       user: snap.user,
       challenge: snap.challenge,
@@ -395,10 +437,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       supabaseEnabled: supabaseConfigured,
       signOut,
-      refresh,
       ...actions,
     }),
-    [loading, repo, snap, derived, banner, dismissBanner, signIn, signInWithGoogle, signOut, refresh, actions],
+    [loading, authKnown, repo, snap, derived, banner, dismissBanner, signIn, signInWithGoogle, signOut, actions],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

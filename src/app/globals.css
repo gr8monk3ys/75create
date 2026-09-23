@@ -144,6 +144,9 @@ button {
   top: -4rem;
   z-index: 60;
   padding: 0.75rem 1.1rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   border-radius: 999px;
   background: var(--ink);
   color: var(--paper);
@@ -409,6 +412,7 @@ main {
 .wordmark {
   font-size: 1.25rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 .nav .btn {
   min-height: 44px;

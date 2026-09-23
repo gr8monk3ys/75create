@@ -5,6 +5,8 @@ import { DayState } from './types'
 
 export interface CertData {
   dayStates: DayState[]
+  /** The headline, e.g. "75 days, made." (worded by the caller, true to the policy). */
+  title: string
   longest: number
   completedDays: number
   /** Days with a written log. */
@@ -65,12 +67,7 @@ export function generateCertificate(data: CertData): Promise<Blob> {
   // title
   ctx.fillStyle = c.ink
   ctx.font = '800 88px sans-serif'
-  const total = data.dayStates.length
-  ctx.fillText(
-    data.completedDays >= total ? `${total} days, made.` : `${data.completedDays} days, made.`,
-    68,
-    190,
-  )
+  ctx.fillText(data.title, 68, 190)
 
   // subtitle
   ctx.fillStyle = c.sub

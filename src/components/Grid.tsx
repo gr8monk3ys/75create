@@ -18,14 +18,18 @@ const LABELS: Record<Day['state'], string> = {
   future: 'upcoming',
 }
 
-/** One sentence a screen reader can say instead of 75 separate cells. */
-export function gridSummary(days: Day[]): string {
+/**
+ * One sentence a screen reader can say instead of 75 separate cells. An
+ * ended attempt has nothing "to go": it says where it ended instead.
+ */
+export function gridSummary(days: Day[], endedOn: number | null = null): string {
   const count = (s: Day['state']) => days.filter((d) => d.state === s).length
   const today = days.find((d) => d.state === 'today')
   const parts = [`${count('complete')} made`]
   if (count('skipped')) parts.push(`${count('skipped')} skipped`)
   if (count('missed')) parts.push(`${count('missed')} missed`)
-  parts.push(`${count('future') + (today ? 1 : 0)} to go`)
+  if (endedOn) parts.push(`ended on Day ${endedOn}`)
+  else parts.push(`${count('future') + (today ? 1 : 0)} to go`)
   return `${days.length}-day grid: ${parts.join(', ')}.`
 }
 
@@ -44,6 +48,8 @@ interface Props {
    *  (e.g. back to the cell a closed detail was opened from). */
   refocus?: number | null
   focusKey?: number
+  /** The day an ended attempt ended on: nothing is left "to go". */
+  endedOn?: number | null
 }
 
 export function Grid({
@@ -55,8 +61,9 @@ export function Grid({
   stamp = null,
   refocus = null,
   focusKey = 0,
+  endedOn = null,
 }: Props) {
-  const summary = gridSummary(days)
+  const summary = gridSummary(days, endedOn)
   const interactive = Boolean(onOpenDay)
   const openable = days.filter((d) => d.state !== 'future').map((d) => d.index)
   const last = openable[openable.length - 1] ?? 1

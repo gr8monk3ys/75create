@@ -1,31 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 
 export default function SignIn() {
-  const { signIn, signInWithGoogle, supabaseEnabled, repo } = useApp()
+  const { signIn, signInWithGoogle, supabaseEnabled, loading, user, challenge } = useApp()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  // Signed in (just now, or already, or by a magic link opened in this tab):
+  // there's nothing to do here. Go where the account's challenge is.
+  useEffect(() => {
+    if (!loading && user) router.replace(challenge ? '/dashboard' : '/setup')
+  }, [loading, user, challenge, router])
 
   async function enter(e: React.FormEvent) {
     e.preventDefault()
     const value = email.trim()
     if (!value || busy) return
     setBusy(true)
+    setError('')
     try {
       const mode = await signIn(value)
-      if (mode === 'magic-link-sent') {
-        setSent(true)
-        return
-      }
-      // Local mode: route based on whether an account already has a challenge.
-      const hasChallenge = repo.getActiveChallenge() !== null
-      router.push(hasChallenge ? '/dashboard' : '/setup')
+      if (mode === 'magic-link-sent') setSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That didn’t work. Try again.')
     } finally {
       setBusy(false)
     }
@@ -65,7 +69,12 @@ export default function SignIn() {
                 className="field-input input"
               />
             </label>
-            <button type="submit" className="btn" disabled={busy}>
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" className="btn" disabled={busy || loading}>
               {supabaseEnabled
                 ? busy
                   ? 'Sending…'
@@ -122,6 +131,11 @@ export default function SignIn() {
         .auth-h1 {
           font-size: 2rem;
           margin: 0.5rem 0 1.5rem;
+        }
+        .auth-error {
+          margin: 0;
+          color: var(--coral-ink);
+          font-size: 0.875rem;
         }
         .auth-form {
           display: flex;

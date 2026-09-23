@@ -11,9 +11,8 @@ import { DAY_DETAIL_ID, DayDetail } from '@/components/DayDetail'
 import { Celebration } from '@/components/Celebration'
 import { MissPolicyBanner } from '@/components/MissPolicyBanner'
 import { PastAttempts } from '@/components/PastAttempts'
-import { longDay } from '@/lib/format'
-
-const MILESTONES = new Set([7, 25, 50, 75])
+import { milestoneAt } from '@/lib/challengeSession'
+import { finishLine, longDay, milestoneCopy } from '@/lib/format'
 
 export default function Dashboard() {
   const {
@@ -36,7 +35,7 @@ export default function Dashboard() {
   const router = useRouter()
   const [celebrate, setCelebrate] = useState(false)
   const [celebratedDay, setCelebratedDay] = useState(0)
-  const [milestone, setMilestone] = useState<number | null>(null)
+  const [milestone, setMilestone] = useState<{ title: string; sub: string } | null>(null)
   const [openDay, setOpenDay] = useState<number | null>(null)
   const [refocus, setRefocus] = useState<{ day: number | null; key: number }>({ day: null, key: 0 })
   // Each day celebrates once per visit: un-ticking and re-ticking a rule
@@ -51,13 +50,18 @@ export default function Dashboard() {
     else if (!challenge) router.replace('/setup')
   }, [loading, user, challenge, router])
 
-  const handleComplete = useCallback((dayIndex: number) => {
-    if (celebrated.current.has(dayIndex)) return
-    celebrated.current.add(dayIndex)
-    setMilestone(MILESTONES.has(dayIndex) ? dayIndex : null)
-    setCelebratedDay(dayIndex)
-    setCelebrate(true)
-  }, [])
+  const totalDays = derived.totalDays
+  const handleComplete = useCallback(
+    (dayIndex: number) => {
+      if (celebrated.current.has(dayIndex)) return
+      celebrated.current.add(dayIndex)
+      const m = milestoneAt(dayIndex, totalDays)
+      setMilestone(m ? milestoneCopy(m, dayIndex, totalDays) : null)
+      setCelebratedDay(dayIndex)
+      setCelebrate(true)
+    },
+    [totalDays],
+  )
 
   if (loading || !user || !challenge) {
     return (
@@ -75,14 +79,9 @@ export default function Dashboard() {
     )
   }
 
-  const { currentIndex, totalDays } = derived
-  const checkInOpen =
-    phase === 'active' || (phase === 'finished' && currentIndex <= totalDays)
-  // With the attempt ended there is no today to check in: don't draw one.
-  const gridDays =
-    phase === 'reset-pending'
-      ? derived.days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))
-      : derived.days
+  const { currentIndex, checkInOpen } = derived
+  const gridDays = derived.days
+  const finish = finishLine(derived.tally, totalDays)
   const opened = openDay ? gridDays.find((d) => d.index === openDay) : undefined
   // Past days you can browse: everything settled before today.
   const pastDays = gridDays.filter((d) => d.state !== 'future' && d.state !== 'today').map((d) => d.index)
@@ -175,14 +174,14 @@ export default function Dashboard() {
           phase={phase}
           stakes={stakes}
           missedDay={missedDay}
-          made={derived.completedCount}
+          made={derived.tally.made}
         />
 
         {/* On a phone the full grid sits below the check-in: show the mark
-            itself up top, where the app opens. */}
-        <div className="mini-grid" aria-hidden>
+            itself up top, where the app opens, as a way down to the grid. */}
+        <a href="#grid" className="mini-grid" aria-label="Jump to the grid">
           <Grid days={gridDays} compact />
-        </div>
+        </a>
 
         {phase === 'reset-pending' && resetMessage && (
           <div className="banner-slot">
@@ -210,11 +209,10 @@ export default function Dashboard() {
           <section className="finish panel" aria-labelledby="finish-title">
             <div>
               <h2 id="finish-title" className="font-display finish-h2">
-                {derived.completedCount >= totalDays ? `${totalDays} days, done.` : 'The window has closed.'}
+                {finish.title}
               </h2>
               <p className="finish-sub">
-                {derived.completedCount} days made. Your recap has the stats, the timeline and a
-                certificate.
+                {finish.detail} Your recap has the stats, the timeline and a certificate.
               </p>
             </div>
             <Link href="/recap" className="btn">
@@ -271,7 +269,7 @@ export default function Dashboard() {
           </div>
 
           <div className="col-grid">
-            <section className="grid-panel panel" aria-labelledby="grid-title">
+            <section id="grid" tabIndex={-1} className="grid-panel panel" aria-labelledby="grid-title">
               <div className="grid-caption">
                 <h2 id="grid-title" className="grid-title font-display">
                   The grid
@@ -291,6 +289,7 @@ export default function Dashboard() {
                 detailId={DAY_DETAIL_ID}
                 refocus={refocus.day}
                 focusKey={refocus.key}
+                endedOn={phase === 'reset-pending' ? missedDay : null}
               />
               {opened ? (
                 <DayDetail
@@ -380,6 +379,15 @@ export default function Dashboard() {
           }
           .nav-links :global(a:hover) {
             color: var(--coral-ink);
+          }
+          @media (max-width: 360px) {
+            /* Wordmark and all three links on one line at 320px. */
+            .nav-links {
+              letter-spacing: 0.02em;
+            }
+            .nav-links :global(a) {
+              padding: 0 0.4rem;
+            }
           }
           .banner-slot {
             margin-top: 1.5rem;
@@ -495,6 +503,7 @@ export default function Dashboard() {
               display: block;
               margin-top: 1.25rem;
               max-width: 22rem;
+              border-radius: 10px;
             }
             .main-cols {
               grid-template-columns: minmax(0, 1fr);

@@ -39,22 +39,16 @@ export function DayDetail({
   hasNext: boolean
 }) {
   const ref = useRef<HTMLElement>(null)
-  const prevRef = useRef<HTMLButtonElement>(null)
-  const nextRef = useRef<HTMLButtonElement>(null)
   const log = dayData.logs[day.index]?.text.trim()
   const artifacts = dayData.artifacts[day.index] ?? []
 
   // Take focus once, when the detail opens. Stepping between days leaves
   // focus on the button that was pressed (the title's live region says which
-  // day is showing); if that direction runs out, focus moves to the other.
+  // day is showing). At either end the button stays focusable, marked
+  // aria-disabled: a real `disabled` would drop focus to the page.
   useEffect(() => {
     ref.current?.focus({ preventScroll: true })
   }, [])
-  useEffect(() => {
-    const active = document.activeElement
-    if (active === prevRef.current && !hasPrev) nextRef.current?.focus()
-    if (active === nextRef.current && !hasNext) prevRef.current?.focus()
-  }, [hasPrev, hasNext])
 
   return (
     <section
@@ -75,21 +69,19 @@ export function DayDetail({
         </h3>
         <div className="d-nav">
           <button
-            ref={prevRef}
             type="button"
             className="icon-btn"
-            onClick={() => onStep(-1)}
-            disabled={!hasPrev}
+            onClick={() => hasPrev && onStep(-1)}
+            aria-disabled={!hasPrev}
             aria-label="Previous day"
           >
             <Icon name="chevron" size={18} className="flip" />
           </button>
           <button
-            ref={nextRef}
             type="button"
             className="icon-btn"
-            onClick={() => onStep(1)}
-            disabled={!hasNext}
+            onClick={() => hasNext && onStep(1)}
+            aria-disabled={!hasNext}
             aria-label="Next day"
           >
             <Icon name="chevron" size={18} />
@@ -167,11 +159,11 @@ export function DayDetail({
           color: var(--ink-soft);
           cursor: pointer;
         }
-        .icon-btn:hover:not(:disabled) {
+        .icon-btn:hover:not([aria-disabled='true']) {
           background: var(--paper);
           color: var(--ink);
         }
-        .icon-btn:disabled {
+        .icon-btn[aria-disabled='true'] {
           color: var(--line);
           cursor: default;
         }

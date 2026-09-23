@@ -39,7 +39,7 @@ export default function Settings() {
 }
 
 function SettingsForm({ user }: { user: User }) {
-  const { repo, refresh, signOut, supabaseEnabled } = useApp()
+  const { repo, signOut, supabaseEnabled, changeDayBoundary, setReminder } = useApp()
   const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
   const [reminderTime, setReminderTime] = useState(user.reminderTime ?? '20:00')
   const [buffer, setBuffer] = useState(user.lateNightBufferHrs)
@@ -48,6 +48,8 @@ function SettingsForm({ user }: { user: User }) {
   )
   const [exporting, setExporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  // Why a day-boundary change was refused, shown under the control that asked.
+  const [boundaryNote, setBoundaryNote] = useState<{ on: 'tz' | 'buffer'; text: string } | null>(null)
   const deviceTz = detectTimezone()
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
 
@@ -63,8 +65,7 @@ function SettingsForm({ user }: { user: User }) {
   }, [])
 
   async function saveReminders(on: boolean, time: string) {
-    repo.saveUser({ ...user, reminderTime: on ? time : null })
-    refresh()
+    setReminder(on ? time : null)
 
     // Push first where it's available: it's the only reminder that reaches a
     // phone with the app closed, and the only one that works on iOS at all.
@@ -88,14 +89,14 @@ function SettingsForm({ user }: { user: User }) {
   }
 
   function saveBuffer(hrs: number) {
-    setBuffer(hrs)
-    repo.saveUser({ ...user, lateNightBufferHrs: hrs })
-    refresh()
+    const result = changeDayBoundary({ lateNightBufferHrs: hrs })
+    if (result.ok) setBuffer(hrs)
+    setBoundaryNote(result.ok ? null : { on: 'buffer', text: result.reason })
   }
 
   function saveTz(tz: string) {
-    repo.saveUser({ ...user, tz })
-    refresh()
+    const result = changeDayBoundary({ tz })
+    setBoundaryNote(result.ok ? null : { on: 'tz', text: result.reason })
   }
 
   async function doExport() {
@@ -184,6 +185,11 @@ function SettingsForm({ user }: { user: User }) {
             </button>
           )}
         </div>
+        {boundaryNote?.on === 'tz' && (
+          <p className="refused" role="alert">
+            {boundaryNote.text}
+          </p>
+        )}
       </section>
 
       <section className="block panel">
@@ -207,6 +213,11 @@ function SettingsForm({ user }: { user: User }) {
             </button>
           ))}
         </div>
+        {boundaryNote?.on === 'buffer' && (
+          <p className="refused" role="alert">
+            {boundaryNote.text}
+          </p>
+        )}
       </section>
 
       <section className="block panel">
@@ -288,6 +299,13 @@ function SettingsForm({ user }: { user: User }) {
           color: var(--ink-soft);
           line-height: 1.5;
           margin: 0 0 1.1rem;
+        }
+        .refused {
+          margin: 0.9rem 0 0;
+          max-width: 60ch;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          color: var(--coral-ink);
         }
         .row-toggle {
           display: flex;

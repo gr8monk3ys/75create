@@ -15,6 +15,7 @@ import {
   streaks,
 } from './challengeEngine'
 import { creativeDate } from './creativeDay'
+import { clockTime, longDay } from './format'
 import {
   Artifact,
   Challenge,
@@ -38,7 +39,7 @@ import {
  * - `active`: today's check-in is open.
  * - `reset-pending`: a miss under Classic (or Grace with no tokens left) ended
  *   the attempt; nothing else happens until the user confirms the restart.
- * - `finished`: the last day is done (or the window has closed).
+ * - `finished`: the last day is done, or has passed with every miss covered.
  * - `maintenance`: after Day 75, creating daily with no rules and no misses.
  */
 export type Phase =
@@ -60,7 +61,10 @@ export interface Snapshot {
   currentIndex: number
   totalDays: number
   streak: { current: number; longest: number }
-  completedCount: number
+  /** What the challenge adds up to so far. */
+  tally: Tally
+  /** Whether today's challenge day takes check-ins (ticks, logs, artifacts). */
+  checkInOpen: boolean
   /** Why the attempt ended, when `phase` is `reset-pending`. */
   resetMessage: string | null
   /** The missed day that ended the attempt, when `phase` is `reset-pending`. */
@@ -80,6 +84,33 @@ export interface Stakes {
   /** Extend only: days added to the end so far. */
   extraDays: number
 }
+
+/**
+ * The counts every summary shows (header, recap, certificate, past attempts),
+ * counted once, over the challenge's own days.
+ */
+export interface Tally {
+  made: number
+  /** Covered by a Grace skip token. */
+  skipped: number
+  /** Days drawn as missed (under Extend, each one added a day to the end). */
+  missed: number
+  /** Challenge days with a written log. */
+  logsWritten: number
+  /** Images and links kept on challenge days. */
+  artifactsKept: number
+}
+
+/** The days worth marking on the way through, measured against the real length. */
+export type Milestone = 'week' | 'third' | 'two-thirds' | 'final'
+
+/** A change to when the creative day rolls over. */
+export interface DayBoundary {
+  tz?: string
+  lateNightBufferHrs?: number
+}
+
+export type BoundaryResult = { ok: true } | { ok: false; reason: string }
 
 /** A consequence applied during rollover, worth telling the user about once. */
 export interface RolloverEvent {
@@ -121,6 +152,14 @@ export interface ChallengeSession {
   attachLink(dayIndex: number, url: string): ToggleResult
   /** Remove one of today's artifacts (and its stored image). */
   removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult>
+  /**
+   * Move the day boundary (time zone or late-night buffer). Refused, with the
+   * reason, when it would close today before it's made or reopen a day that
+   * has already closed: a setting must never decide a day.
+   */
+  changeDayBoundary(change: DayBoundary): BoundaryResult
+  /** Set or clear the daily reminder time ("HH:MM"). */
+  setReminder(time: string | null): void
   /** Whether removing that artifact would reopen a completed today. */
   wouldReopen(dayIndex: number, artifactId: string): boolean
   /** Begin a new challenge. Throws if the draft is invalid or one is running. */
@@ -160,7 +199,8 @@ export function createChallengeSession(
       currentIndex: 0,
       totalDays: TOTAL_DAYS,
       streak: { current: 0, longest: 0 },
-      completedCount: 0,
+      tally: EMPTY_TALLY,
+      checkInOpen: false,
       resetMessage: null,
       missedDay: null,
       creativeToday,
@@ -170,7 +210,7 @@ export function createChallengeSession(
     if (!user || !challenge) return empty
 
     const dayData = repo.getDayData(challenge.id)
-    const days = statesOf(challenge, dayData, user, now)
+    let days = statesOf(challenge, dayData, user, now)
     const currentIndex = currentDayIndex(challenge, now, user.tz, user.lateNightBufferHrs)
     const totalDays = days.length
     const pending = firstPendingMiss(days, dayData)
@@ -183,6 +223,13 @@ export function createChallengeSession(
     else if (isFinished(days, currentIndex)) phase = 'finished'
     else phase = 'active'
 
+    // With the attempt ended there is no today to check in: don't draw one.
+    if (phase === 'reset-pending') {
+      days = days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))
+    }
+    const checkInOpen =
+      (phase === 'active' || phase === 'finished') && currentIndex >= 1 && currentIndex <= totalDays
+
     return {
       phase,
       user,
@@ -192,7 +239,8 @@ export function createChallengeSession(
       currentIndex,
       totalDays,
       streak: streaks(days, currentIndex),
-      completedCount: Object.keys(dayData.completions).length,
+      tally: tally(days, dayData),
+      checkInOpen,
       resetMessage: phase === 'reset-pending' ? resetCopy(challenge, pending!.index) : null,
       missedDay: phase === 'reset-pending' ? pending!.index : null,
       creativeToday,
@@ -262,16 +310,22 @@ export function createChallengeSession(
   /** Today's challenge, when check-ins for `dayIndex` are open. */
   function openDay(dayIndex: number): Challenge | null {
     const snap = read()
-    const open =
-      (snap.phase === 'active' || snap.phase === 'finished') &&
-      dayIndex === snap.currentIndex &&
-      dayIndex >= 1 &&
-      dayIndex <= snap.totalDays
-    return open ? snap.challenge : null
+    return snap.checkInOpen && dayIndex === snap.currentIndex ? snap.challenge : null
+  }
+
+  /**
+   * Today's challenge when today takes artifacts: a check-in day, or a
+   * maintenance day (a log and an artifact, no rules, nothing to complete).
+   */
+  function artifactDay(dayIndex: number): Challenge | null {
+    const snap = read()
+    if (snap.phase === 'maintenance' && dayIndex === snap.currentIndex) return snap.challenge
+    return openDay(dayIndex)
   }
 
   /** Re-decide whether today is complete after any write to it. */
   function settle(challenge: Challenge, dayIndex: number): ToggleResult {
+    if (challenge.status === 'maintenance') return { ok: true, justCompleted: false }
     const fresh = repo.getDayData(challenge.id)
     const complete = completionRules(challenge).every((r) => ruleMet(r, fresh, dayIndex))
     const wasComplete = Boolean(fresh.completions[dayIndex])
@@ -338,26 +392,64 @@ export function createChallengeSession(
   }
 
   async function attachImage(dayIndex: number, blob: Blob): Promise<ToggleResult> {
-    const challenge = openDay(dayIndex)
+    const challenge = artifactDay(dayIndex)
     if (!challenge) return { ok: false }
     const blobRef = await repo.saveArtifactBlob(blob)
     return attach(challenge, dayIndex, { kind: 'image', blobRef })
   }
 
   function attachLink(dayIndex: number, url: string): ToggleResult {
-    const challenge = openDay(dayIndex)
+    const challenge = artifactDay(dayIndex)
     if (!challenge) return { ok: false }
     return attach(challenge, dayIndex, { kind: 'url', url })
   }
 
   async function removeArtifact(dayIndex: number, artifactId: string): Promise<ToggleResult> {
-    const challenge = openDay(dayIndex)
+    const challenge = artifactDay(dayIndex)
     if (!challenge) return { ok: false }
     const artifact = repo.getDayData(challenge.id).artifacts[dayIndex]?.find((a) => a.id === artifactId)
     if (!artifact) return { ok: false }
     if (artifact.blobRef) await repo.deleteArtifactBlob(artifact.blobRef)
     repo.deleteArtifactMeta(challenge.id, dayIndex, artifactId)
     return settle(challenge, dayIndex)
+  }
+
+  function changeDayBoundary(change: DayBoundary): BoundaryResult {
+    const snap = read()
+    const { user } = snap
+    if (!user) return { ok: false, reason: 'Sign in first.' }
+    const next: User = { ...user, ...change }
+    const now = clock()
+    const before = snap.creativeToday
+    const after = creativeDate(now, next.tz, next.lateNightBufferHrs)
+    const running = snap.phase === 'active' || snap.phase === 'finished' || snap.phase === 'reset-pending'
+
+    if (running && after > before && snap.checkInOpen) {
+      const today = snap.days.find((d) => d.index === snap.currentIndex)
+      if (today && today.state !== 'complete') {
+        return {
+          ok: false,
+          reason: `Day ${today.index} isn’t made yet, and this would close it now. Make today first, or change this after ${clockTime(snap.dayCloses)}.`,
+        }
+      }
+    }
+    if (running && after < before) {
+      const when =
+        change.tz === undefined || change.tz === user.tz
+          ? `after ${clockTime(closesAt(next.lateNightBufferHrs))}`
+          : 'later today'
+      return {
+        ok: false,
+        reason: `Right now this would take you back to ${longDay(after)}, a day that has already closed. Change it ${when}.`,
+      }
+    }
+    repo.saveUser(next)
+    return { ok: true }
+  }
+
+  function setReminder(time: string | null): void {
+    const { user } = context()
+    if (user) repo.saveUser({ ...user, reminderTime: time })
   }
 
   function start(draft: ChallengeDraft): Challenge {
@@ -424,6 +516,8 @@ export function createChallengeSession(
     attachLink,
     removeArtifact,
     wouldReopen,
+    changeDayBoundary,
+    setReminder,
     start,
     confirmReset,
     enterMaintenance,
@@ -491,6 +585,34 @@ export function attemptDays(challenge: Challenge, dayData: DayData): Day[] {
     days.push({ challengeId: challenge.id, index, state, completedAt })
   }
   return days
+}
+
+const EMPTY_TALLY: Tally = { made: 0, skipped: 0, missed: 0, logsWritten: 0, artifactsKept: 0 }
+
+/** Count a challenge's days (live or archived) and what was kept on them. */
+export function tally(days: Day[], dayData: DayData): Tally {
+  const t = { ...EMPTY_TALLY }
+  for (const d of days) {
+    if (d.state === 'complete') t.made++
+    else if (d.state === 'skipped') t.skipped++
+    else if (d.state === 'missed') t.missed++
+    if ((dayData.logs[d.index]?.text ?? '').trim()) t.logsWritten++
+    t.artifactsKept += dayData.artifacts[d.index]?.length ?? 0
+  }
+  return t
+}
+
+/**
+ * The milestone completing `dayIndex` reaches, if any. The last day is always
+ * the finish, so an Extend challenge that runs past 75 doesn't finish early.
+ */
+export function milestoneAt(dayIndex: number, totalDays: number): Milestone | null {
+  if (dayIndex === totalDays) return 'final'
+  if (dayIndex > totalDays) return null
+  if (dayIndex === 7) return 'week'
+  if (dayIndex === 25) return 'third'
+  if (dayIndex === 50) return 'two-thirds'
+  return null
 }
 
 /** Why a draft can't start, or null when it can. */
