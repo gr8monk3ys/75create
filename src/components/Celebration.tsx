@@ -50,11 +50,17 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
 
   if (!show) return null
 
+  // Clear of whatever has focus (the button that made the day, the field
+  // still being typed in): the card sits in the half of the screen it isn't.
+  const focused = typeof document !== 'undefined' ? document.activeElement : null
+  const r = focused && focused !== document.body ? focused.getBoundingClientRect() : null
+  const place = r && r.top + r.height / 2 < window.innerHeight / 2 ? 'low' : 'high'
+
   const message = milestone ?? { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
   return (
     // Visual only: the check-in card's own live region announces the day.
-    <div className="cel" aria-hidden>
+    <div className={`cel ${place}`} aria-hidden>
       <div className="confetti" aria-hidden>
         {CONFETTI.map((c, i) => (
           <span
@@ -88,6 +94,14 @@ export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) 
           place-items: center;
           padding: 1rem;
           background: color-mix(in srgb, var(--paper) 55%, transparent);
+        }
+        .cel.high {
+          align-items: start;
+          padding-top: max(1rem, 12vh);
+        }
+        .cel.low {
+          align-items: end;
+          padding-bottom: max(1rem, 12vh);
           /* Never in the way: the next tap still reaches the page. */
           pointer-events: none;
         }

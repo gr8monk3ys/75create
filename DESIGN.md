@@ -229,7 +229,7 @@ One ramp, nothing between its steps:
 
 ## Layout
 
-A single centred column (max 1080px on the dashboard and landing, 640–900px on inner pages) with a 1.5rem gutter. The dashboard is two columns above 54em (864px at default text size, so large text gets one column sooner), the check-in card beside a grid panel that stays in view as the card scrolls. Below that it is one column with a compact copy of the grid under the header, so the mark is on the first screen. Spacing steps in about 0.25rem increments (0.5, 0.75, 1.25, 1.5, 2.5rem): groups sit tight, panels breathe. Touch targets are 44px throughout. Text reflows cleanly at 320px and at 200% zoom.
+A single centred column (max 1080px on the dashboard and landing, 640–900px on inner pages) with a 1.5rem gutter. The dashboard is two columns above 54em (864px at default text size, so large text gets one column sooner), the check-in card beside a grid panel that stays in view as the card scrolls. Below that it is one column with a compact copy of the grid under the header, so the mark is on the first screen. Spacing steps in about 0.25rem increments (0.5, 0.75, 1.25, 1.5, 2.5rem): groups sit tight, panels breathe. Touch targets are 44px throughout, with one exception: the grid's day cells (15 across, about 18px on a phone), which are the product's picture first and a way in second. Every day is also reachable at full size from right under the grid, through Browse past days and the detail's Previous/Next. Text reflows cleanly at 320px and at 200% zoom.
 
 ## Elevation & Depth
 

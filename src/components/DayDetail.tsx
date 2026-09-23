@@ -168,9 +168,9 @@ export function DayDetail({
           color: var(--ink);
         }
         .icon-btn[aria-disabled='true'] {
-          /* Faint but there: the end of the range is visible, not a gap. */
-          color: var(--muted);
-          opacity: 0.45;
+          /* Faint but there: the end of the range is visible, not a gap.
+             Dimmed by colour, so a focus ring on it stays full strength. */
+          color: color-mix(in srgb, var(--muted) 50%, transparent);
           cursor: default;
         }
         .icon-btn :global(.flip) {

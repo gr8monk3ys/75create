@@ -107,6 +107,13 @@ a {
   color: inherit;
   text-underline-offset: 0.2em;
 }
+/* A link inside a sentence is underlined: the reset takes the browser's
+   underline away, and colour alone can't mark it (the ink is the same). */
+p a:not(.btn),
+.inline-link {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+}
 
 /* The parts of the page the browser draws still wear the palette. */
 ::selection {
@@ -257,14 +264,26 @@ kbd {
 /* aria-disabled buttons look disabled but stay focusable, so focus never
    drops to the page when a button turns off under the keyboard. Listed
    after hover and active so they win over both. */
+/* Dimmed by colour, not opacity, so the focus ring on it stays full
+   strength. */
 .btn:disabled,
 .btn[aria-disabled='true'],
 .btn[aria-disabled='true']:hover,
 .btn[aria-disabled='true']:active {
-  opacity: 0.55;
+  --dim: color-mix(in srgb, var(--ink) 42%, var(--paper));
+  background: var(--dim);
+  border-color: var(--dim);
+  color: var(--paper);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+.btn-ghost:disabled,
+.btn-ghost[aria-disabled='true'],
+.btn-ghost[aria-disabled='true']:hover,
+.btn-ghost[aria-disabled='true']:active {
+  background: transparent;
+  color: var(--dim);
 }
 
 :focus-visible {
@@ -272,14 +291,24 @@ kbd {
   outline-offset: 2px;
 }
 /* A date or time field's picker button is its own Tab stop, drawn by the
-   browser: its default ring vanishes on dark paper, so it gets ours. */
-::-webkit-calendar-picker-indicator:focus-visible {
+   browser; while it has focus the field matches neither :focus nor
+   :focus-visible (only :focus-within), and the browser's own ring vanishes
+   on dark paper. Ring the whole field whenever focus is anywhere in it. */
+input[type='date']:focus-within,
+input[type='time']:focus-within {
   outline: 3px solid var(--cobalt);
   outline-offset: 2px;
-  border-radius: 4px;
 }
 
 /* --- shared form primitives: one field, one chip, one small button --- */
+/* The few native checkboxes (settings, share, the rule editor) at a size and
+   pigment that sit with the check-in's boxes; their labels carry the 44px. */
+input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  accent-color: var(--cobalt);
+}
 ::placeholder {
   color: var(--muted);
   opacity: 1;

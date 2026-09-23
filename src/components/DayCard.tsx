@@ -438,6 +438,7 @@ export function DayCard({
                     className={`check evidence ${shownMet ? 'on' : ''}`}
                     data-rule-row
                     tabIndex={-1}
+                    role="group"
                     aria-labelledby={labelId}
                     ref={(el) => {
                       ruleRefs.current[r.id] = el
@@ -604,6 +605,15 @@ export function DayCard({
           text-transform: uppercase;
           letter-spacing: 0.08em;
           transform: rotate(-3deg);
+        }
+        @media (max-width: 26em) {
+          /* Large text or a narrow phone: the stamp would cover the date, so
+             it takes its own line above it instead of the card's corner. */
+          .stamp {
+            position: static;
+            order: -1;
+            margin-bottom: -0.25rem;
+          }
         }
         .checks {
           list-style: none;

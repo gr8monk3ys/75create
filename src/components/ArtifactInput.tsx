@@ -310,7 +310,7 @@ export function ArtifactThumb({
   const alt = dayIndex ? `Day ${dayIndex} image` : 'Artifact image'
 
   return (
-    <div ref={boxRef} className={`thumb ${armed ? 'armed' : ''}`} style={{ width: size, height: size }}>
+    <div ref={boxRef} className={`thumb ${armed ? 'armed' : ''}`} style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }}>
       <div className="frame">
         {artifact.kind === 'image' ? (
           src ? (
@@ -409,7 +409,8 @@ export function ArtifactThumb({
           min-width: 0;
         }
         .host {
-          /* Up to two lines, so a host reads whole in the small tile. */
+          /* Up to two lines, so a host reads whole in the small tile (sized
+             in rem, so it grows with the text). */
           display: -webkit-box;
           -webkit-box-orient: vertical;
           -webkit-line-clamp: 2;
