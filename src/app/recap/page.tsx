@@ -10,7 +10,7 @@ import { safeHref } from '@/lib/safeUrl'
 import { Artifact } from '@/lib/types'
 
 export default function Recap() {
-  const { loading, user, challenge, dayData, derived, repo, refresh } = useApp()
+  const { loading, user, challenge, dayData, derived, phase, enterMaintenance, closeForNewRound } = useApp()
   const router = useRouter()
   const [building, setBuilding] = useState(false)
 
@@ -57,16 +57,12 @@ export default function Recap() {
   }
 
   function startMaintenance() {
-    if (!challenge) return
-    repo.saveChallenge({ ...challenge, status: 'maintenance', maintenanceMode: true })
-    refresh()
+    enterMaintenance()
     router.push('/dashboard')
   }
 
   function newRound() {
-    if (!challenge) return
-    repo.saveChallenge({ ...challenge, status: 'completed' })
-    refresh()
+    closeForNewRound()
     router.push('/setup')
   }
 
@@ -137,24 +133,29 @@ export default function Recap() {
         )}
       </section>
 
-      <section className="next panel">
-        <div>
-          <span className="eyebrow">What now?</span>
-          <h2 className="font-display cert-h2">Keep the habit, or run it back.</h2>
-          <p className="cert-sub">
-            Maintenance mode keeps the daily check-in with no reset stakes. Or start a
-            fresh 75.
-          </p>
-        </div>
-        <div className="next-actions">
-          <button className="btn btn-ghost" onClick={startMaintenance}>
-            Maintenance mode
-          </button>
-          <button className="btn" onClick={newRound}>
-            Start a new round
-          </button>
-        </div>
-      </section>
+      {(phase === 'finished' || phase === 'maintenance') && (
+        <section className="next panel">
+          <div>
+            <span className="eyebrow">What now?</span>
+            <h2 className="font-display cert-h2">Keep the habit, or run it back.</h2>
+            <p className="cert-sub">
+              {phase === 'maintenance'
+                ? 'You are in maintenance mode: a daily log, no rules, no resets. Start a fresh 75 whenever you like.'
+                : 'Maintenance mode keeps a daily log with no rules and no reset stakes. Or start a fresh 75.'}
+            </p>
+          </div>
+          <div className="next-actions">
+            {phase === 'finished' && (
+              <button className="btn btn-ghost" onClick={startMaintenance}>
+                Maintenance mode
+              </button>
+            )}
+            <button className="btn" onClick={newRound}>
+              Start a new round
+            </button>
+          </div>
+        </section>
+      )}
 
       <style jsx>{`
         .recap {

@@ -12,6 +12,7 @@
 //                    open email-sending endpoint billed to your account.
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { reminderDue, secretMatches } from '../_shared/schedule.ts'
 
 const WINDOW_MIN = 15
 /** PostgREST caps a response at 1000 rows, so profiles are read in pages. */
@@ -26,42 +27,8 @@ interface Profile {
   reminder_time: string | null
 }
 
-function localMinutes(tz: string, now: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now)
-  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
-  return g('hour') * 60 + g('minute')
-}
-
-/** Whether this profile's local reminder time falls in the elapsed window. */
 function isDue(profile: Profile, now: Date): boolean {
-  const [h, m] = String(profile.reminder_time).split(':').map(Number)
-  if (Number.isNaN(h) || Number.isNaN(m)) return false
-  let tz = profile.tz || 'UTC'
-  let local: number
-  try {
-    local = localMinutes(tz, now)
-  } catch {
-    // An invalid IANA zone would throw and abort the whole run.
-    tz = 'UTC'
-    local = localMinutes(tz, now)
-  }
-  const delta = local - (h * 60 + m)
-  return delta >= 0 && delta < WINDOW_MIN
-}
-
-/** Constant-time-ish comparison, so the secret can't be probed byte by byte. */
-function secretMatches(provided: string | null, expected: string): boolean {
-  if (!provided || provided.length !== expected.length) return false
-  let diff = 0
-  for (let i = 0; i < expected.length; i++) {
-    diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i)
-  }
-  return diff === 0
+  return reminderDue(profile.reminder_time, profile.tz, now, WINDOW_MIN)
 }
 
 async function sendReminder(

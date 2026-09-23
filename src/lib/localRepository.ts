@@ -9,7 +9,8 @@ import {
 } from './repository'
 import { Artifact, Challenge, Log, User } from './types'
 
-const ROOT_KEY = '75create.v1'
+const KEY_PREFIX = '75create.'
+const ROOT_KEY = `${KEY_PREFIX}v1`
 const DB_NAME = '75create'
 const DB_STORE = 'artifacts'
 
@@ -246,7 +247,12 @@ export class LocalRepository implements Repository {
 
   // ---- account ----
   async deleteAllData(): Promise<void> {
-    if (typeof localStorage !== 'undefined') localStorage.removeItem(ROOT_KEY)
+    if (typeof localStorage !== 'undefined') {
+      // Every key the app writes shares the prefix (root data, sync outbox,
+      // reminder bookkeeping): deletion leaves none of them behind.
+      const ours = Object.keys(localStorage).filter((k) => k.startsWith(KEY_PREFIX))
+      for (const k of ours) localStorage.removeItem(k)
+    }
     const db = await this.openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(DB_STORE, 'readwrite')

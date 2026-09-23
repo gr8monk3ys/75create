@@ -5,7 +5,7 @@
 // tracking one challenge across devices.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DayData, Repository } from './repository'
+import { DayData, Repository, newUser } from './repository'
 import { LocalRepository } from './localRepository'
 import { Artifact, Challenge, Log, User } from './types'
 import { ARTIFACTS_BUCKET } from './supabase'
@@ -141,14 +141,7 @@ export class SyncedRepository implements Repository {
 
     const localUser = this.local.getUser()
     if (!existing.data) {
-      const user: User = localUser ?? {
-        id: userId,
-        email,
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-        lateNightBufferHrs: 3,
-        createdAt: new Date().toISOString(),
-        reminderTime: null,
-      }
+      const user: User = localUser ?? newUser(userId, email)
       const synced: User = { ...user, id: userId, email }
       this.local.saveUser(synced)
       await this.client.from('profiles').upsert({

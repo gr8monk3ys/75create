@@ -11,16 +11,18 @@ import {
 import { LocalRepository } from '@/lib/localRepository'
 import { SyncedRepository } from '@/lib/syncedRepository'
 import { isSupabaseConfigured, supabase } from '@/lib/supabase'
-import { DayData, Repository, newId } from '@/lib/repository'
+import { DayData, Repository, emptyDayData, newId, newUser } from '@/lib/repository'
 import {
-  applyMissPolicy,
-  computeDayStates,
-  currentDayIndex,
-  streaks,
-} from '@/lib/challengeEngine'
+  ChallengeDraft,
+  ChallengeSession,
+  Phase,
+  Snapshot,
+  ToggleResult,
+  createChallengeSession,
+} from '@/lib/challengeSession'
 import { Challenge, Day, TOTAL_DAYS, User } from '@/lib/types'
 
-export type BannerKind = 'skip' | 'extend' | 'reset' | 'milestone' | 'done'
+export type BannerKind = 'skip' | 'extend' | 'reset'
 
 export interface Banner {
   kind: BannerKind
@@ -30,6 +32,7 @@ export interface Banner {
 interface Derived {
   days: Day[]
   currentIndex: number
+  totalDays: number
   streak: { current: number; longest: number }
   completedCount: number
 }
@@ -41,6 +44,12 @@ interface AppValue {
   challenge: Challenge | null
   dayData: DayData
   derived: Derived
+  phase: Phase
+  /** Why the attempt ended, while `phase` is 'reset-pending'. */
+  resetMessage: string | null
+  /** Today's creative date (YYYY-MM-DD), late-night buffer applied. */
+  creativeToday: string
+  /** A one-time note about a consequence applied at rollover (skip/extend). */
   banner: Banner | null
   dismissBanner: () => void
   /** Resolves 'magic-link-sent' when a real auth email was sent (Supabase). */
@@ -49,20 +58,34 @@ interface AppValue {
   /** True when a Supabase backend is configured (real auth + sync). */
   supabaseEnabled: boolean
   signOut: () => void
-  /** Re-read from storage and recompute (call after any mutation). */
+  /** Re-read and roll over (after a write that bypassed the session). */
   refresh: () => void
-  /** Classic/grace-exhausted reset requires explicit confirmation. */
+  toggleTask: (dayIndex: number, ruleId: string) => ToggleResult
+  saveLog: (dayIndex: number, text: string) => void
+  startChallenge: (draft: ChallengeDraft) => Challenge
   confirmReset: () => void
+  enterMaintenance: () => void
+  closeForNewRound: () => void
 }
 
 const AppContext = createContext<AppValue | null>(null)
 
-const emptyDerived: Derived = {
+const EMPTY: Snapshot = {
+  phase: 'signed-out',
+  user: null,
+  challenge: null,
+  dayData: emptyDayData(),
   days: [],
   currentIndex: 0,
+  totalDays: TOTAL_DAYS,
   streak: { current: 0, longest: 0 },
   completedCount: 0,
+  resetMessage: null,
+  creativeToday: '',
 }
+
+/** How often to check whether the creative day has rolled over. */
+const TICK_MS = 60_000
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   // Built once, lazily, and only in the browser: both implementations touch
@@ -72,49 +95,55 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const local = new LocalRepository()
     return supabase ? new SyncedRepository(local, supabase) : local
   })
+  const [session] = useState<ChallengeSession | null>(() =>
+    repo ? createChallengeSession(repo) : null,
+  )
 
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<User | null>(null)
-  const [challenge, setChallenge] = useState<Challenge | null>(null)
-  const [dayData, setDayData] = useState<DayData>({
-    completions: {},
-    logs: {},
-    checks: {},
-    artifacts: {},
-    skips: [],
-    actionedMisses: [],
-  })
+  const [snap, setSnap] = useState<Snapshot>(EMPTY)
   const [banner, setBanner] = useState<Banner | null>(null)
 
-  /**
-   * Read the active challenge, run day-boundary rollover (applying skip/extend
-   * consequences and surfacing a reset confirmation), then load state.
-   */
-  const load = useCallback(() => {
-    if (!repo) return
-    if (!repo.isSignedIn()) {
-      setUser(null)
-      setChallenge(null)
-      setLoading(false)
-      return
-    }
-    setUser(repo.getUser())
-
-    let active = repo.getActiveChallenge()
-    if (active && active.status === 'active') {
-      active = runRollover(repo, active, (b) => setBanner(b))
-    }
-    setChallenge(active)
-    setDayData(active ? repo.getDayData(active.id) : emptyDayDataValue())
+  /** Apply rollover consequences and re-read. Surfaces any new consequence. */
+  const sync = useCallback(() => {
+    if (!session) return
+    const { snapshot, events } = session.sync()
+    setSnap(snapshot)
+    const last = events[events.length - 1]
+    if (last) setBanner({ kind: last.kind, message: last.message })
     setLoading(false)
-  }, [repo])
+  }, [session])
+
+  // Refreshing is a sync: it writes nothing unless a day has newly been
+  // missed, and a settings change (timezone, buffer) can move the day.
+  const refresh = sync
 
   useEffect(() => {
     // Hydration from localStorage/IndexedDB, which are unreadable during
     // render and on the server — an effect is the only place this can happen.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    load()
-  }, [load])
+    sync()
+  }, [sync])
+
+  // The creative day changes while a tab stays open or a PWA sits in the
+  // background. Re-sync when it does, so today's check-in never writes to
+  // yesterday and a missed day is actioned as soon as it becomes one.
+  useEffect(() => {
+    if (!session) return
+    const onChange = () => {
+      if (session.read().creativeToday !== snap.creativeToday) sync()
+    }
+    const timer = setInterval(onChange, TICK_MS)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onChange()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', onChange)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', onChange)
+    }
+  }, [session, snap.creativeToday, sync])
 
   // Real auth: when Supabase is configured the server session is the source of
   // truth for being signed in, and the prototype local session is disabled.
@@ -131,41 +160,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             .connectRemote(session.user.id, session.user.email ?? '')
             .then(() => {
               synced.setSignedIn(true)
-              load()
+              sync()
             })
         } else if (event === 'INITIAL_SESSION' || event === 'SIGNED_OUT') {
           synced.disconnectRemote()
           synced.setSignedIn(false)
-          load()
+          sync()
         }
       }, 0)
     })
     return () => sub.subscription.unsubscribe()
-  }, [load, repo])
-
-  const refresh = useCallback(() => load(), [load])
-
-  const derived = useMemo<Derived>(() => {
-    if (!challenge || !user) return emptyDerived
-    const now = new Date()
-    const currentIndex = currentDayIndex(
-      challenge,
-      now,
-      user.tz,
-      user.lateNightBufferHrs,
-    )
-    const days = computeDayStates(
-      challenge,
-      dayData.completions,
-      now,
-      user.tz,
-      user.lateNightBufferHrs,
-      dayData.skips,
-    )
-    const streak = streaks(days, currentIndex)
-    const completedCount = Object.keys(dayData.completions).length
-    return { days, currentIndex, streak, completedCount }
-  }, [challenge, user, dayData])
+  }, [sync, repo])
 
   const signIn = useCallback(
     async (email: string): Promise<'local' | 'magic-link-sent'> => {
@@ -177,23 +182,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return 'magic-link-sent'
       }
       if (!repo) return 'local'
-      let u = repo.getUser()
-      if (!u || u.email !== email) {
-        u = {
-          id: newId(),
-          email,
-          tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-          lateNightBufferHrs: 3,
-          createdAt: new Date().toISOString(),
-          reminderTime: null,
-        }
-        repo.saveUser(u)
-      }
+      const existing = repo.getUser()
+      if (!existing || existing.email !== email) repo.saveUser(newUser(newId(), email))
       repo.setSignedIn(true)
-      load()
+      sync()
       return 'local'
     },
-    [load, repo],
+    [sync, repo],
   )
 
   const signInWithGoogle = useCallback(async () => {
@@ -207,34 +202,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
     repo?.setSignedIn(false)
-    load()
-  }, [load, repo])
-
-  const confirmReset = useCallback(() => {
-    if (!repo || !challenge) return
-    // Archive the failed attempt and start a fresh one today with the same rules.
-    repo.saveChallenge({ ...challenge, status: 'archived' })
-    const fresh: Challenge = {
-      ...challenge,
-      id: newId(),
-      status: 'active',
-      startDate: localToday(user?.tz ?? 'UTC'),
-      skipTokensUsed: 0,
-      extraDays: 0,
-      createdAt: new Date().toISOString(),
-    }
-    repo.saveChallenge(fresh)
     setBanner(null)
-    load()
-  }, [challenge, user, load, repo])
+    sync()
+  }, [sync, repo])
+
+  const actions = useMemo(() => {
+    const noop: ToggleResult = { ok: false }
+    return {
+      toggleTask(dayIndex: number, ruleId: string): ToggleResult {
+        if (!session) return noop
+        const result = session.toggleTask(dayIndex, ruleId)
+        // A refused toggle means the day moved on under the user; either way
+        // the snapshot catches up.
+        sync()
+        return result
+      },
+      saveLog(dayIndex: number, text: string) {
+        session?.saveLog(dayIndex, text)
+      },
+      startChallenge(draft: ChallengeDraft): Challenge {
+        if (!session) throw new Error('Storage is unavailable.')
+        const c = session.start(draft)
+        sync()
+        return c
+      },
+      confirmReset() {
+        session?.confirmReset()
+        setBanner(null)
+        sync()
+      },
+      enterMaintenance() {
+        session?.enterMaintenance()
+        sync()
+      },
+      closeForNewRound() {
+        session?.closeForNewRound()
+        sync()
+      },
+    }
+  }, [session, sync])
 
   const value: AppValue = {
     loading,
     repo: repo as Repository,
-    user,
-    challenge,
-    dayData,
-    derived,
+    user: snap.user,
+    challenge: snap.challenge,
+    dayData: snap.dayData,
+    derived: {
+      days: snap.days,
+      currentIndex: snap.currentIndex,
+      totalDays: snap.totalDays,
+      streak: snap.streak,
+      completedCount: snap.completedCount,
+    },
+    phase: snap.phase,
+    resetMessage: snap.resetMessage,
+    creativeToday: snap.creativeToday,
     banner,
     dismissBanner: () => setBanner(null),
     signIn,
@@ -242,7 +265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     supabaseEnabled: isSupabaseConfigured(),
     signOut,
     refresh,
-    confirmReset,
+    ...actions,
   }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
@@ -252,86 +275,4 @@ export function useApp(): AppValue {
   const ctx = useContext(AppContext)
   if (!ctx) throw new Error('useApp must be used within AppProvider')
   return ctx
-}
-
-// ---- helpers ----
-
-function emptyDayDataValue(): DayData {
-  return {
-    completions: {},
-    logs: {},
-    checks: {},
-    artifacts: {},
-    skips: [],
-    actionedMisses: [],
-  }
-}
-
-function localToday(tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const y = parts.find((p) => p.type === 'year')!.value
-  const m = parts.find((p) => p.type === 'month')!.value
-  const d = parts.find((p) => p.type === 'day')!.value
-  return `${y}-${m}-${d}`
-}
-
-/**
- * Apply miss-policy consequences for any un-actioned missed days. Skips and
- * extensions are applied automatically; a reset surfaces a confirmation banner
- * (Classic mode never auto-wipes progress — PRD §5.3). Returns the possibly
- * updated challenge.
- */
-function runRollover(
-  repo: Repository,
-  challenge: Challenge,
-  setBanner: (b: Banner) => void,
-): Challenge {
-  const user = repo.getUser()
-  if (!user) return challenge
-  const now = new Date()
-  let current = challenge
-  let dd = repo.getDayData(current.id)
-
-  // Process missed days oldest-first until none remain un-actioned.
-  // Bounded by TOTAL_DAYS to avoid any pathological loop.
-  for (let guard = 0; guard < TOTAL_DAYS + current.extraDays + 1; guard++) {
-    const days = computeDayStates(
-      current,
-      dd.completions,
-      now,
-      user.tz,
-      user.lateNightBufferHrs,
-      dd.skips,
-    )
-    const miss = days.find(
-      (d) => d.state === 'missed' && !dd.actionedMisses.includes(d.index),
-    )
-    if (!miss) break
-
-    const outcome = applyMissPolicy(current, days, miss.index)
-    if (outcome.action === 'reset') {
-      setBanner({ kind: 'reset', message: outcome.message })
-      break // wait for user confirmation; do not mutate.
-    }
-    if (outcome.action === 'skip') {
-      repo.addSkip(current.id, miss.index)
-      repo.addActionedMiss(current.id, miss.index)
-      current = { ...current, skipTokensUsed: outcome.newSkipTokensUsed }
-      repo.saveChallenge(current)
-      setBanner({ kind: 'skip', message: outcome.message })
-    } else if (outcome.action === 'extend') {
-      repo.addActionedMiss(current.id, miss.index)
-      current = { ...current, extraDays: outcome.extraDays }
-      repo.saveChallenge(current)
-      setBanner({ kind: 'extend', message: outcome.message })
-    }
-    dd = repo.getDayData(current.id)
-  }
-
-  return current
 }

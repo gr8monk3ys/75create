@@ -2,7 +2,8 @@
 // localStorage or IndexedDB directly — so the backend can later be swapped for
 // Supabase by providing a new implementation. (Design spec §4.1.)
 
-import { Artifact, Challenge, Log, User } from './types'
+import { Artifact, Challenge, DEFAULT_BUFFER_HRS, Log, User } from './types'
+import { detectTimezone } from './timezone'
 
 export interface DayData {
   /** dayIndex -> ISO completion timestamp. */
@@ -21,6 +22,18 @@ export interface DayData {
 
 export function emptyDayData(): DayData {
   return { completions: {}, logs: {}, checks: {}, artifacts: {}, skips: [], actionedMisses: [] }
+}
+
+/** A fresh profile with this device's timezone and the default buffer. */
+export function newUser(id: string, email: string, now: Date = new Date()): User {
+  return {
+    id,
+    email,
+    tz: detectTimezone() ?? 'UTC',
+    lateNightBufferHrs: DEFAULT_BUFFER_HRS,
+    createdAt: now.toISOString(),
+    reminderTime: null,
+  }
 }
 
 export interface Repository {

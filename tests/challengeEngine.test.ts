@@ -3,7 +3,6 @@ import {
   currentDayIndex,
   computeDayStates,
   streaks,
-  applyMissPolicy,
 } from '@/lib/challengeEngine'
 import type { Challenge } from '@/lib/types'
 
@@ -105,53 +104,5 @@ describe('streaks', () => {
     const now = new Date('2026-01-06T21:00:00Z') // day 6, complete
     const days = computeDayStates(c, completions, now, 'UTC', 3)
     expect(streaks(days, 6)).toEqual({ current: 2, longest: 3 })
-  })
-})
-
-describe('applyMissPolicy', () => {
-  function daysWithMiss() {
-    // day 1 complete, day 2 missed, day 3 = today
-    const c = makeChallenge()
-    const completions = { 1: '2026-01-01T20:00:00Z' }
-    const now = new Date('2026-01-03T10:00:00Z')
-    return { c, days: computeDayStates(c, completions, now, 'UTC', 3), current: 3 }
-  }
-
-  it('classic resets on any miss', () => {
-    const { c, days, current } = daysWithMiss()
-    const r = applyMissPolicy(c, days, current)
-    expect(r.action).toBe('reset')
-    expect(r.message.toLowerCase()).toContain('day 1')
-  })
-
-  it('grace spends a skip token', () => {
-    const { days, current } = daysWithMiss()
-    const c = makeChallenge({ missPolicy: 'grace', skipTokensUsed: 0 })
-    const r = applyMissPolicy(c, days, current)
-    expect(r.action).toBe('skip')
-    expect(r.newSkipTokensUsed).toBe(1)
-    expect(r.message).toContain('1 of 3')
-  })
-
-  it('grace resets after the tokens are gone', () => {
-    const { days, current } = daysWithMiss()
-    const c = makeChallenge({ missPolicy: 'grace', skipTokensUsed: 3 })
-    const r = applyMissPolicy(c, days, current)
-    expect(r.action).toBe('reset')
-  })
-
-  it('extend adds a day', () => {
-    const { days, current } = daysWithMiss()
-    const c = makeChallenge({ missPolicy: 'extend', extraDays: 0 })
-    const r = applyMissPolicy(c, days, current)
-    expect(r.action).toBe('extend')
-    expect(r.extraDays).toBe(1)
-  })
-
-  it('does nothing when there are no missed days', () => {
-    const c = makeChallenge()
-    const days = computeDayStates(c, { 1: 'x' }, new Date('2026-01-02T10:00:00Z'), 'UTC', 3)
-    const r = applyMissPolicy(c, days, 2)
-    expect(r.action).toBe('none')
   })
 })

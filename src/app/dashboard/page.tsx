@@ -20,10 +20,11 @@ export default function Dashboard() {
     challenge,
     dayData,
     derived,
+    phase,
+    resetMessage,
     banner,
     dismissBanner,
     confirmReset,
-    refresh,
     repo,
   } = useApp()
   const router = useRouter()
@@ -46,12 +47,7 @@ export default function Dashboard() {
     )
   }
 
-  const total = derived.days.length
   const { currentIndex } = derived
-  const preStart = currentIndex === 0
-  const withinWindow = currentIndex >= 1 && currentIndex <= total
-  const finalComplete = derived.days[total - 1]?.state === 'complete'
-  const elapsed = currentIndex > total
 
   function handleComplete(dayIndex: number) {
     setMilestone(MILESTONES.has(dayIndex) ? dayIndex : null)
@@ -74,10 +70,21 @@ export default function Dashboard() {
         dayIndex={currentIndex}
         current={derived.streak.current}
         longest={derived.streak.longest}
-        totalDays={total}
+        totalDays={derived.totalDays}
       />
 
-      {banner && (
+      {phase === 'reset-pending' && resetMessage && (
+        <div className="banner-slot">
+          <MissPolicyBanner
+            banner={{ kind: 'reset', message: resetMessage }}
+            whyNote={challenge.whyNote}
+            onConfirmReset={confirmReset}
+            onDismiss={dismissBanner}
+          />
+        </div>
+      )}
+
+      {banner && phase !== 'reset-pending' && (
         <div className="banner-slot">
           <MissPolicyBanner
             banner={banner}
@@ -88,11 +95,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {finalComplete && (
+      {phase === 'finished' && (
         <div className="finish panel">
           <div>
             <span className="eyebrow">You reached the end</span>
-            <h2 className="font-display finish-h2">75 days, done.</h2>
+            <h2 className="font-display finish-h2">
+              {derived.completedCount >= derived.totalDays ? '75 days, done.' : 'The window has closed.'}
+            </h2>
           </div>
           <Link href="/recap" className="btn">
             See your recap →
@@ -102,32 +111,39 @@ export default function Dashboard() {
 
       <div className="main-cols">
         <div className="col-card">
-          {preStart && (
+          {phase === 'prestart' && (
             <div className="panel prestart">
               <span className="eyebrow">Not started yet</span>
               <h2 className="font-display">Your challenge begins {challenge.startDate}.</h2>
               <p>The grid is set. Come back on your start date for Day 1.</p>
             </div>
           )}
-          {withinWindow && (
+          {(phase === 'active' || (phase === 'finished' && currentIndex <= derived.totalDays)) && (
             <DayCard
               key={currentIndex}
               repo={repo}
               challenge={challenge}
               dayIndex={currentIndex}
               dayData={dayData}
-              refresh={refresh}
               onComplete={handleComplete}
             />
           )}
-          {elapsed && !finalComplete && (
+          {phase === 'maintenance' && (
+            <DayCard
+              key={currentIndex}
+              repo={repo}
+              challenge={challenge}
+              dayIndex={currentIndex}
+              dayData={dayData}
+              maintenance
+              onComplete={handleComplete}
+            />
+          )}
+          {phase === 'reset-pending' && (
             <div className="panel prestart">
-              <span className="eyebrow">Window elapsed</span>
-              <h2 className="font-display">The 75-day window has passed.</h2>
-              <p>You can review what you made, or start a fresh round from settings.</p>
-              <Link href="/recap" className="btn btn-ghost" style={{ marginTop: '1rem' }}>
-                View recap
-              </Link>
+              <span className="eyebrow">Attempt ended</span>
+              <h2 className="font-display">Day 1 starts when you do.</h2>
+              <p>Your grid so far is archived under past attempts, never deleted.</p>
             </div>
           )}
         </div>

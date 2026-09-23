@@ -9,29 +9,7 @@ import {
   TOTAL_DAYS,
   MAX_SKIP_TOKENS,
 } from './types'
-
-/** Whole calendar days between two YYYY-MM-DD strings (b - a). */
-function diffDays(a: string, b: string): number {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
-  const au = Date.UTC(ay, am - 1, ad)
-  const bu = Date.UTC(by, bm - 1, bd)
-  return Math.round((bu - au) / 86_400_000)
-}
-
-/** The local YYYY-MM-DD for an instant in a given timezone. */
-function localDate(now: Date, tz: string): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(now)
-  const y = parts.find((p) => p.type === 'year')!.value
-  const m = parts.find((p) => p.type === 'month')!.value
-  const d = parts.find((p) => p.type === 'day')!.value
-  return `${y}-${m}-${d}`
-}
+import { creativeDate, daysBetween } from './creativeDay'
 
 /**
  * The current 1-based day index of a challenge.
@@ -45,9 +23,7 @@ export function currentDayIndex(
   tz: string,
   bufferHrs: number,
 ): number {
-  const shifted = new Date(now.getTime() - bufferHrs * 3_600_000)
-  const today = localDate(shifted, tz)
-  const delta = diffDays(challenge.startDate, today)
+  const delta = daysBetween(challenge.startDate, creativeDate(now, tz, bufferHrs))
   if (delta < 0) return 0
   return delta + 1
 }
@@ -120,34 +96,21 @@ export function streaks(
 }
 
 export interface MissOutcome {
-  action: 'none' | 'reset' | 'skip' | 'extend'
+  action: 'reset' | 'skip' | 'extend'
   message: string
   newSkipTokensUsed: number
   extraDays: number
 }
 
-/** Whether any day before the current one was missed (not completed). */
-function hasMiss(days: Day[]): boolean {
-  return days.some((d) => d.state === 'missed')
-}
-
 /**
- * Determine the consequence of the current miss situation under the challenge's
- * chosen policy. Pure — the caller persists the result.
+ * The consequence of one missed day under the challenge's miss policy. Pure:
+ * the caller decides which days are missed and persists the result.
  */
-export function applyMissPolicy(
-  challenge: Challenge,
-  days: Day[],
-  _currentIndex: number,
-): MissOutcome {
-  const base: MissOutcome = {
-    action: 'none',
-    message: '',
+export function missConsequence(challenge: Challenge): MissOutcome {
+  const base = {
     newSkipTokensUsed: challenge.skipTokensUsed,
     extraDays: challenge.extraDays ?? 0,
   }
-  if (!hasMiss(days)) return base
-
   switch (challenge.missPolicy) {
     case 'classic':
       return {

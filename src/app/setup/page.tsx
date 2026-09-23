@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useApp } from '@/components/AppProvider'
 import { RuleEditor } from '@/components/RuleEditor'
-import { newId } from '@/lib/repository'
+import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
+import { addDays } from '@/lib/creativeDay'
 import {
-  Challenge,
   DEFAULT_RULES,
   Medium,
   MissPolicy,
@@ -30,19 +30,8 @@ const POLICIES: { id: MissPolicy; name: string; line: string }[] = [
   { id: 'extend', name: 'Extend', line: 'A missed day adds a day to the end. Streak resets, challenge continues.' },
 ]
 
-function todayIso(tz: string): string {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const g = (t: string) => p.find((x) => x.type === t)!.value
-  return `${g('year')}-${g('month')}-${g('day')}`
-}
-
 export default function Setup() {
-  const { user, repo, refresh, loading } = useApp()
+  const { user, challenge, creativeToday, startChallenge, loading } = useApp()
   const router = useRouter()
   const [step, setStep] = useState(0)
 
@@ -55,37 +44,36 @@ export default function Setup() {
   const [futureDate, setFutureDate] = useState('')
   const [why, setWhy] = useState('')
 
-  const tz = user?.tz ?? 'UTC'
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/signin')
-  }, [loading, user, router])
+    if (loading) return
+    if (!user) router.replace('/signin')
+    // One challenge at a time: a running one is finished or reset from the dashboard.
+    else if (challenge) router.replace('/dashboard')
+  }, [loading, user, challenge, router])
 
-  const canFinish = useMemo(
-    () => rules.length >= 3 && rules.every((r) => r.name.trim().length > 0),
-    [rules],
-  )
+  const draft: ChallengeDraft = {
+    medium,
+    rules,
+    missPolicy: policy,
+    start: startChoice === 'today' || !futureDate ? 'today' : futureDate,
+    whyNote: why,
+  }
+  const problem = draftProblem(draft)
+  const canFinish = problem === null
+
+  // A picked start date is tomorrow at the earliest, in the user's creative day.
+  const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
 
   function finish() {
     if (!canFinish) return
-    const startDate =
-      startChoice === 'today' || !futureDate ? todayIso(tz) : futureDate
-    const challenge: Challenge = {
-      id: newId(),
-      medium,
-      rules,
-      missPolicy: policy,
-      startDate,
-      status: 'active',
-      skipTokensUsed: 0,
-      whyNote: why.trim(),
-      createdAt: new Date().toISOString(),
-      maintenanceMode: false,
-      extraDays: 0,
+    try {
+      startChallenge(draft)
+      router.push('/dashboard')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the challenge.')
     }
-    repo.saveChallenge(challenge)
-    refresh()
-    router.push('/dashboard')
   }
 
   return (
@@ -142,6 +130,11 @@ export default function Setup() {
               Next: stakes
             </button>
           </div>
+          {problem && (
+            <p className="form-hint font-mono" role="status">
+              {problem}
+            </p>
+          )}
         </section>
       )}
 
@@ -187,7 +180,7 @@ export default function Setup() {
                   type="date"
                   className="date"
                   value={futureDate}
-                  min={todayIso(tz)}
+                  min={tomorrow}
                   onChange={(e) => setFutureDate(e.target.value)}
                 />
               )}
@@ -216,10 +209,21 @@ export default function Setup() {
               Start my 75 →
             </button>
           </div>
+          {(error || problem) && (
+            <p className="form-hint font-mono" role="alert">
+              {error ?? problem}
+            </p>
+          )}
         </section>
       )}
 
       <style jsx>{`
+        .form-hint {
+          margin: 0.75rem 0 0;
+          font-size: 0.75rem;
+          color: var(--coral);
+          text-align: right;
+        }
         .setup {
           max-width: 640px;
           padding-top: 2rem;

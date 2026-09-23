@@ -77,9 +77,13 @@ describe('LocalRepository structured data', () => {
   it('deleteAllData clears everything', async () => {
     repo.saveUser(makeUser())
     repo.saveChallenge(makeChallenge())
+    localStorage.setItem('75create.reminder.lastFired', '2026-01-01')
+    localStorage.setItem('unrelated', 'kept')
     await repo.deleteAllData()
     expect(repo.getUser()).toBeNull()
     expect(repo.getChallenges()).toHaveLength(0)
+    expect(Object.keys(localStorage).filter((k) => k.startsWith('75create.'))).toEqual([])
+    expect(localStorage.getItem('unrelated')).toBe('kept')
   })
 })
 

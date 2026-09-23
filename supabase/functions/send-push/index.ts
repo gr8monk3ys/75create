@@ -18,6 +18,7 @@
 //   npx web-push generate-vapid-keys
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { reminderDue, secretMatches } from '../_shared/schedule.ts'
 import { importVapidKey, vapidToken } from '../_shared/vapid.ts'
 
 const WINDOW_MIN = 15
@@ -35,37 +36,8 @@ interface Subscriber {
 
 // ---------- scheduling ----------
 
-function localMinutes(tz: string, now: Date): number {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now)
-  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0)
-  return g('hour') * 60 + g('minute')
-}
-
 function isDue(sub: Subscriber, now: Date): boolean {
-  const [h, m] = String(sub.reminder_time).split(':').map(Number)
-  if (Number.isNaN(h) || Number.isNaN(m)) return false
-  let local: number
-  try {
-    local = localMinutes(sub.tz || 'UTC', now)
-  } catch {
-    local = localMinutes('UTC', now)
-  }
-  const delta = local - (h * 60 + m)
-  return delta >= 0 && delta < WINDOW_MIN
-}
-
-function secretMatches(provided: string | null, expected: string): boolean {
-  if (!provided || provided.length !== expected.length) return false
-  let diff = 0
-  for (let i = 0; i < expected.length; i++) {
-    diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i)
-  }
-  return diff === 0
+  return reminderDue(sub.reminder_time, sub.tz, now, WINDOW_MIN)
 }
 
 // ---------- delivery ----------

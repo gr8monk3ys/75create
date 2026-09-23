@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DayData, Repository } from '@/lib/repository'
 import { Challenge, MAX_LOG_CHARS } from '@/lib/types'
+import { useApp } from './AppProvider'
 import { ArtifactInput } from './ArtifactInput'
 
 interface Props {
@@ -10,7 +11,8 @@ interface Props {
   challenge: Challenge
   dayIndex: number
   dayData: DayData
-  refresh: () => void
+  /** Maintenance: a daily log and artifact with no rules to check. */
+  maintenance?: boolean
   onComplete: (dayIndex: number) => void
 }
 
@@ -19,11 +21,12 @@ export function DayCard({
   challenge,
   dayIndex,
   dayData,
-  refresh,
+  maintenance = false,
   onComplete,
 }: Props) {
+  const { toggleTask, saveLog, refresh } = useApp()
   const cid = challenge.id
-  const completed = Boolean(dayData.completions[dayIndex])
+  const completed = !maintenance && Boolean(dayData.completions[dayIndex])
   // Seeded from storage once. It is deliberately NOT re-synced from `dayData`:
   // an autosave round-trip re-reads storage, and copying that back into the
   // textarea would drop characters typed while the save was in flight. The
@@ -36,7 +39,8 @@ export function DayCard({
   const pendingSave = useRef<(() => void) | null>(null)
   const [savedFlash, setSavedFlash] = useState(false)
 
-  // Never lose a log to navigation: flush any debounced save on unmount.
+  // Never lose a log to navigation or rollover: flush any debounced save on
+  // unmount. The session files it under the day it was typed for.
   useEffect(
     () => () => {
       if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -52,36 +56,14 @@ export function DayCard({
   }
 
   function toggle(ruleId: string) {
-    const next = !isChecked(ruleId)
-    repo.saveCheck(cid, dayIndex, ruleId, next)
-
-    // Re-read from storage so completion is correct regardless of render
-    // timing (rapid clicks would otherwise close over stale props).
-    const fresh = repo.getDayData(cid)
-    const nowAll = challenge.rules
-      .filter((r) => r.required)
-      .every((r) => fresh.checks[`${dayIndex}:${r.id}`] === true)
-    const wasCompleted = Boolean(fresh.completions[dayIndex])
-
-    if (nowAll && !wasCompleted) {
-      repo.saveDayCompletion(cid, dayIndex, new Date().toISOString())
-      onComplete(dayIndex)
-    } else if (!nowAll && wasCompleted) {
-      repo.saveDayCompletion(cid, dayIndex, null)
-    }
-    refresh()
+    const result = toggleTask(dayIndex, ruleId)
+    if (result.ok && result.justCompleted) onComplete(dayIndex)
   }
 
   function onLogChange(value: string) {
     const clipped = value.slice(0, MAX_LOG_CHARS)
     setLog(clipped)
-    const write = () => {
-      repo.saveLog(cid, dayIndex, {
-        dayId: `${cid}:${dayIndex}`,
-        text: clipped,
-        updatedAt: new Date().toISOString(),
-      })
-    }
+    const write = () => saveLog(dayIndex, clipped)
     pendingSave.current = write
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
@@ -100,12 +82,15 @@ export function DayCard({
     <div className={`daycard panel ${completed ? 'done' : ''}`}>
       <div className="daycard-head">
         <div>
-          <span className="eyebrow">{completed ? 'Completed' : "Today's check-in"}</span>
+          <span className="eyebrow">
+            {maintenance ? 'Maintenance · no rules' : completed ? 'Completed' : "Today's check-in"}
+          </span>
           <h2 className="font-display dc-h2">Day {dayIndex}</h2>
         </div>
         {completed && <span className="stamp font-mono">✓ done</span>}
       </div>
 
+      {!maintenance && (
       <ul className="checks">
         {challenge.rules.map((r) => (
           <li key={r.id}>
@@ -129,6 +114,7 @@ export function DayCard({
           </li>
         ))}
       </ul>
+      )}
 
       <div className="field-block">
         <div className="field-head">
