@@ -105,7 +105,7 @@ A day worth marking when it's completed: Day 7, 25 and 50, and the last day, whi
 The optional mode after finishing: a daily log and artifact with no rules, no misses and nothing to complete.
 
 **New round**:
-Closing a finished challenge so a fresh one can be set up.
+Setting up a fresh challenge after finishing (or from maintenance). The finished one closes only when the new one starts, so backing out of setup keeps its recap and certificate.
 
 **Recap**:
 The end-of-challenge summary: stats, the grid, the artifact timeline and the certificate.
