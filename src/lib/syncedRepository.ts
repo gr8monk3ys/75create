@@ -1,18 +1,22 @@
 // Local-first sync: wraps LocalRepository so every read/write stays local and
 // synchronous (the app keeps working offline), while mutations are mirrored to
-// Supabase through a persistent outbox. Conflict policy is last-write-wins per
-// row (profile / challenge / day-data blob), which matches a single person
-// tracking one challenge across devices.
+// Supabase through a persistent outbox. The profile and challenge rows are
+// last-write-wins by server stamp; day data is merged, never replaced, on
+// every pull and before every push (mergeDayData, ADR 0004), so nothing one
+// device made can be erased by another's copy.
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { DayData, Repository } from './repository'
-import { LocalRepository } from './localRepository'
+import { DayData, PendingNotice, Repository, emptyDayData, mergeDayData, newUser } from './repository'
+import { LocalRepository, PARK_PREFIX } from './localRepository'
 import { Artifact, Challenge, Log, User } from './types'
 import { ARTIFACTS_BUCKET } from './supabase'
 
 const OUTBOX_KEY = '75create.outbox.v1'
 const INFLIGHT_KEY = '75create.inflight.v1'
 const STAMPS_KEY = '75create.stamps.v1'
+/** The Supabase account this device's local data belongs to. */
+const BOUND_KEY = '75create.sync.boundUser'
+const SYNC_KEYS = [OUTBOX_KEY, INFLIGHT_KEY, STAMPS_KEY]
 const FLUSH_DELAY_MS = 1500
 
 interface Outbox {
@@ -21,6 +25,15 @@ interface Outbox {
   dayData: string[]
   uploadBlobs: string[]
   deleteBlobs: string[]
+}
+
+/** JSON with object keys sorted, so equal content compares equal. */
+function canonical(value: unknown): string {
+  return JSON.stringify(value, (_key, v) =>
+    v && typeof v === 'object' && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v,
+  )
 }
 
 function emptyOutbox(): Outbox {
@@ -55,6 +68,7 @@ function isEmptyOutbox(o: Outbox): boolean {
 interface Stamps {
   profile?: string
   challenges: Record<string, string>
+  /** Bookkeeping only: day data is always merged, whatever these say. */
   dayData: Record<string, string>
 }
 
@@ -68,6 +82,7 @@ export class SyncedRepository implements Repository {
   private userId: string | null = null
   private flushTimer: ReturnType<typeof setTimeout> | null = null
   private flushing = false
+  private pulling: Promise<void> | null = null
 
   constructor(local: LocalRepository, client: SupabaseClient) {
     this.local = local
@@ -96,23 +111,37 @@ export class SyncedRepository implements Repository {
     localStorage.setItem(key, JSON.stringify(value))
   }
 
-  private markDirty(patch: (o: Outbox) => void): void {
+  /**
+   * Queue a row for the next flush and stamp it with the local modification
+   * time. Only the row this write touched is stamped: re-stamping everything
+   * queued would make an untouched row look newer than a remote edit made on
+   * another device in the meantime, and last-write-wins would then discard it.
+   */
+  private markDirty(row: { profile: true } | { challenge: string } | { dayData: string }): void {
     const outbox = this.readJson(OUTBOX_KEY, emptyOutbox())
-    patch(outbox)
+    const stamps = this.readJson(STAMPS_KEY, emptyStamps())
+    const now = new Date().toISOString()
+    if ('profile' in row) {
+      outbox.profile = true
+      stamps.profile = now
+    } else if ('challenge' in row) {
+      outbox.challenges = union(outbox.challenges, [row.challenge])
+      stamps.challenges[row.challenge] = now
+    } else {
+      outbox.dayData = union(outbox.dayData, [row.dayData])
+      stamps.dayData[row.dayData] = now
+    }
     this.writeJson(OUTBOX_KEY, outbox)
-    this.stamp()
+    this.writeJson(STAMPS_KEY, stamps)
     this.scheduleFlush()
   }
 
-  private stamp(): void {
-    // Record local modification time for LWW comparisons during hydration.
-    const stamps = this.readJson(STAMPS_KEY, emptyStamps())
-    const now = new Date().toISOString()
+  /** Queue an artifact upload or delete (blobs carry no stamp). */
+  private queueBlob(patch: (o: Outbox) => void): void {
     const outbox = this.readJson(OUTBOX_KEY, emptyOutbox())
-    if (outbox.profile) stamps.profile = now
-    for (const id of outbox.challenges) stamps.challenges[id] = now
-    for (const id of outbox.dayData) stamps.dayData[id] = now
-    this.writeJson(STAMPS_KEY, stamps)
+    patch(outbox)
+    this.writeJson(OUTBOX_KEY, outbox)
+    this.scheduleFlush()
   }
 
   private scheduleFlush(): void {
@@ -122,6 +151,7 @@ export class SyncedRepository implements Repository {
 
   /** Attach the signed-in Supabase user and pull remote state into the local store. */
   async connectRemote(userId: string, email: string): Promise<void> {
+    this.adoptAccount(userId, email)
     this.userId = userId
     await this.ensureProfile(userId, email)
     await this.hydrate(userId)
@@ -130,6 +160,61 @@ export class SyncedRepository implements Repository {
 
   disconnectRemote(): void {
     this.userId = null
+  }
+
+  /**
+   * Catch up with the other devices: pull newer rows, then push what's
+   * queued. Called before rollover when the app comes back to the
+   * foreground, so a day made elsewhere is never actioned here as a miss.
+   * Resolves (never rejects) within `timeoutMs`, online or not.
+   */
+  async pull(timeoutMs = 5000): Promise<void> {
+    // Single-flight: a caller arriving mid-pull (focus and visibility fire
+    // together) waits for the same pull instead of rolling over without it.
+    if (this.pulling) return this.pulling
+    const userId = this.userId
+    if (!userId) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
+    const work = (async () => {
+      await this.hydrate(userId)
+      await this.flush()
+    })().catch(() => {})
+    this.pulling = Promise.race([work, new Promise<void>((r) => setTimeout(r, timeoutMs))]).finally(
+      () => {
+        this.pulling = null
+      },
+    )
+    return this.pulling
+  }
+
+  /**
+   * Bind this device's local data to a Supabase account. The first account to
+   * sign in adopts whatever was here (so local-first use carries over into the
+   * account). A different account signing in later gets its own data: the
+   * previous account's local store and sync queue are parked, never uploaded
+   * into the new account, and come back if it signs in again.
+   */
+  private adoptAccount(userId: string, email: string): void {
+    if (typeof localStorage === 'undefined') return
+    const bound = localStorage.getItem(BOUND_KEY)
+    const parkedTarget = this.local.parkedUsers().find((u) => u.id === userId)
+    const switching = bound !== null ? bound !== userId : parkedTarget !== undefined
+    if (switching) {
+      if (this.flushTimer) clearTimeout(this.flushTimer)
+      this.flushTimer = null
+      // Park the sync queue with the data it describes, keyed like it.
+      const from = this.local.getUser()?.id ?? bound
+      for (const key of SYNC_KEYS) {
+        const current = localStorage.getItem(key)
+        if (from && current !== null) localStorage.setItem(`${PARK_PREFIX}${from}.${key}`, current)
+        const parked = localStorage.getItem(`${PARK_PREFIX}${userId}.${key}`)
+        if (parked !== null) localStorage.setItem(key, parked)
+        else localStorage.removeItem(key)
+        localStorage.removeItem(`${PARK_PREFIX}${userId}.${key}`)
+      }
+      this.local.switchUser(parkedTarget ?? newUser(userId, email))
+    }
+    localStorage.setItem(BOUND_KEY, userId)
   }
 
   private async ensureProfile(userId: string, email: string): Promise<void> {
@@ -141,14 +226,7 @@ export class SyncedRepository implements Repository {
 
     const localUser = this.local.getUser()
     if (!existing.data) {
-      const user: User = localUser ?? {
-        id: userId,
-        email,
-        tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-        lateNightBufferHrs: 3,
-        createdAt: new Date().toISOString(),
-        reminderTime: null,
-      }
+      const user: User = localUser ?? newUser(userId, email)
       const synced: User = { ...user, id: userId, email }
       this.local.saveUser(synced)
       await this.client.from('profiles').upsert({
@@ -161,6 +239,17 @@ export class SyncedRepository implements Repository {
       })
     } else {
       const row = existing.data
+      // A profile edit made offline and still queued is newer than the row it
+      // was based on: keep it, and let the next flush push it up.
+      const stamps = this.readJson(STAMPS_KEY, emptyStamps())
+      const queued =
+        this.readJson(OUTBOX_KEY, emptyOutbox()).profile ||
+        this.readJson(INFLIGHT_KEY, emptyOutbox()).profile
+      if (queued && localUser?.id === userId && !this.isNewer(row.updated_at, stamps.profile)) {
+        return
+      }
+      stamps.profile = row.updated_at
+      this.writeJson(STAMPS_KEY, stamps)
       this.local.saveUser({
         id: userId,
         email: row.email,
@@ -188,7 +277,10 @@ export class SyncedRepository implements Repository {
     return r > l
   }
 
-  /** Pull remote rows newer than the local stamps into the local store. */
+  /**
+   * Pull remote rows into the local store: newer profile and challenge rows
+   * replace the local ones; every day-data row is merged.
+   */
   private async hydrate(userId: string): Promise<void> {
     const stamps = this.readJson(STAMPS_KEY, emptyStamps())
 
@@ -208,9 +300,20 @@ export class SyncedRepository implements Repository {
       .select('challenge_id, data, updated_at')
       .eq('user_id', userId)
     for (const row of dayData.data ?? []) {
+      // Always merged, whatever the stamps say: a local stamp is this
+      // device's clock and can read newer than a row another device wrote
+      // since. The merge is safe either way (it keeps what both copies made
+      // and honours the later undo), and whatever it adds goes back up so
+      // both copies converge.
+      const remote = { ...emptyDayData(), ...(row.data as DayData) }
+      const merged = this.local.mergeRemoteDayData(row.challenge_id, remote)
       if (this.isNewer(row.updated_at, stamps.dayData[row.challenge_id])) {
-        this.local.replaceDayData(row.challenge_id, row.data as DayData)
         stamps.dayData[row.challenge_id] = row.updated_at
+      }
+      // Compared by content: Postgres jsonb stores keys in its own order, so
+      // the same data can come back differently ordered.
+      if (canonical(merged) !== canonical(mergeDayData(remote, remote))) {
+        this.dirtyDay(row.challenge_id)
       }
     }
 
@@ -314,6 +417,17 @@ export class SyncedRepository implements Repository {
             .from('challenges')
             .upsert({ id, user_id: this.userId, data: challenge })
         }
+        // Read, merge, write: another device may have pushed since this one
+        // last pulled, and a blind upsert of the local copy would erase its
+        // work (a day made on the laptop, gone from the phone's push).
+        const current = await this.client
+          .from('day_data')
+          .select('data')
+          .eq('challenge_id', id)
+          .maybeSingle()
+        // Couldn't read what's there: don't write blind; retry next flush.
+        if (current.error) continue
+        if (current.data?.data) this.local.mergeRemoteDayData(id, current.data.data as DayData)
         const res = await this.client
           .from('day_data')
           .upsert({ challenge_id: id, user_id: this.userId, data: this.local.getDayData(id) })
@@ -387,9 +501,7 @@ export class SyncedRepository implements Repository {
 
   saveUser(user: User): void {
     this.local.saveUser(user)
-    this.markDirty((o) => {
-      o.profile = true
-    })
+    this.markDirty({ profile: true })
   }
 
   isSignedIn(): boolean {
@@ -407,9 +519,7 @@ export class SyncedRepository implements Repository {
 
   saveChallenge(challenge: Challenge): void {
     this.local.saveChallenge(challenge)
-    this.markDirty((o) => {
-      if (!o.challenges.includes(challenge.id)) o.challenges.push(challenge.id)
-    })
+    this.markDirty({ challenge: challenge.id })
   }
 
   getActiveChallenge(): Challenge | null {
@@ -422,9 +532,7 @@ export class SyncedRepository implements Repository {
   }
 
   private dirtyDay(challengeId: string): void {
-    this.markDirty((o) => {
-      if (!o.dayData.includes(challengeId)) o.dayData.push(challengeId)
-    })
+    this.markDirty({ dayData: challengeId })
   }
 
   saveDayCompletion(challengeId: string, dayIndex: number, completedAt: string | null): void {
@@ -462,10 +570,27 @@ export class SyncedRepository implements Repository {
     this.dirtyDay(challengeId)
   }
 
+  clearMiss(challengeId: string, dayIndex: number): void {
+    this.local.clearMiss(challengeId, dayIndex)
+    this.dirtyDay(challengeId)
+  }
+
+  takeRestoredMisses(challengeId: string): number[] {
+    return this.local.takeRestoredMisses(challengeId)
+  }
+
+  pendingNotice(): PendingNotice | null {
+    return this.local.pendingNotice()
+  }
+
+  setPendingNotice(notice: PendingNotice | null): void {
+    this.local.setPendingNotice(notice)
+  }
+
   // ---- Repository: artifact blobs ----
   async saveArtifactBlob(blob: Blob): Promise<string> {
     const id = await this.local.saveArtifactBlob(blob)
-    this.markDirty((o) => {
+    this.queueBlob((o) => {
       if (!o.uploadBlobs.includes(id)) o.uploadBlobs.push(id)
     })
     return id
@@ -486,7 +611,7 @@ export class SyncedRepository implements Repository {
 
   async deleteArtifactBlob(id: string): Promise<void> {
     await this.local.deleteArtifactBlob(id)
-    this.markDirty((o) => {
+    this.queueBlob((o) => {
       o.uploadBlobs = o.uploadBlobs.filter((b) => b !== id)
       if (!o.deleteBlobs.includes(id)) o.deleteBlobs.push(id)
     })

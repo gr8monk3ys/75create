@@ -30,39 +30,68 @@ bun run test:e2e   # Playwright, against a real production build
 
 ## What's built (MVP F1–F10)
 
-- **Auth** — passwordless local sign-in (prototype: magic link / OAuth are stubbed).
-- **Setup wizard** — medium, customizable rules (3–7, lock at start), miss policy,
-  start date, and a "why I started" note.
-- **Daily check-in** — task checkboxes, ≤500-char log, image artifact (compressed,
-  ≤5 MB) or link, all autosaved.
-- **The grid** — the signature 75-cell hand-stamped pigment grid; streak + day
-  counter always visible.
-- **Miss-policy engine** — Classic / Grace (3 skip tokens) / Extend, applied at day
-  rollover per the user's timezone and late-night buffer. Failed attempts are
-  archived, never deleted.
-- **Reminders** — opt-in daily reminder at a chosen local time: Web Push (reaches
-  a closed app, including an installed PWA on iOS), email, or an in-page
+- **Auth** — without a backend, "continue on this device" (an email names the
+  local account); with Supabase, real magic link and Google sign-in.
+- **Setup wizard** — medium, customizable rules (3–7, lock at start), miss policy
+  (Classic by default, the 75 Hard rule), start date, a "why I started" note,
+  and a last look at what's about to lock.
+- **A way out, never hidden** — Settings can end the running challenge: before
+  Day 1 it's a free redo, after it the attempt is archived where it stands.
+- **Daily check-in** — the day's rules, a ≤500-char log and an image artifact
+  (compressed, ≤5 MB) or link, all autosaved. "Log the day" and "Capture an
+  artifact" are met by the log and the artifact themselves, not a checkbox.
+  Keyboard shortcuts (1–7 tick a rule, N jumps to the log) and a "How today
+  works" explainer; the card says when today closes.
+- **The grid** — the signature 75-cell hand-stamped pigment grid; streak, day
+  counter and the stakes (policy, Grace skip tokens left, extensions) always
+  visible. Past days open from the grid to show their log and artifacts.
+- **Miss-policy engine** — Classic / Grace (3 skip tokens per attempt; a spent
+  token keeps the streak) / Extend, applied at day rollover per the user's
+  timezone and late-night buffer. A setting change that would decide a day
+  (close today before it's made, or reopen a closed one) is refused with the
+  reason. Ended attempts and finished rounds stay in history, never deleted.
+- **Reminders** — opt-in daily reminder at a chosen local time, only while
+  today is still to make: Web Push (reaches a closed app, including an
+  installed PWA on iOS), email for devices without push, or an in-page
   notification as the no-server fallback.
-- **Recap & certificate** — Day-75 recap with an artifact timeline and a downloadable
-  certificate PNG; maintenance mode and new-round options.
+- **Recap & certificate** — the recap is available any time; the certificate
+  unlocks when the challenge finishes, worded true to the policy ("made" only
+  when every day was).
+- **After Day 75** — maintenance mode (a daily log and artifact, no rules) and
+  new-round options.
 - **Share link** — read-only page that carries a progress snapshot in the URL
   fragment (owner opts into including logs; artifacts are never shared).
-- **Export** — one-click ZIP of logs (JSON + CSV) and artifact images.
+- **Export** — one-click ZIP of logs, ticks and links (JSON + CSV) and artifact
+  images.
 - **Account deletion** — immediate and permanent: local storage, remote rows,
   artifact images, and the auth account itself.
 
-Plus milestone celebrations (days 7/25/50) and the why-note resurfaced on a missed
-day.
+Plus milestone celebrations (days 7/25/50 and the real last day, spoken as
+well as shown) and the why-note resurfaced on a missed day. The browser is
+asked to keep storage persistent once a challenge starts, and an unreadable
+store is kept aside rather than overwritten.
 
 ## Architecture
 
 - **Next.js (App Router) + TypeScript + Tailwind**, styled-jsx for component styles.
 - **Bun** for installs, scripts, and tests (`bun test` with happy-dom +
   fake-indexeddb, wired up in `tests/setup.ts` via `bunfig.toml`).
-- `src/lib/challengeEngine.ts` — pure, deterministic day/streak/miss-policy logic
-  (time is injected, never read inside). This is the tested correctness core.
-- `src/lib/repository.ts` + `localRepository.ts` — persistence abstraction.
-- `src/components/AppProvider.tsx` — loads state, runs rollover, exposes `useApp()`.
+- `src/lib/challengeSession.ts` — the challenge session: rollover, the completion
+  rule, the tally, milestones, day-boundary changes, start / reset / end /
+  maintenance / new round and history, all behind one interface that takes a
+  Repository and a clock and returns a snapshot. This is the tested
+  correctness core; `challengeEngine.ts` (day states, streaks, miss
+  consequences) and `creativeDay.ts` (the buffer-aware "what day is it") sit
+  behind it.
+- `src/lib/repository.ts` + `localRepository.ts` — persistence abstraction;
+  accounts sharing a device are parked per account, never merged.
+- `src/lib/logDraft.ts` — the log while it's being written: debounced save,
+  flush on hide, adopting a log synced from elsewhere, and holding the
+  celebration until the writer pauses (timers injected, unit-tested).
+- `src/components/AppProvider.tsx` — a thin React adapter over the session:
+  re-syncs on a minute tick, on focus, visibility and other-tab writes (with a
+  backend, after pulling from the other devices), exposes `useApp()`.
+- `CONTEXT.md` — the domain glossary; `PRODUCT.md` — product context.
 
 See `docs/superpowers/specs/` for the design spec and `docs/superpowers/plans/` for
 the implementation plan.
@@ -92,7 +121,7 @@ link / Google)** and **cross-device sync**:
    storage bucket), then `0002_hardening.sql` (server-owned `updated_at`,
    policies scoped to authenticated users, reminder index).
 2. Enable the Email (magic link) and Google providers under Auth.
-3. Build with the env vars:
+3. Build with the env vars (all are listed in `.env.example`):
 
    ```
    NEXT_PUBLIC_SUPABASE_URL=https://<ref>.supabase.co
@@ -106,12 +135,18 @@ Vercel this falls back to the production URL automatically.)
 Without those vars, nothing changes — prototype local sign-in, single device.
 With them, the server session becomes the source of truth for auth, and a
 write-through outbox (`src/lib/syncedRepository.ts`) mirrors every local
-mutation to Postgres (JSONB rows, last-write-wins) and artifact images to
-Storage. The app stays local-first: reads are always served locally, so
-offline keeps working; the outbox flushes when back online.
+mutation to Postgres (JSONB rows) and artifact images to Storage. Day data
+from another device is merged, never replaced: a completion, tick, artifact
+or newer log on either side survives, and a day this device had already
+counted as missed is given back if it turns out to have been made. The app
+pulls before deciding what's missed whenever it returns to the foreground.
+It stays local-first: reads are always served locally, so offline keeps
+working; the outbox flushes when back online.
 
 **Email reminders:** deploy `supabase/functions/send-reminders` and schedule
-it every 15 minutes; it emails users at their chosen reminder time via Resend.
+it every 15 minutes; it emails users at their chosen reminder time via Resend,
+only while a running challenge's today isn't made yet, and not to users whose
+device gets push.
 Set three function secrets: `RESEND_API_KEY`, `REMINDER_FROM` (a verified
 sender), and `REMINDER_SECRET`. The scheduler must send that secret as an
 `x-reminder-secret` header — without it the function refuses the request, so

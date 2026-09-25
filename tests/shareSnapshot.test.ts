@@ -34,7 +34,44 @@ describe('shareSnapshot codec', () => {
     expect(decodeSnapshot(encodeSnapshot(p))).toEqual(p)
   })
 
+  it('carries the day index, and drops a malformed one', () => {
+    const p: ShareSnapshot = { ...sample(), dayIndex: 4 }
+    expect(decodeSnapshot(encodeSnapshot(p))?.dayIndex).toBe(4)
+    const bad = encodeSnapshot({ ...sample(), dayIndex: 'x' as unknown as number })
+    expect(decodeSnapshot(bad)?.dayIndex).toBeUndefined()
+  })
+
+  it('carries the date it was taken, and drops a malformed one', () => {
+    expect(decodeSnapshot(encodeSnapshot({ ...sample(), takenAt: '2026-09-23' }))?.takenAt).toBe('2026-09-23')
+    const bad = encodeSnapshot({ ...sample(), takenAt: '<script>' })
+    expect(decodeSnapshot(bad)?.takenAt).toBeUndefined()
+  })
+
   it('returns null for a malformed fragment', () => {
     expect(decodeSnapshot('not-valid-base64!!')).toBeNull()
+  })
+})
+
+describe('decodeSnapshot on untrusted links', () => {
+  it('rejects unknown day states and repairs missing fields', () => {
+    // Crafted by hand, as an attacker would: not through our encoder.
+    const raw = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    expect(decodeSnapshot(raw({ dayStates: ['complete', 'evil'] }))).toBeNull()
+    expect(decodeSnapshot(raw({ dayStates: 'cx' }))).toBeNull()
+    expect(decodeSnapshot(raw({ dayStates: 'c', medium: '__proto__' }))?.medium).toBe('other')
+    const snap = decodeSnapshot(raw({ dayStates: ['complete'], includeLogs: true }))
+    expect(snap?.logs).toEqual({})
+    expect(snap?.missPolicy).toBe('classic')
+  })
+
+  it('reads the one-letter day states, and older links with names', () => {
+    const raw = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    expect(decodeSnapshot(raw({ dayStates: 'cmstf' }))?.dayStates).toEqual(['complete', 'missed', 'skipped', 'today', 'future'])
+    expect(decodeSnapshot(raw({ dayStates: ['complete', 'future'] }))?.dayStates).toEqual(['complete', 'future'])
+  })
+
+  it('keeps a 75-day link short', () => {
+    const snap = { ...sample(), dayStates: Array(75).fill('complete'), logs: {}, includeLogs: false }
+    expect(encodeSnapshot(snap).length).toBeLessThan(300)
   })
 })

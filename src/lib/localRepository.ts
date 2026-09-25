@@ -3,13 +3,26 @@
 
 import {
   DayData,
+  checkKey,
+  PendingNotice,
   Repository,
   emptyDayData,
+  mergeDayData,
   newId,
 } from './repository'
 import { Artifact, Challenge, Log, User } from './types'
 
-const ROOT_KEY = '75create.v1'
+const KEY_PREFIX = '75create.'
+const ROOT_KEY = `${KEY_PREFIX}v1`
+/** Where an unreadable root is kept, untouched, before a fresh one replaces it. */
+export const UNREADABLE_KEY = `${KEY_PREFIX}v1.unreadable`
+/**
+ * Accounts other than the current one keep their data under
+ * `75create.park.<userId>` (and whatever else a caller parks under
+ * `75create.park.<userId>.<name>`), so a device shared between accounts never
+ * mixes their challenges and switching back restores everything.
+ */
+export const PARK_PREFIX = `${KEY_PREFIX}park.`
 const DB_NAME = '75create'
 const DB_STORE = 'artifacts'
 
@@ -18,6 +31,15 @@ interface Root {
   challenges: Challenge[]
   dayData: Record<string, DayData>
   signedIn: boolean
+  /** Per challenge, restored misses not yet told (see takeRestoredMisses). */
+  restored?: Record<string, number[]>
+  /** The notice waiting to be dismissed (see pendingNotice). */
+  notice?: PendingNotice | null
+}
+
+/** Record when a tick or completion changed, for merges (see mergeDayData). */
+function stamp(dd: DayData, key: string): void {
+  dd.changedAt = { ...dd.changedAt, [key]: new Date().toISOString() }
 }
 
 function emptyRoot(): Root {
@@ -34,6 +56,13 @@ export class LocalRepository implements Repository {
       const parsed = JSON.parse(raw) as Root
       return { ...emptyRoot(), ...parsed }
     } catch {
+      // Unreadable (a partial write, a bad extension): keep the raw text
+      // before anything writes over it, so the challenge can be recovered.
+      try {
+        if (localStorage.getItem(UNREADABLE_KEY) === null) localStorage.setItem(UNREADABLE_KEY, raw)
+      } catch {
+        /* storage full: nothing more to be done here */
+      }
       return emptyRoot()
     }
   }
@@ -81,6 +110,51 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
+  // ---- accounts on this device ----
+  /** Accounts whose data is parked on this device (not the current one). */
+  parkedUsers(): User[] {
+    if (typeof localStorage === 'undefined') return []
+    const users: User[] = []
+    for (const key of Object.keys(localStorage)) {
+      const id = key.startsWith(PARK_PREFIX) ? key.slice(PARK_PREFIX.length) : ''
+      if (!id || id.includes('.')) continue
+      try {
+        const parked = JSON.parse(localStorage.getItem(key) ?? '') as Root
+        if (parked.user) users.push(parked.user)
+      } catch {
+        /* unreadable park: skip it rather than fail sign-in */
+      }
+    }
+    return users
+  }
+
+  /**
+   * Make `user` this device's current account. The current account's data is
+   * parked, never merged into the new one or discarded; a parked account comes
+   * back exactly as it was left. Signed out afterwards: signing in is the
+   * caller's next step.
+   */
+  switchUser(user: User): void {
+    if (typeof localStorage === 'undefined') return
+    const root = this.read()
+    if (root.user?.id === user.id) return
+    if (root.user) {
+      localStorage.setItem(PARK_PREFIX + root.user.id, JSON.stringify({ ...root, signedIn: false }))
+    }
+    const parkedKey = PARK_PREFIX + user.id
+    const raw = localStorage.getItem(parkedKey)
+    let next: Root = { ...emptyRoot(), user }
+    if (raw) {
+      try {
+        next = { ...emptyRoot(), ...(JSON.parse(raw) as Root), signedIn: false }
+      } catch {
+        /* corrupt park: start the account fresh */
+      }
+    }
+    localStorage.removeItem(parkedKey)
+    this.write(next)
+  }
+
   // ---- challenges ----
   getChallenges(): Challenge[] {
     return this.read().challenges
@@ -116,6 +190,7 @@ export class LocalRepository implements Repository {
     const dd = this.dayDataFor(root, challengeId)
     if (completedAt === null) delete dd.completions[dayIndex]
     else dd.completions[dayIndex] = completedAt
+    stamp(dd, `c:${dayIndex}`)
     this.write(root)
   }
 
@@ -134,7 +209,8 @@ export class LocalRepository implements Repository {
   ): void {
     const root = this.read()
     const dd = this.dayDataFor(root, challengeId)
-    dd.checks[`${dayIndex}:${ruleId}`] = checked
+    dd.checks[checkKey(dayIndex, ruleId)] = checked
+    stamp(dd, `k:${checkKey(dayIndex, ruleId)}`)
     this.write(root)
   }
 
@@ -160,6 +236,8 @@ export class LocalRepository implements Repository {
     dd.artifacts[dayIndex] = (dd.artifacts[dayIndex] ?? []).filter(
       (a) => a.id !== artifactId,
     )
+    // Remembered, so a merge with a copy that still has it can't bring it back.
+    dd.removedArtifacts = [...new Set([...(dd.removedArtifacts ?? []), artifactId])]
     this.write(root)
   }
 
@@ -177,11 +255,58 @@ export class LocalRepository implements Repository {
     this.write(root)
   }
 
-  /** Overwrite a challenge's entire day-data blob (used by remote hydration). */
-  replaceDayData(challengeId: string, data: DayData): void {
+  clearMiss(challengeId: string, dayIndex: number): void {
     const root = this.read()
-    root.dayData[challengeId] = { ...emptyDayData(), ...data }
+    const dd = this.dayDataFor(root, challengeId)
+    dd.skips = dd.skips.filter((d) => d !== dayIndex)
+    dd.actionedMisses = dd.actionedMisses.filter((d) => d !== dayIndex)
     this.write(root)
+  }
+
+  /**
+   * Merge another device's copy of a challenge's day data into this one
+   * (sync), and return the result. A miss this device had actioned that the
+   * merge shows made is kept as restored, for the session to tell
+   * (takeRestoredMisses): this is the one place that still knows what the
+   * merge dropped.
+   */
+  mergeRemoteDayData(challengeId: string, remote: DayData): DayData {
+    const root = this.read()
+    const before = this.dayDataFor(root, challengeId)
+    const next = mergeDayData(before, { ...emptyDayData(), ...remote })
+    const still = new Set([...next.skips, ...next.actionedMisses])
+    const restored = [...new Set([...before.skips, ...before.actionedMisses])].filter(
+      (d) => next.completions[d] && !still.has(d),
+    )
+    if (restored.length > 0) {
+      const told = root.restored?.[challengeId] ?? []
+      root.restored = {
+        ...root.restored,
+        [challengeId]: [...new Set([...told, ...restored])].sort((a, b) => a - b),
+      }
+    }
+    root.dayData[challengeId] = next
+    this.write(root)
+    return next
+  }
+
+  pendingNotice(): PendingNotice | null {
+    return this.read().notice ?? null
+  }
+
+  setPendingNotice(notice: PendingNotice | null): void {
+    const root = this.read()
+    root.notice = notice
+    this.write(root)
+  }
+
+  takeRestoredMisses(challengeId: string): number[] {
+    const root = this.read()
+    const days = root.restored?.[challengeId] ?? []
+    if (days.length === 0) return []
+    delete root.restored![challengeId]
+    this.write(root)
+    return days
   }
 
   // ---- IndexedDB blobs ----
@@ -245,12 +370,33 @@ export class LocalRepository implements Repository {
   }
 
   // ---- account ----
+  /**
+   * Delete the current account's data. Other accounts parked on this device
+   * are left alone, down to their artifact images.
+   */
   async deleteAllData(): Promise<void> {
-    if (typeof localStorage !== 'undefined') localStorage.removeItem(ROOT_KEY)
+    const root = this.read()
+    const othersParked = this.parkedUsers().length > 0
+    if (typeof localStorage !== 'undefined') {
+      // Every key the app writes shares the prefix (root data, sync outbox,
+      // reminder bookkeeping): deletion leaves none of them behind.
+      const ours = Object.keys(localStorage).filter(
+        (k) => k.startsWith(KEY_PREFIX) && !k.startsWith(PARK_PREFIX),
+      )
+      for (const k of ours) localStorage.removeItem(k)
+    }
     const db = await this.openDb()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(DB_STORE, 'readwrite')
-      tx.objectStore(DB_STORE).clear()
+      if (!othersParked) {
+        tx.objectStore(DB_STORE).clear()
+      } else {
+        for (const dd of Object.values(root.dayData)) {
+          for (const list of Object.values(dd.artifacts ?? {})) {
+            for (const a of list) if (a.blobRef) tx.objectStore(DB_STORE).delete(a.blobRef)
+          }
+        }
+      }
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })

@@ -1,10 +1,16 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
+import { Day } from '@/lib/types'
+import { Grid } from './Grid'
 
 interface Props {
   show: boolean
-  milestone?: number | null
+  /** Headline and line for a milestone day; the plain "made" copy otherwise. */
+  milestone?: { title: string; sub: string } | null
+  /** The day just completed, stamped into the grid inside the card. */
+  dayIndex: number
+  days: Day[]
   onDone: () => void
 }
 
@@ -18,41 +24,70 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
   rot: ((i * 53) % 90) - 45,
 }))
 
-export function Celebration({ show, milestone, onDone }: Props) {
+/**
+ * The day's peak: the grid itself, with today's mark stamping in. The grid is
+ * the reward, so the moment shows it rather than describing it.
+ */
+export function Celebration({ show, milestone, dayIndex, days, onDone }: Props) {
   // Visibility is the `show` prop itself; the timer just hands control back to
   // the parent. `onDone` must be referentially stable or the timer restarts.
   useEffect(() => {
     if (!show) return
-    const t = setTimeout(onDone, 2600)
-    return () => clearTimeout(t)
+    const t = setTimeout(onDone, 3200)
+    // Captured first and kept: Esc here closes the moment and nothing else
+    // (not also stepping out of the field the person is in).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      onDone()
+    }
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('keydown', onKey, true)
+    }
   }, [show, onDone])
+
+  // Clear of whatever has focus (the button that made the day, the field
+  // still being typed in): the card sits in the half of the screen it isn't.
+  // Decided once as the moment starts, so an autosave re-render or a scroll
+  // never makes the card jump.
+  const place = useMemo(() => {
+    if (!show || typeof document === 'undefined') return 'high'
+    const focused = document.activeElement
+    const r = focused && focused !== document.body ? focused.getBoundingClientRect() : null
+    return r && r.top + r.height / 2 < window.innerHeight / 2 ? 'low' : 'high'
+  }, [show])
 
   if (!show) return null
 
-  const message = milestone
-    ? milestoneMessage(milestone)
-    : { title: 'Day done.', sub: 'One more mark on the grid.' }
+  const message = milestone ?? { title: `Day ${dayIndex}, made.`, sub: 'One more mark on the grid.' }
 
   return (
-    <div className="cel" role="status" aria-live="polite">
+    // Visual only: the check-in card's own live region announces the day.
+    <div className={`cel ${place}`} aria-hidden>
       <div className="confetti" aria-hidden>
         {CONFETTI.map((c, i) => (
           <span
             key={i}
             className="bit"
-            style={{
-              left: `${c.left}%`,
-              background: c.color,
-              animationDelay: `${c.delay}s`,
-              transform: `rotate(${c.rot}deg)`,
-            }}
+            style={
+              {
+                left: `${c.left}%`,
+                background: c.color,
+                animationDelay: `${c.delay}s`,
+                '--r': `${c.rot}deg`,
+              } as React.CSSProperties
+            }
           />
         ))}
       </div>
       <div className="card panel">
-        {milestone && <span className="milestone font-mono">Day {milestone}</span>}
         <h2 className="font-display">{message.title}</h2>
         <p>{message.sub}</p>
+        <div className="mini" aria-hidden>
+          <Grid days={days} compact stamp={dayIndex} />
+        </div>
       </div>
 
       <style jsx>{`
@@ -62,64 +97,72 @@ export function Celebration({ show, milestone, onDone }: Props) {
           z-index: 50;
           display: grid;
           place-items: center;
+          padding: 1rem;
+          background: color-mix(in srgb, var(--paper) 55%, transparent);
+          /* Never in the way: the next tap still reaches the page. */
           pointer-events: none;
-          background: color-mix(in srgb, var(--paper) 40%, transparent);
+        }
+        .cel.high {
+          align-items: start;
+          padding-top: max(1rem, 12vh);
+        }
+        .cel.low {
+          align-items: end;
+          padding-bottom: max(1rem, 12vh);
         }
         .card {
+          width: min(100%, 22rem);
           text-align: center;
-          padding: 1.75rem 2.5rem;
+          padding: 1.6rem 1.6rem 1.4rem;
           background: var(--paper);
           box-shadow: 6px 8px 0 var(--cobalt);
-          animation: pop-in 0.4s ease both;
+          animation: pop-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) both;
         }
         .card h2 {
-          font-size: 2rem;
-          margin: 0.3rem 0;
+          font-size: clamp(1.5rem, 5vw, 1.9rem);
+          margin: 0 0 0.35rem;
+          text-wrap: balance;
         }
         .card p {
           color: var(--ink-soft);
-          margin: 0;
+          margin: 0 0 1.1rem;
+          line-height: 1.45;
         }
-        .milestone {
-          font-size: 0.72rem;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: var(--coral);
+        .mini {
+          padding: 0.6rem;
+          border-radius: 10px;
+          background: var(--paper-2);
         }
         .confetti {
           position: absolute;
           inset: 0;
           overflow: hidden;
+          pointer-events: none;
         }
         .bit {
           position: absolute;
-          top: -5%;
-          width: 9px;
-          height: 14px;
+          top: -16px;
+          /* Little pigment stamps, the same marks the grid is made of. */
+          width: 11px;
+          height: 11px;
           border-radius: 2px;
-          animation: fall 2.4s linear forwards;
+          transform: rotate(var(--r));
+          animation: fall 2.4s cubic-bezier(0.3, 0.1, 0.6, 1) forwards;
         }
         @keyframes fall {
           to {
-            top: 105%;
+            transform: translateY(105vh) rotate(calc(var(--r) + 220deg));
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .confetti {
+            display: none;
+          }
+          .card {
+            animation: none;
           }
         }
       `}</style>
     </div>
   )
-}
-
-function milestoneMessage(day: number): { title: string; sub: string } {
-  switch (day) {
-    case 7:
-      return { title: 'One week in.', sub: 'The hardest part is starting. You started.' }
-    case 25:
-      return { title: 'A third of the way.', sub: 'This is a habit now, not a whim.' }
-    case 50:
-      return { title: 'Two-thirds done.', sub: '25 to go. You can see the finish.' }
-    case 75:
-      return { title: '75 days.', sub: 'You finished. Go see what you made.' }
-    default:
-      return { title: `Day ${day}.`, sub: 'Keep the grid going.' }
-  }
 }

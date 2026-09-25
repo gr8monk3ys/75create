@@ -11,8 +11,3 @@ export function detectTimezone(): string | null {
     return null
   }
 }
-
-/** The stored timezone, or a sane fallback when nothing is stored yet. */
-export function resolveTimezone(stored: string | null | undefined): string {
-  return stored || detectTimezone() || 'UTC'
-}

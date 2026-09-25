@@ -179,6 +179,133 @@ describe('SyncedRepository', () => {
     expect(dd.checks['1:create']).toBe(true)
   })
 
+  it('merges a newer remote day row instead of replacing local work', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    // Made on this device, not yet pushed (offline).
+    state.failUpserts = true
+    repo.saveDayCompletion('c1', 2, '2026-01-02T21:00:00.000Z')
+    repo.saveLog('c1', 2, { dayId: 'c1:2', text: 'typed offline', updatedAt: '2026-01-02T21:00:00.000Z' })
+    await repo.flush()
+
+    // Meanwhile another device wrote Day 3 and an older Day 2 log.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: { 3: '2026-01-03T12:00:00.000Z' },
+          logs: { 2: { dayId: 'c1:2', text: 'first', updatedAt: '2026-01-02T20:00:00.000Z' } },
+          checks: {},
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    state.failUpserts = false
+    await repo.pull()
+
+    const dd = repo.getDayData('c1')
+    expect(Object.keys(dd.completions).sort()).toEqual(['2', '3'])
+    expect(dd.logs[2].text).toBe('typed offline')
+    // What the merge added went back up.
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    expect(Object.keys((pushed.data as { completions: object }).completions).sort()).toEqual(['2', '3'])
+  })
+
+  it('keeps which missed days a pull found made, once, on this device only', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    // This device rolled over and spent a token on Day 2...
+    repo.addSkip('c1', 2)
+    repo.addActionedMiss('c1', 2)
+    // ...but the laptop made it.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: { 2: '2026-01-02T20:00:00.000Z' },
+          logs: {},
+          checks: {},
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.pull()
+    expect(repo.getDayData('c1').skips).toEqual([])
+    expect(repo.takeRestoredMisses('c1')).toEqual([2])
+    expect(repo.takeRestoredMisses('c1')).toEqual([])
+    // Never pushed: the other device has nothing to be told.
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    expect(JSON.stringify(pushed)).not.toContain('restored')
+  })
+
+  it('never erases remote work on push, even when the local stamp reads newer', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    await repo.flush()
+    // Another device made Day 5 and pushed it.
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: { completions: { 5: '2026-01-05T20:00:00.000Z' }, logs: {}, checks: {}, artifacts: {}, skips: [], actionedMisses: [] },
+        updated_at: '2026-01-05T20:00:00.000000+00:00',
+      },
+    ]
+    // This device edits something else and pushes, without pulling first.
+    repo.saveCheck('c1', 6, 'create', true)
+    await repo.flush()
+    const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
+    const data = pushed.data as { completions: Record<string, string>; checks: Record<string, boolean> }
+    expect(data.completions['5']).toBe('2026-01-05T20:00:00.000Z')
+    expect(data.checks['6:create']).toBe(true)
+    expect(repo.getDayData('c1').completions[5]).toBe('2026-01-05T20:00:00.000Z')
+  })
+
+  it('carries an untick made here over the other device’s older tick', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    state.rows.day_data = [
+      {
+        challenge_id: 'c1',
+        data: {
+          completions: {},
+          logs: {},
+          checks: { '6:create': true },
+          changedAt: { 'k:6:create': '2000-01-01T00:00:00.000Z' },
+          artifacts: {},
+          skips: [],
+          actionedMisses: [],
+        },
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    repo.saveCheck('c1', 6, 'create', false)
+    await repo.pull()
+    expect(repo.getDayData('c1').checks['6:create']).toBe(false)
+  })
+
+  it('does not re-push a day row whose content only differs in key order', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    repo.saveChallenge(makeChallenge())
+    repo.saveCheck('c1', 1, 'sketch', true)
+    repo.saveCheck('c1', 1, 'log', true)
+    await repo.flush()
+    const local = repo.getDayData('c1')
+    // The same content, keys reordered the way jsonb stores them.
+    const reordered = JSON.parse(JSON.stringify(local, (_k, v) =>
+      v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v,
+    ))
+    state.rows.day_data = [{ challenge_id: 'c1', data: reordered, updated_at: '2099-01-01T00:00:00.000Z' }]
+    state.calls = []
+    await repo.pull()
+    expect(state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data')).toEqual([])
+  })
+
   it('does not fire remote calls when signed out', async () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()
@@ -324,6 +451,97 @@ describe('SyncedRepository', () => {
       [],
     )
   })
+
+  it('stamps only the row a write touched', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // keep everything queued
+    repo.saveChallenge(makeChallenge({ id: 'c1' }))
+    const first = JSON.parse(localStorage.getItem('75create.stamps.v1')!).challenges.c1
+    await new Promise((r) => setTimeout(r, 5))
+    repo.saveChallenge(makeChallenge({ id: 'c2' }))
+    const stamps = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+    // c1 is still queued, but nothing touched it: its stamp must not move, or
+    // it would beat a newer edit of c1 made on another device.
+    expect(stamps.challenges.c1).toBe(first)
+    expect(Date.parse(stamps.challenges.c2)).toBeGreaterThan(Date.parse(first))
+  })
+
+  it('keeps a queued offline profile edit over the older remote profile', async () => {
+    state.rows.profiles = [
+      {
+        id: 'uid-1',
+        email: 'a@b.com',
+        tz: 'UTC',
+        late_night_buffer_hrs: 3,
+        reminder_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2026-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // offline: the edit stays queued
+    repo.saveUser({ ...repo.getUser()!, tz: 'Asia/Tokyo', reminderTime: '20:00' })
+    await repo.flush()
+
+    await repo.connectRemote('uid-1', 'a@b.com') // e.g. a token refresh
+    expect(repo.getUser()!.tz).toBe('Asia/Tokyo')
+    expect(repo.getUser()!.reminderTime).toBe('20:00')
+  })
+
+  it('takes a remote profile that is newer than the queued edit', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true
+    repo.saveUser({ ...repo.getUser()!, tz: 'Asia/Tokyo' })
+    state.rows.profiles = [
+      {
+        id: 'uid-1',
+        email: 'a@b.com',
+        tz: 'Europe/Berlin',
+        late_night_buffer_hrs: 2,
+        reminder_time: null,
+        created_at: '2026-01-01T00:00:00.000Z',
+        updated_at: '2099-01-01T00:00:00.000Z',
+      },
+    ]
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getUser()!.tz).toBe('Europe/Berlin')
+  })
+
+  it('never carries one account\'s data or sync queue into another', async () => {
+    await repo.connectRemote('uid-1', 'a@b.com')
+    state.failUpserts = true // leave uid-1's work queued
+    repo.saveChallenge(makeChallenge({ id: 'mine' }))
+    state.failUpserts = false
+    state.calls = []
+
+    await repo.connectRemote('uid-2', 'b@b.com')
+    expect(repo.getUser()!.id).toBe('uid-2')
+    expect(repo.getChallenges()).toEqual([])
+    const pushed = state.calls.filter((c) => c.op === 'upsert').map((c) => c.row?.id ?? c.row?.challenge_id)
+    expect(pushed).not.toContain('mine')
+
+    // Switching back restores uid-1's data and its queue, which then flushes.
+    state.calls = []
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['mine'])
+    const resumed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'challenges')
+    expect(resumed.map((c) => c.row?.id)).toContain('mine')
+  })
+
+  it('the first account to sign in adopts data made before signing in', async () => {
+    local.saveUser({
+      id: 'local-1',
+      email: 'a@b.com',
+      tz: 'UTC',
+      lateNightBufferHrs: 3,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      reminderTime: null,
+    })
+    repo.saveChallenge(makeChallenge({ id: 'before' }))
+    await repo.connectRemote('uid-1', 'a@b.com')
+    expect(repo.getUser()!.id).toBe('uid-1')
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['before'])
+  })
 })
 
 
@@ -334,3 +552,26 @@ function plusOffset(epochMs: number, offsetHrs: number): string {
   const hh = String(Math.abs(offsetHrs)).padStart(2, '0')
   return shifted.replace(/\.(\d{3})Z$/, '.$1456') + `${sign}${hh}:00`
 }
+describe('SyncedRepository.pull', () => {
+  it('is single-flight: callers during a pull wait for the same one', async () => {
+    localStorage.clear()
+    let hydrates = 0
+    const state = { rows: {}, calls: [], failUpserts: false, serverNow: '2026-01-01T00:00:00Z' }
+    const client = makeMockClient(state)
+    const repo = new SyncedRepository(new LocalRepository(), client)
+    await repo.connectRemote('uid-1', 'a@b.com')
+    const original = (repo as unknown as { hydrate: (id: string) => Promise<void> }).hydrate.bind(repo)
+    ;(repo as unknown as { hydrate: (id: string) => Promise<void> }).hydrate = async (id) => {
+      hydrates++
+      await new Promise((r) => setTimeout(r, 20))
+      return original(id)
+    }
+    let firstDone = false
+    const first = repo.pull().then(() => (firstDone = true))
+    const second = repo.pull()
+    await second
+    expect(firstDone).toBe(true)
+    await first
+    expect(hydrates).toBe(1)
+  })
+})

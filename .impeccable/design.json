@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-23T18:28:51.920577+00:00",
+  "title": "Design System: 75 Create",
+  "extensions": {
+    "colorMeta": {
+      "cobalt": {
+        "role": "primary",
+        "displayName": "Riso Cobalt",
+        "canonical": "#2340d8",
+        "tonalRamp": [
+          "#0b1442",
+          "#12216e",
+          "#192e9a",
+          "#203bc5",
+          "#3a54df",
+          "#7385e8",
+          "#b0bbf2",
+          "#e9ecfb"
+        ]
+      },
+      "coral": {
+        "role": "secondary",
+        "displayName": "Riso Coral",
+        "canonical": "#f5462d",
+        "tonalRamp": [
+          "#490c03",
+          "#7a1406",
+          "#aa1c08",
+          "#db250a",
+          "#f53e24",
+          "#f87663",
+          "#fbb2a7",
+          "#feeae7"
+        ]
+      },
+      "marigold": {
+        "role": "secondary",
+        "displayName": "Riso Marigold",
+        "canonical": "#e0910f",
+        "tonalRamp": [
+          "#482e05",
+          "#774d08",
+          "#a76c0b",
+          "#d78b0e",
+          "#f1a528",
+          "#f5bf66",
+          "#f9dba9",
+          "#fdf5e7"
+        ]
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "Sketch Paper",
+        "canonical": "#efe9dc",
+        "tonalRamp": [
+          "#342b18",
+          "#574828",
+          "#7a6538",
+          "#9d8248",
+          "#b79c62",
+          "#ccb98f",
+          "#e2d7c0",
+          "#f7f4ee"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#1b1a17",
+        "tonalRamp": [
+          "#292823",
+          "#45423b",
+          "#605d52",
+          "#7c776a",
+          "#959183",
+          "#b4b1a7",
+          "#d5d3cd",
+          "#f3f3f1"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#625b4e",
+        "tonalRamp": [
+          "#2b2822",
+          "#474239",
+          "#635c4f",
+          "#807766",
+          "#99907f",
+          "#b7b0a4",
+          "#d6d3cc",
+          "#f4f3f1"
+        ]
+      },
+      "cell-missed": {
+        "role": "neutral",
+        "displayName": "Missed Hatch",
+        "canonical": "#7d7463",
+        "tonalRamp": [
+          "#2b2822",
+          "#474238",
+          "#645c4f",
+          "#807765",
+          "#9a907f",
+          "#b7b0a4",
+          "#d6d3cc",
+          "#f4f3f1"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "Landing hero and recap headline."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Section titles and the check-in date."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel, banner and card titles."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All reading copy."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Stat labels, counters, key hints, meta lines."
+      }
+    },
+    "shadows": [
+      {
+        "name": "misregistration-state",
+        "value": "4px 5px 0 var(--cobalt)",
+        "purpose": "A completed check-in (coral: reset banner; marigold: finished)."
+      },
+      {
+        "name": "misregistration-hover",
+        "value": "4px 6px 0 var(--coral)",
+        "purpose": "Button hover on hover-capable pointers, with translateY(-2px)."
+      },
+      {
+        "name": "stamp",
+        "value": "1px 1.5px 0 color-mix(in srgb, var(--ink) 22%, transparent)",
+        "purpose": "The ink edge of grid stamps and token chips."
+      },
+      {
+        "name": "moment",
+        "value": "6px 8px 0 var(--cobalt)",
+        "purpose": "The celebration card."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-quart",
+        "value": "cubic-bezier(0.25, 1, 0.5, 1)",
+        "purpose": "The stamp pop-in and the celebration card."
+      },
+      {
+        "name": "state",
+        "value": "0.12s ease",
+        "purpose": "Border, background and hover transitions."
+      },
+      {
+        "name": "today-pulse",
+        "value": "2s ease-in-out × 3",
+        "purpose": "Today's ring, three beats then still. Off with reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "phone",
+        "value": "520px"
+      },
+      {
+        "name": "stack",
+        "value": "860px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one main action on a surface.",
+      "html": "<button class=\"ds-btn\">Start my 75</button>",
+      "css": ".ds-btn{font-family:var(--font-mono,ui-monospace,monospace);font-size:.85rem;letter-spacing:.04em;text-transform:uppercase;min-height:44px;padding:.85rem 1.4rem;border-radius:999px;border:1.5px solid #1b1a17;background:#1b1a17;color:#efe9dc;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.ds-btn:hover{transform:translateY(-2px);box-shadow:4px 6px 0 #f5462d}.ds-btn:focus-visible{outline:3px solid #2340d8;outline-offset:2px}"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions beside a primary.",
+      "html": "<button class=\"ds-btn-ghost\">Browse past days</button>",
+      "css": ".ds-btn-ghost{font-family:var(--font-mono,ui-monospace,monospace);font-size:.85rem;letter-spacing:.04em;text-transform:uppercase;min-height:44px;padding:.85rem 1.4rem;border-radius:999px;border:1.5px solid #1b1a17;background:transparent;color:#1b1a17;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}.ds-btn-ghost:hover{transform:translateY(-2px);box-shadow:4px 6px 0 #2340d8}.ds-btn-ghost:focus-visible{outline:3px solid #2340d8;outline-offset:2px}"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Every text, date and time field.",
+      "html": "<input class=\"ds-field\" placeholder=\"What did you make or learn today?\">",
+      "css": ".ds-field{min-height:44px;font-size:1rem;padding:.6rem .8rem;border-radius:10px;border:1.5px solid #837968;background:#efe9dc;color:#1b1a17;width:18rem}.ds-field::placeholder{color:#625b4e}.ds-field:focus{border-color:#2340d8;outline:3px solid #2340d8;outline-offset:2px}"
+    },
+    {
+      "name": "Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "One choice among a few (late-night buffer, start date).",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"false\">2am</button><button class=\"ds-chip\" aria-pressed=\"true\">3am</button>",
+      "css": ".ds-chip{min-height:44px;padding:.55rem 1.1rem;margin-right:.5rem;border-radius:999px;border:1.5px solid #837968;background:#efe9dc;color:#1b1a17;font-family:ui-monospace,monospace;font-size:.8rem;cursor:pointer}.ds-chip[aria-pressed=true]{border-color:#2340d8;background:color-mix(in srgb,#2340d8 14%,#efe9dc);box-shadow:2px 3px 0 #2340d8;font-weight:700}.ds-chip:focus-visible{outline:3px solid #2340d8;outline-offset:2px}"
+    },
+    {
+      "name": "Grid",
+      "kind": "custom",
+      "refersTo": "grid-cell-made",
+      "description": "The signature: one stamp per day.",
+      "html": "<div class=\"ds-grid\"><i class=\"m\" style=\"--r:-2deg\"></i><i class=\"m\" style=\"--r:3deg\"></i><i class=\"s\" style=\"--r:1deg\">–</i><i class=\"x\">×</i><i class=\"m\" style=\"--r:-3deg\"></i><i class=\"t\"></i><i class=\"f\"></i><i class=\"f\"></i></div>",
+      "css": ".ds-grid{display:grid;grid-template-columns:repeat(8,28px);gap:6px}.ds-grid i{aspect-ratio:1;border-radius:4px;display:grid;place-items:center;font:700 .8rem ui-monospace,monospace;font-style:normal;color:#1b1a17}.ds-grid .m{background:#2340d8;transform:rotate(var(--r));box-shadow:1px 1.5px 0 rgba(27,26,23,.22)}.ds-grid .s{background:#e0910f;transform:rotate(var(--r))}.ds-grid .x{background:repeating-linear-gradient(-45deg,#7d7463,#7d7463 1.5px,transparent 1.5px,transparent 4px);border:1.5px solid #7d7463}.ds-grid .t{border:2.5px solid #e03d24;background:rgba(224,61,36,.12)}.ds-grid .f{border:1.5px dotted #837968}"
+    },
+    {
+      "name": "Done Stamp",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Marks a completed check-in.",
+      "html": "<span class=\"ds-stamp\">✓ Done</span>",
+      "css": ".ds-stamp{display:inline-flex;gap:.3rem;font:0.75rem ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:#2340d8;border:1.5px solid #2340d8;border-radius:999px;padding:.3rem .7rem;transform:rotate(-3deg)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Daily Mark",
+    "overview": "Every screen is a sheet of sketch paper with pigment printed onto it. The paper is warm and dotted like a notebook grid. The pigments are the flat, slightly off-register colours of a risograph: cobalt for work made, marigold for a day a skip token covered, coral for today, and a hatched grey-brown for a day that was missed. The product's single image, the 75-cell grid, is made of those marks, and the rest of the interface borrows its vocabulary from it: stamps, offsets and small rotations that read as placed by hand.\n\nIt is calm by default and celebratory only when a day is done. Density is low and one-handed: a phone at night is the main use scene, so everything the day needs sits in one card and every control is at least 44px. The voice is plain and a little dry. Misses are stated as facts in ink, never shouted in red.",
+    "keyCharacteristics": [
+      "Warm paper grounds with a dotted sketch-paper texture, in light and dark.",
+      "Flat riso pigments with meaning: each colour is a day state, not decoration.",
+      "Hand-placed marks: grid stamps rotate ±3.5°, the Done stamp −3°.",
+      "Misregistered offset shadows as the only depth, with no blur.",
+      "One display face with real weight, one plain body face, and mono for labels and numbers."
+    ],
+    "rules": [
+      {
+        "name": "The Pigment Means Something Rule",
+        "body": "Each pigment is a day state first. Cobalt is made, marigold is skipped, coral is today and stakes. Don't borrow a pigment for decoration where it could be read as a state.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink For Text Rule",
+        "body": "Raw pigments are fills. Text in a pigment colour uses its -ink variant, which clears 4.5:1.",
+        "section": "colors"
+      },
+      {
+        "name": "The Miss Is A Fact Rule",
+        "body": "A missed day is hatched in neutral ink tone with a × mark, never coral or red. It must be visible (at least 3:1) and never shaming.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Kicker Rule",
+        "body": "No small label sits above a heading. The heading carries its own weight. Mono labels name stats and fields, never sections.",
+        "section": "typography"
+      },
+      {
+        "name": "The 11px Floor Rule",
+        "body": "Nothing on screen is smaller than 0.7rem, and multi-line notes are at least 0.8rem.",
+        "section": "typography"
+      },
+      {
+        "name": "The Off-Register Rule",
+        "body": "Depth is always a zero-blur pigment offset tied to a state (done, ended, finished, hovered). A soft or ambient shadow is outside this world.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do keep every pigment tied to its day state (cobalt made, marigold skipped, coral today and stakes).",
+      "Do use the -ink variant whenever a pigment carries text.",
+      "Do express depth only as a zero-blur pigment offset tied to a state.",
+      "Do keep controls at 44px and fields on the shared field-input / chip primitives.",
+      "Do state a miss in plain ink tone, paired with the person's own \"why I started\"."
+    ],
+    "donts": [
+      "Don't put a small label above a heading.",
+      "Don't use blur shadows, glass or gradients as decoration.",
+      "Don't colour a missed day coral or red.",
+      "Don't stand Unicode glyphs or emoji in for icons. The icon set is drawn at 1.75 stroke on a 24px grid.",
+      "Don't show a statistic the app didn't record (for example minutes spent)."
+    ]
+  }
+}

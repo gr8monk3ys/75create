@@ -1,36 +1,45 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useApp } from './AppProvider'
-import { Challenge } from '@/lib/types'
+import { Grid } from './Grid'
+import { Icon } from './Icon'
+import { PastAttempt, hasLog } from '@/lib/challengeSession'
+import { POLICY_NAMES, shortDate } from '@/lib/format'
+
+const LOGS_SHOWN = 5
 
 export function PastAttempts() {
-  const { repo } = useApp()
-  const archived = repo
-    .getChallenges()
-    .filter((c) => c.status === 'archived')
+  const { history, challenge } = useApp()
+  // History only changes when a challenge ends (a new active id), so it's
+  // read then, not on every autosave.
+  const activeId = challenge?.id
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const archived = useMemo(() => history(), [history, activeId])
   const [open, setOpen] = useState<string | null>(null)
 
   if (archived.length === 0) return null
 
   return (
-    <section className="past">
-      <span className="eyebrow">Past attempts</span>
-      <h2 className="font-display past-h2">Nothing here is deleted.</h2>
+    <section className="past" aria-labelledby="past-title">
+      <h2 id="past-title" className="font-display past-h2">
+        Past attempts
+      </h2>
       <p className="past-sub">
-        Every reset archives the attempt, logs and all. It still counts as work you
-        made.
+        Nothing here is deleted. Every reset, every attempt you end and every finished round is
+        kept, logs and all. It still counts as work you made.
       </p>
-      <div className="attempts">
-        {archived.map((c) => (
+      <ul className="attempts">
+        {archived.map((attempt, i) => (
           <AttemptRow
-            key={c.id}
-            challenge={c}
-            open={open === c.id}
-            onToggle={() => setOpen(open === c.id ? null : c.id)}
+            key={attempt.challenge.id}
+            number={archived.length - i}
+            attempt={attempt}
+            open={open === attempt.challenge.id}
+            onToggle={() => setOpen(open === attempt.challenge.id ? null : attempt.challenge.id)}
           />
         ))}
-      </div>
+      </ul>
 
       <style jsx>{`
         .past {
@@ -39,16 +48,19 @@ export function PastAttempts() {
           padding-top: 2.5rem;
         }
         .past-h2 {
-          font-size: 1.6rem;
-          margin: 0.4rem 0 0.5rem;
+          font-size: 1.5rem;
+          margin: 0 0 0.5rem;
         }
         .past-sub {
           color: var(--ink-soft);
           margin: 0 0 1.5rem;
-          max-width: 48ch;
+          max-width: 52ch;
           line-height: 1.5;
         }
         .attempts {
+          list-style: none;
+          margin: 0;
+          padding: 0;
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
@@ -59,44 +71,69 @@ export function PastAttempts() {
 }
 
 function AttemptRow({
-  challenge,
+  number,
+  attempt,
   open,
   onToggle,
 }: {
-  challenge: Challenge
+  number: number
+  attempt: PastAttempt
   open: boolean
   onToggle: () => void
 }) {
-  const { repo } = useApp()
-  const dd = repo.getDayData(challenge.id)
-  const completed = Object.keys(dd.completions).length
-  const logs = Object.entries(dd.logs).sort((a, b) => Number(a[0]) - Number(b[0]))
+  const { challenge, dayData: dd, days, endedOn, outcome } = attempt
+  const { made } = attempt.tally
+  const logs = Object.entries(dd.logs)
+    .filter(([day]) => hasLog(dd, Number(day)))
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+  const bodyId = `attempt-${challenge.id}`
+  // A finished round holds 75 logs: the first few, then all on request.
+  const [allLogs, setAllLogs] = useState(false)
+  const shown = allLogs ? logs : logs.slice(0, LOGS_SHOWN)
 
   return (
-    <div className="attempt panel">
-      <button className="attempt-head" onClick={onToggle} aria-expanded={open}>
-        <div>
-          <span className="a-medium font-mono">{challenge.medium}</span>
-          <span className="a-meta">
-            started {challenge.startDate} · {challenge.missPolicy} · reached day{' '}
-            {completed}
+    <li className="attempt panel">
+      <button className="attempt-head" onClick={onToggle} aria-expanded={open} aria-controls={bodyId}>
+        <span className="a-title">
+          <span className="a-name font-display">
+            Attempt {number}{outcome === 'finished' ? ' · finished' : ''}
           </span>
-        </div>
-        <span className="chev">{open ? '−' : '+'}</span>
+          <span className="a-meta">
+            {POLICY_NAMES[challenge.missPolicy]} · started {shortDate(challenge.startDate)} ·{' '}
+            {made} {made === 1 ? 'day' : 'days'} made
+            {endedOn ? ` · ended on Day ${endedOn}` : ''}
+          </span>
+        </span>
+        <Icon name={open ? 'minus' : 'plus'} size={20} className="chev" />
       </button>
       {open && (
-        <div className="attempt-body">
+        <div className="attempt-body" id={bodyId}>
+          <div className="a-grid">
+            <Grid days={days} compact endedOn={endedOn} />
+          </div>
           {logs.length === 0 ? (
-            <p className="empty font-mono">No logs recorded in this attempt.</p>
+            <p className="empty">No logs were written in this attempt.</p>
           ) : (
-            <ul className="log-list">
-              {logs.map(([idx, log]) => (
-                <li key={idx}>
-                  <span className="log-day font-mono">Day {idx}</span>
-                  <span className="log-text">{log.text || '—'}</span>
-                </li>
-              ))}
-            </ul>
+            <>
+              <ol className="log-list">
+                {shown.map(([idx, log]) => (
+                  <li key={idx}>
+                    <span className="log-day">Day {idx}</span>
+                    <span className="log-text">{log.text}</span>
+                  </li>
+                ))}
+              </ol>
+              {logs.length > LOGS_SHOWN && (
+                <button
+                  type="button"
+                  className="btn btn-ghost small more"
+                  onClick={() => setAllLogs(!allLogs)}
+                  aria-expanded={allLogs}
+                >
+                  {allLogs ? 'Show fewer logs' : `Show all ${logs.length} logs`}
+                </button>
+              )}
+            </>
           )}
         </div>
       )}
@@ -105,12 +142,18 @@ function AttemptRow({
         .attempt {
           overflow: hidden;
         }
+        /* The panel clips its content, so the ring is drawn inside it. */
+        .attempt-head:focus-visible {
+          outline-offset: -3px;
+          border-radius: 14px;
+        }
         .attempt-head {
           width: 100%;
           display: flex;
           justify-content: space-between;
           align-items: center;
           padding: 1rem 1.25rem;
+          min-height: 56px;
           background: transparent;
           border: none;
           cursor: pointer;
@@ -118,52 +161,70 @@ function AttemptRow({
           text-align: left;
           gap: 1rem;
         }
-        .a-medium {
-          text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-size: 0.75rem;
-          color: var(--coral);
-          margin-right: 0.75rem;
+        .a-title {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+        .a-name {
+          font-size: 1.25rem;
         }
         .a-meta {
-          color: var(--muted);
-          font-size: 0.85rem;
+          color: var(--ink-soft);
+          font-size: 0.875rem;
         }
-        .chev {
-          font-size: 1.2rem;
+        .attempt-head :global(.chev) {
+          flex: none;
           color: var(--muted);
         }
         .attempt-body {
-          padding: 0 1.25rem 1.25rem;
+          padding: 1rem 1.25rem 1.25rem;
           border-top: 1.5px solid var(--line);
+        }
+        .a-grid {
+          max-width: 360px;
         }
         .empty {
           color: var(--muted);
-          font-size: 0.8rem;
+          font-size: 0.875rem;
+          margin: 1rem 0 0;
         }
         .log-list {
           list-style: none;
           padding: 0;
-          margin: 1rem 0 0;
+          margin: 1.1rem 0 0;
           display: flex;
           flex-direction: column;
           gap: 0.6rem;
         }
+        .attempt-body :global(.more) {
+          margin-top: 0.9rem;
+        }
         .log-list li {
           display: grid;
-          grid-template-columns: 70px 1fr;
+          grid-template-columns: 4.5rem minmax(0, 1fr);
           gap: 0.75rem;
-          font-size: 0.9rem;
+          font-size: 0.875rem;
+          overflow-wrap: anywhere;
+        }
+        @media (max-width: 30em) {
+          /* A phone, or large text: the day sits above its log. */
+          .log-list li {
+            grid-template-columns: minmax(0, 1fr);
+            gap: 0.15rem;
+          }
         }
         .log-day {
+          font-family: var(--font-mono);
           color: var(--muted);
-          font-size: 0.72rem;
+          font-size: 0.8rem;
+          padding-top: 0.1rem;
         }
         .log-text {
           color: var(--ink-soft);
-          line-height: 1.4;
+          line-height: 1.45;
         }
       `}</style>
-    </div>
+    </li>
   )
 }

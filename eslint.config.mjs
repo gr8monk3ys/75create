@@ -11,6 +11,7 @@ const config = [
       'node_modules/**',
       'next-env.d.ts',
       'supabase/functions/**', // Deno runtime, typed against Deno globals
+      '.claude/**', // locally installed agent skills (not in the repo)
     ],
   },
   ...coreWebVitals,
