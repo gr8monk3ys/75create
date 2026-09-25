@@ -681,8 +681,12 @@ export function DayCard({
         button.check {
           cursor: pointer;
         }
-        button.check:hover {
-          border-color: var(--ink-soft);
+        /* Hover only where there is one (a tap leaves :hover stuck on a
+           phone), and never over a ticked rule's cobalt edge. */
+        @media (hover: hover) {
+          button.check:not(.on):hover {
+            border-color: var(--ink-soft);
+          }
         }
         .check.on {
           border-color: var(--cobalt);

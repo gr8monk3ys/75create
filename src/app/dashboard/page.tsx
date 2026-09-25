@@ -84,6 +84,22 @@ export default function Dashboard() {
   )
 
   const { currentIndex, checkInOpen } = derived
+
+  // The day rolled over with the page open: the card remounts under
+  // whoever was using it. Put them on the news (a notice) or the new card,
+  // never the page.
+  const lastIndex = useRef(currentIndex)
+  useEffect(() => {
+    const was = lastIndex.current
+    lastIndex.current = currentIndex
+    if (was === 0 || was === currentIndex) return
+    const lost = !document.activeElement || document.activeElement === document.body
+    if (!lost) return
+    requestAnimationFrame(() => {
+      const to = document.getElementById('notice') ?? document.getElementById(CHECK_IN_ID)
+      to?.focus({ preventScroll: true })
+    })
+  }, [currentIndex])
   // Stable across autosaves (the day states and today don't change while
   // someone types), so the memoized grid skips those renders.
   const onOpenDay = useCallback(

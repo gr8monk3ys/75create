@@ -252,6 +252,7 @@ export function ArtifactThumb({
   const { repo } = useApp()
   const [src, setSrc] = useState<string | null>(null)
   const [armed, setArmed] = useState(false)
+  const armedAt = useRef(0)
   const removeRef = useRef<HTMLButtonElement>(null)
   const boxRef = useRef<HTMLDivElement>(null)
   // A finished recap can hold 75+ images: read and decode each one only when
@@ -343,7 +344,13 @@ export function ArtifactThumb({
           className="x"
           onBlur={() => setArmed(false)}
           onClick={() => {
-            if (armed) return onRemove()
+            if (armed) {
+              // A double tap lands both taps here: the second, straight after
+              // arming, isn't a decision. An image is gone for good.
+              if (Date.now() - armedAt.current < 600) return
+              return onRemove()
+            }
+            armedAt.current = Date.now()
             setArmed(true)
             onArm?.(`Press again to remove this ${what}${reopens ? '; today will no longer be complete' : ''}.`)
           }}
@@ -435,9 +442,11 @@ export function ArtifactThumb({
         }
         .x {
           position: absolute;
-          top: 0;
-          right: 0;
-          /* The visible chip is small; the hit area is a full 44px corner. */
+          /* The visible chip is small; the hit area is a full 44px corner,
+             pushed out past the tile's edge so it stays clear of the tile's
+             centre (a tap or double tap there is meant for the work). */
+          top: -12px;
+          right: -12px;
           min-width: 44px;
           height: 44px;
           padding: 0;
@@ -454,6 +463,11 @@ export function ArtifactThumb({
           border-radius: 999px;
           margin: 4px;
         }
+        /* The chip itself stays on the tile's corner, inside the pushed-out
+           hit area. */
+        .thumb:not(.armed) .x :global(svg) {
+          margin: 16px 16px 0 0;
+        }
         .x :global(svg) {
           padding: 3px;
           width: 24px;
@@ -462,6 +476,8 @@ export function ArtifactThumb({
         .thumb.armed .x {
           /* Armed, the confirm takes the whole tile: it can't be clipped or
              run off-screen, and it is the one thing left to decide. */
+          top: 0;
+          right: auto;
           inset: 0 auto auto 0;
           min-width: 100%;
           min-height: 100%;

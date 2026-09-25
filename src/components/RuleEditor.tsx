@@ -208,7 +208,8 @@ export function RuleEditor({ rules, onChange }: Props) {
           background: var(--paper);
         }
         .remove:disabled {
-          opacity: 0.3;
+          /* Dimmed by colour, as everywhere (DESIGN.md). */
+          color: color-mix(in srgb, var(--ink-soft) 35%, transparent);
           cursor: not-allowed;
         }
         .desc-input {

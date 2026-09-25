@@ -299,6 +299,12 @@ input[type='time']:focus-within {
   outline: 3px solid var(--cobalt);
   outline-offset: 2px;
 }
+/* And the picker button says it's the one focused, not a date segment. */
+input::-webkit-calendar-picker-indicator:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
 
 /* --- shared form primitives: one field, one chip, one small button --- */
 /* The few native checkboxes (settings, share, the rule editor) at a size and
@@ -528,9 +534,8 @@ h3 {
   padding: 1.25rem;
 }
 .grid-sample {
+  /* A caption, not a stat label: sentence case (uppercase is for labels). */
   font-size: 0.75rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 .grid-caption {

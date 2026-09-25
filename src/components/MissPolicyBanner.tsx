@@ -25,9 +25,12 @@ export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }:
   const isReset = banner.kind === 'reset'
   return (
     <section
+      id="notice"
       className={`banner panel kind-${banner.kind}`}
       role={isReset ? 'alert' : 'status'}
       aria-labelledby="banner-title"
+      // Focus can land here when a rollover brings it (see the dashboard).
+      tabIndex={-1}
     >
       <div className="banner-body">
         <h2 id="banner-title" className="font-display title">

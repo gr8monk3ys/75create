@@ -51,9 +51,23 @@ self.addEventListener('install', (event) => {
   event.waitUntil(precache().then(() => self.skipWaiting()))
 })
 
-// Lets the page trigger an immediate activation after it sees a new worker.
+// Lets the page trigger an immediate activation after it sees a new worker,
+// and hand over the static files it loaded before this worker controlled it.
 self.addEventListener('message', (event) => {
   if (event.data === 'skip-waiting') self.skipWaiting()
+  if (event.data && event.data.type === 'cache-static' && Array.isArray(event.data.urls)) {
+    const own = event.data.urls.filter((u) => {
+      try {
+        const url = new URL(u)
+        return url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')
+      } catch {
+        return false
+      }
+    })
+    event.waitUntil(
+      Promise.allSettled(own.slice(0, STATIC_MAX).map((u) => cacheFirst(new Request(u)))),
+    )
+  }
 })
 
 self.addEventListener('activate', (event) => {
