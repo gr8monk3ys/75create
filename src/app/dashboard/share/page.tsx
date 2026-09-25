@@ -165,6 +165,13 @@ export default function ShareGenerator() {
           </button>
         </div>
       </div>
+      {link.length > 2000 && (
+        // Plain fact, so the owner can decide: the logs make it long.
+        <p className="len-note">
+          This link is {link.length.toLocaleString()} characters long because it carries your
+          logs. Some messaging apps cut links that long; turn the logs off for a short one.
+        </p>
+      )}
       <p className="copy-status" role="status">
         {status}
       </p>
@@ -245,6 +252,12 @@ export default function ShareGenerator() {
           border: 0;
           resize: none;
           word-break: break-all;
+        }
+        .len-note {
+          margin: 0.75rem 0 0;
+          font-size: 0.875rem;
+          color: var(--ink-soft);
+          max-width: 60ch;
         }
         .copy-status {
           min-height: 1.4em;

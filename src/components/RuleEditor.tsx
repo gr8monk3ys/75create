@@ -61,7 +61,7 @@ export function RuleEditor({ rules, onChange }: Props) {
       {rules.map((r, i) => (
         <div key={r.id} className="rule-edit panel">
           <div className="rule-top">
-            <span className="idx font-mono">{String(i + 1).padStart(2, '0')}</span>
+            <span className="idx font-mono">{i + 1}</span>
             {/* A one-line field that wraps: a long name is read whole. */}
             <textarea
               id={ruleNameId(r)}

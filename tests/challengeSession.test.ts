@@ -354,18 +354,26 @@ describe('finishing, maintenance, new round', () => {
     expect(session.toggleRule(80, 'a')).toEqual({ ok: false })
   })
 
-  it('closes the finished challenge so a new round can start', () => {
+  it('closes the finished round only as the next one starts', () => {
     finishAll()
-    session.closeForNewRound()
-    expect(session.read().phase).toBe('no-challenge')
+    const finished = repo.getActiveChallenge()!
+    expect(session.read().phase).toBe('finished')
+    session.start(draft({ missPolicy: 'grace' }))
+    expect(repo.getChallenges().find((c) => c.id === finished.id)!.status).toBe('completed')
+    expect(session.read().challenge!.missPolicy).toBe('grace')
+  })
+
+  it('starts the next round from maintenance too', () => {
+    finishAll()
+    session.enterMaintenance()
     expect(() => session.start(draft())).not.toThrow()
   })
 
-  it('will not enter maintenance or close a challenge that is still running', () => {
+  it('will not enter maintenance or start over a challenge that is still running', () => {
     session.start(draft())
     session.enterMaintenance()
-    session.closeForNewRound()
     expect(session.read().phase).toBe('active')
+    expect(() => session.start(draft())).toThrow(/already running/)
   })
 })
 
@@ -642,7 +650,6 @@ describe('ending and history', () => {
   it('keeps a finished round in history after a new round starts', () => {
     session.start(draft())
     runTo(75)
-    session.closeForNewRound()
     session.start(draft({ missPolicy: 'grace' }))
     const [round] = session.history()
     expect(round.outcome).toBe('finished')

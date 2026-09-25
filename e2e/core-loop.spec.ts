@@ -200,6 +200,12 @@ test.describe('settings', () => {
 
     await page.goto('/settings')
     await page.getByRole('button', { name: 'End this challenge' }).click()
+    // A second press straight after arming lands on "Keep going": a double
+    // tap or Enter, Enter never ends the challenge.
+    await expect(page.getByRole('button', { name: 'Keep going' })).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page.getByRole('button', { name: 'End this challenge' })).toBeFocused()
+    await page.getByRole('button', { name: 'End this challenge' }).click()
     // Two steps, and the confirm says exactly what happens.
     await page.getByRole('button', { name: 'Yes, end on Day 1' }).click()
     await page.waitForURL(/\/setup/)

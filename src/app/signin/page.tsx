@@ -48,7 +48,7 @@ export default function SignIn() {
 
       <div className="auth-card panel">
         <h1 className="font-display auth-h1">
-          {sent ? 'Check your email' : 'Sign in with your email'}
+          {sent ? 'Check your email' : supabaseEnabled ? 'Sign in with your email' : 'Start on this device'}
         </h1>
 
         {sent ? (

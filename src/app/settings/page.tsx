@@ -47,14 +47,16 @@ function EndChallenge() {
   const { ending, endAttempt } = useApp()
   const router = useRouter()
   const [armed, setArmed] = useState(false)
-  const confirmRef = useRef<HTMLButtonElement>(null)
+  const keepRef = useRef<HTMLButtonElement>(null)
   const armRef = useRef<HTMLButtonElement>(null)
   const wasArmed = useRef(false)
 
-  // Arming lands on the confirm; "Keep going" lands back on the button that
-  // armed it, so focus never drops to the page after a cancel.
+  // Arming lands on "Keep going", which takes the arming button's place: a
+  // double tap or a second Enter keeps the challenge, never ends it. The
+  // danger button is the deliberate second choice. Cancelling lands back on
+  // the button that armed it, so focus never drops to the page.
   useEffect(() => {
-    if (armed) confirmRef.current?.focus()
+    if (armed) keepRef.current?.focus()
     else if (wasArmed.current) armRef.current?.focus()
     wasArmed.current = armed
   }, [armed])
@@ -78,12 +80,19 @@ function EndChallenge() {
           : `This attempt ends on Day ${ending.day} and moves to past attempts with everything you made. Then you set up a new challenge.`}
       </p>
       {armed ? (
-        <div className="end-row">
-          <button ref={confirmRef} type="button" className="btn btn-danger" onClick={end}>
-            {ending.kind === 'redo' ? 'Yes, set it up again' : `Yes, end on Day ${ending.day}`}
-          </button>
-          <button type="button" className="btn btn-ghost" onClick={() => setArmed(false)}>
+        <div
+          className="end-row"
+          role="group"
+          aria-label={redo ? 'Confirm setting it up again' : `Confirm ending on Day ${ending.day}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setArmed(false)
+          }}
+        >
+          <button ref={keepRef} type="button" className="btn btn-ghost" onClick={() => setArmed(false)}>
             Keep going
+          </button>
+          <button type="button" className="btn btn-danger" onClick={end}>
+            {ending.kind === 'redo' ? 'Yes, set it up again' : `Yes, end on Day ${ending.day}`}
           </button>
         </div>
       ) : (

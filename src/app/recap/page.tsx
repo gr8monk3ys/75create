@@ -10,7 +10,7 @@ import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
 
 export default function Recap() {
-  const { loading, user, challenge, dayData, derived, phase, enterMaintenance, closeForNewRound } = useApp()
+  const { loading, user, challenge, dayData, derived, phase, enterMaintenance } = useApp()
   const router = useRouter()
   const [building, setBuilding] = useState(false)
 
@@ -72,7 +72,7 @@ export default function Recap() {
   }
 
   function newRound() {
-    closeForNewRound()
+    // Closed only when the next round starts, so backing out keeps this.
     router.push('/setup')
   }
 
@@ -171,7 +171,7 @@ export default function Recap() {
                 <h3 className="tl-num font-mono">Day {day}</h3>
                 <div className="tl-arts">
                   {artifacts.map((a) => (
-                    <ArtifactThumb key={a.id} artifact={a} size={120} dayIndex={day} />
+                    <ArtifactThumb key={a.id} artifact={a} size={96} dayIndex={day} />
                   ))}
                 </div>
                 {dayData.logs[day]?.text && (
@@ -238,11 +238,14 @@ export default function Recap() {
           list-style: none;
           margin: 0;
           padding: 0;
-          display: flex;
-          flex-direction: column;
-          gap: 1.5rem;
+          /* A gallery, not one long column: two across on a phone, more on
+             a wide screen, so 75 days of work stay browsable. */
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(min(10.5rem, 100%), 1fr));
+          gap: 1.5rem 1.25rem;
         }
         .tl-day {
+          min-width: 0;
           border-top: 1.5px dashed var(--line);
           padding-top: 1rem;
         }

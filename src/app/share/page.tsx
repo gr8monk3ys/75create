@@ -99,16 +99,16 @@ export default function SharePage() {
       {snap.includeLogs && Object.keys(snap.logs).length > 0 && (
         <section className="logs">
           <h2 className="font-display logs-h2">Daily logs</h2>
-          <div className="log-list">
+          <ol className="log-list">
             {Object.entries(snap.logs)
               .sort((a, b) => Number(a[0]) - Number(b[0]))
               .map(([idx, text]) => (
-                <div key={idx} className="log-row">
+                <li key={idx} className="log-row">
                   <span className="log-day font-mono">Day {idx}</span>
                   <span className="log-text">{text}</span>
-                </div>
+                </li>
               ))}
-          </div>
+          </ol>
         </section>
       )}
 
@@ -173,6 +173,8 @@ function Styles() {
         margin-top: 2.5rem;
       }
       .share-view .log-list {
+        list-style: none;
+        padding: 0;
         display: flex;
         flex-direction: column;
         gap: 0.75rem;

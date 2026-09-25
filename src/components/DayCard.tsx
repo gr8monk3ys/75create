@@ -329,13 +329,15 @@ export function DayCard({
     </div>
   )
 
-  const artifactField = (labelId: string, describedBy?: string) => (
+  // Inside an evidence row the row is already the named group: the field
+  // doesn't name a second one the same (`nested`).
+  const artifactField = (labelId: string, describedBy?: string, nested = false) => (
     <ArtifactInput
       dayIndex={dayIndex}
       artifacts={artifacts}
       onResult={handle}
       onAnnounce={setAnnounce}
-      labelledBy={labelId}
+      labelledBy={nested ? undefined : labelId}
       describedBy={describedBy}
       uploadId={`upload-${dayIndex}`}
     />
@@ -492,7 +494,7 @@ export function DayCard({
                     )}
                     {evidence === 'log'
                       ? logField(labelId, [statusId, descId].filter(Boolean).join(' '))
-                      : artifactField(labelId, descId)}
+                      : artifactField(labelId, descId, true)}
                   </div>
                 </li>
               )

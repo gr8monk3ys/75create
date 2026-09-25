@@ -54,10 +54,23 @@ describe('shareSnapshot codec', () => {
 
 describe('decodeSnapshot on untrusted links', () => {
   it('rejects unknown day states and repairs missing fields', () => {
-    const enc = (o: unknown) => encodeSnapshot(o as never)
-    expect(decodeSnapshot(enc({ dayStates: ['complete', 'evil'] }))).toBeNull()
-    const snap = decodeSnapshot(enc({ dayStates: ['complete'], includeLogs: true }))
+    // Crafted by hand, as an attacker would: not through our encoder.
+    const raw = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    expect(decodeSnapshot(raw({ dayStates: ['complete', 'evil'] }))).toBeNull()
+    expect(decodeSnapshot(raw({ dayStates: 'cx' }))).toBeNull()
+    const snap = decodeSnapshot(raw({ dayStates: ['complete'], includeLogs: true }))
     expect(snap?.logs).toEqual({})
     expect(snap?.missPolicy).toBe('classic')
+  })
+
+  it('reads the one-letter day states, and older links with names', () => {
+    const raw = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    expect(decodeSnapshot(raw({ dayStates: 'cmstf' }))?.dayStates).toEqual(['complete', 'missed', 'skipped', 'today', 'future'])
+    expect(decodeSnapshot(raw({ dayStates: ['complete', 'future'] }))?.dayStates).toEqual(['complete', 'future'])
+  })
+
+  it('keeps a 75-day link short', () => {
+    const snap = { ...sample(), dayStates: Array(75).fill('complete'), logs: {}, includeLogs: false }
+    expect(encodeSnapshot(snap).length).toBeLessThan(300)
   })
 })

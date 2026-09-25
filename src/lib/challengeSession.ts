@@ -188,14 +188,15 @@ export interface ChallengeSession {
   setReminder(time: string | null): void
   /** Whether removing that artifact would reopen a completed today. */
   wouldReopen(dayIndex: number, artifactId: string): boolean
-  /** Begin a new challenge. Throws if the draft is invalid or one is running. */
+  /**
+   * Begin a new challenge. Throws if the draft is invalid or one is still
+   * running; a finished round (or maintenance) is closed as this starts.
+   */
   start(draft: ChallengeDraft): Challenge
   /** Archive the ended attempt and restart at Day 1 today, same rules. */
   confirmReset(): void
   /** After finishing: keep creating daily with no rules. */
   enterMaintenance(): void
-  /** After finishing (or from maintenance): close this challenge for a new one. */
-  closeForNewRound(): void
   /**
    * Stop the running challenge at the person's own request: before Day 1 (to
    * change the setup), mid-attempt, or instead of restarting after a miss.
@@ -541,9 +542,13 @@ export function createChallengeSession(
   function start(draft: ChallengeDraft): Challenge {
     const { user, challenge: running } = context()
     if (!user) throw new Error('Sign in before starting a challenge.')
-    if (running) throw new Error('A challenge is already running.')
+    // A finished round (or its maintenance) closes only here, as the next
+    // one starts: backing out of setup keeps the recap and certificate.
+    const roundOver = running && ['finished', 'maintenance'].includes(read().phase)
+    if (running && !roundOver) throw new Error('A challenge is already running.')
     const problem = draftProblem(draft)
     if (problem) throw new Error(problem)
+    if (running && roundOver) repo.saveChallenge({ ...running, status: 'completed' })
 
     const now = clock()
     const today = creativeDate(now, user.tz, user.lateNightBufferHrs)
@@ -592,15 +597,9 @@ export function createChallengeSession(
     repo.saveChallenge({ ...snap.challenge, status: 'maintenance', maintenanceMode: true })
   }
 
-  function closeForNewRound(): void {
-    const snap = read()
-    if ((snap.phase !== 'finished' && snap.phase !== 'maintenance') || !snap.challenge) return
-    repo.saveChallenge({ ...snap.challenge, status: 'completed' })
-  }
-
   function endAttempt(): void {
     const { challenge, ending, phase } = read()
-    if (!challenge || !ending) return // finished rounds close with closeForNewRound
+    if (!challenge || !ending) return // a finished round closes when the next starts
     repo.saveChallenge({
       ...challenge,
       status: 'archived',
@@ -647,7 +646,6 @@ export function createChallengeSession(
     start,
     confirmReset,
     enterMaintenance,
-    closeForNewRound,
     endAttempt,
     history,
   }

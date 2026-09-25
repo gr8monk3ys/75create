@@ -63,7 +63,7 @@ function writeDraft(d: SetupDraft | null) {
 }
 
 export default function Setup() {
-  const { user, challenge, creativeToday, dayCloses, startChallenge, loading } = useApp()
+  const { user, challenge, phase, creativeToday, dayCloses, startChallenge, loading } = useApp()
   const router = useRouter()
   const [step, setStep] = useState(0)
 
@@ -105,9 +105,11 @@ export default function Setup() {
   useEffect(() => {
     if (loading) return
     if (!user) router.replace('/signin')
-    // One challenge at a time: a running one is finished or reset from the dashboard.
-    else if (challenge) router.replace('/dashboard')
-  }, [loading, user, challenge, router])
+    // One challenge at a time: a running one is finished or reset from the
+    // dashboard. A finished round (or maintenance) can set up the next one;
+    // it closes when that starts.
+    else if (challenge && phase !== 'finished' && phase !== 'maintenance') router.replace('/dashboard')
+  }, [loading, user, challenge, phase, router])
 
   const draft: ChallengeDraft = {
     medium,
@@ -516,6 +518,7 @@ export default function Setup() {
         .lock-list {
           margin: 0;
           padding-left: 1.1rem;
+          list-style: disc;
           display: flex;
           flex-direction: column;
           gap: 0.35rem;

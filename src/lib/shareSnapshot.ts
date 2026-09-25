@@ -33,8 +33,14 @@ function fromBase64Url(s: string): Uint8Array {
   return bytes
 }
 
+// One letter per day on the wire, so 75 days cost 75 characters, not ~800
+// (links go through SMS and chat apps that cut long ones). Older links carry
+// the array of names; both decode.
+const CODE: Record<DayState, string> = { complete: 'c', missed: 'm', skipped: 's', today: 't', future: 'f' }
+const FROM_CODE: Record<string, DayState> = { c: 'complete', m: 'missed', s: 'skipped', t: 'today', f: 'future' }
+
 export function encodeSnapshot(snap: ShareSnapshot): string {
-  const json = JSON.stringify(snap)
+  const json = JSON.stringify({ ...snap, dayStates: snap.dayStates.map((s) => CODE[s]).join('') })
   const bytes = new TextEncoder().encode(json)
   return toBase64Url(bytes)
 }
@@ -46,6 +52,11 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
     const bytes = fromBase64Url(fragment)
     const json = new TextDecoder().decode(bytes)
     const parsed = JSON.parse(json)
+    if (parsed && typeof parsed.dayStates === 'string') {
+      const letters: string[] = [...parsed.dayStates]
+      if (!letters.every((l) => l in FROM_CODE)) return null
+      parsed.dayStates = letters.map((l) => FROM_CODE[l])
+    }
     if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.dayStates)) return null
     // A link is untrusted input: anything the viewer reads must have the
     // shape it expects, or the page could throw on a crafted fragment.

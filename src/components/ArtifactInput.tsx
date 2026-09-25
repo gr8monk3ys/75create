@@ -79,7 +79,12 @@ export function ArtifactInput({
   }
 
   return (
-    <div className="artifact" role="group" aria-labelledby={labelledBy} aria-describedby={describedBy}>
+    <div
+      className="artifact"
+      role={labelledBy ? 'group' : undefined}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+    >
       {artifacts.length > 0 && (
         <ul className="thumbs" aria-label="Today's artifacts">
           {artifacts.map((a) => (

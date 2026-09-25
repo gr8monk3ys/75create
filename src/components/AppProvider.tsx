@@ -90,7 +90,6 @@ interface AppValue {
   startChallenge: (draft: ChallengeDraft) => Challenge
   confirmReset: () => void
   enterMaintenance: () => void
-  closeForNewRound: () => void
   endAttempt: () => void
   /** Past attempts and finished rounds, newest first (read on demand). */
   history: () => PastAttempt[]
@@ -354,7 +353,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       confirmReset: write((s) => s.confirmReset(), undefined),
       enterMaintenance: write((s) => s.enterMaintenance(), undefined),
-      closeForNewRound: write((s) => s.closeForNewRound(), undefined),
       endAttempt: write((s) => s.endAttempt(), undefined),
       history: () => session?.history() ?? [],
     }

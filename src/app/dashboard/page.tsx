@@ -35,7 +35,6 @@ export default function Dashboard() {
     dismissBanner,
     confirmReset,
     enterMaintenance,
-    closeForNewRound,
   } = useApp()
   const router = useRouter()
   const [celebrate, setCelebrate] = useState(false)
@@ -140,12 +139,15 @@ export default function Dashboard() {
   }
 
   function confirmResetAndFocus() {
+    // An open day belonged to the attempt that just ended.
+    setOpenDay(null)
     confirmReset()
     // The banner and panel go; Day 1's check-in takes their place.
     requestAnimationFrame(() => document.getElementById(CHECK_IN_ID)?.focus({ preventScroll: true }))
   }
 
   function startMaintenance() {
+    setOpenDay(null)
     enterMaintenance()
     // The next-step panel goes; today's maintenance card takes its place,
     // and landing on it says what the new mode is.
@@ -153,7 +155,7 @@ export default function Dashboard() {
   }
 
   function startNewRound() {
-    closeForNewRound()
+    // Nothing closes yet: the round ends when the next one starts in setup.
     router.push('/setup')
   }
 
