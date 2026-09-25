@@ -171,6 +171,7 @@ export default function ShareGenerator() {
 
       <a href={link} target="_blank" rel="noreferrer" className="preview-link font-mono">
         Preview the shared page
+        <span className="sr-only"> (opens in a new tab)</span>
       </a>
 
       <style jsx>{`
@@ -222,6 +223,9 @@ export default function ShareGenerator() {
         }
         .link-box {
           display: flex;
+          /* At large text the buttons drop below the link, so the link
+             keeps a readable width. */
+          flex-wrap: wrap;
           gap: 0.75rem;
           align-items: center;
           padding: 0.75rem 0.75rem 0.75rem 1rem;
@@ -232,7 +236,7 @@ export default function ShareGenerator() {
           gap: 0.5rem;
         }
         .link {
-          flex: 1;
+          flex: 1 1 14em;
           min-width: 0;
           font-size: 0.8rem;
           line-height: 1.45;

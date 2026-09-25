@@ -106,7 +106,7 @@ export default function Home() {
         <section className="policies">
           <h2 className="font-display sec-h2">Choose what a miss costs.</h2>
           <p className="policy-intro">
-            The full reset is iconic — and the top reason people quit for good. You
+            The full reset is iconic, and it&rsquo;s the hardest rule to live with. You
             pick the rule up front, and it locks. No softening it at 2 a.m. on Day 40.
           </p>
           <div className="policy-grid">

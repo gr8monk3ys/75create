@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 import { Grid } from '@/components/Grid'
-import { finishLine, shortDate } from '@/lib/format'
+import { MEDIUM_PHRASE, finishLine, shortDate } from '@/lib/format'
 import { ArtifactThumb } from '@/components/ArtifactInput'
 import { generateCertificate, downloadBlob } from '@/lib/certificate'
 
@@ -57,7 +57,7 @@ export default function Recap() {
         completedDays: tally.made,
         logsWritten: tally.logsWritten,
         artifactsKept: tally.artifactsKept,
-        medium: challenge.medium,
+        medium: MEDIUM_PHRASE[challenge.medium],
         startDate: shortDate(challenge.startDate),
       })
       downloadBlob(blob, '75-create-certificate.png')

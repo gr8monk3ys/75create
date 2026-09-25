@@ -2,7 +2,7 @@
 // "HH:MM" times, policy ids. Dates are YYYY-MM-DD creative days, so they are
 // formatted as UTC calendar dates (no timezone shift can move them).
 
-import { MissPolicy } from './types'
+import { Medium, MissPolicy } from './types'
 import type { Milestone, Tally } from './challengeSession'
 
 function utcDate(iso: string): Date | null {
@@ -97,4 +97,16 @@ export function milestoneCopy(m: Milestone, dayIndex: number, totalDays: number)
     case 'final':
       return { title: `${totalDays} days.`, sub: 'You finished. Go see what you made.' }
   }
+}
+
+/** A medium as it reads in a sentence ("A 75-day ___ challenge"). */
+export const MEDIUM_PHRASE: Record<Medium, string> = {
+  writing: 'writing',
+  drawing: 'drawing',
+  music: 'music',
+  photography: 'photography',
+  video: 'video',
+  code: 'code and generative art',
+  mixed: 'mixed-media',
+  other: 'creative',
 }

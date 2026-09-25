@@ -311,6 +311,26 @@ export const Grid = memo(function Grid({
             font-size: min(0.7rem, 70cqi);
           }
         }
+        @media (forced-colors: active) {
+          /* Fills vanish here: made is drawn solid in the text colour,
+             skipped as an outline with its mark (see globals.css). */
+          .cell-complete {
+            background: CanvasText;
+          }
+          .cell-skipped {
+            background: Canvas;
+            border: 2px solid CanvasText;
+          }
+          .cell-skipped .cell-mark {
+            color: CanvasText;
+          }
+          .grid-compact .cell-skipped {
+            background:
+              linear-gradient(CanvasText, CanvasText) center / 60% 2px no-repeat,
+              Canvas;
+            border-width: 1px;
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
           .cell-today {
             animation: none;

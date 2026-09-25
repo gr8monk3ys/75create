@@ -6,7 +6,7 @@ import { Grid, GridLegend } from '@/components/Grid'
 import { StreakHeader } from '@/components/StreakHeader'
 import { decodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 import { Day } from '@/lib/types'
-import { longDay } from '@/lib/format'
+import { MEDIUM_PHRASE, longDay } from '@/lib/format'
 
 export default function SharePage() {
   const [snap, setSnap] = useState<ShareSnapshot | null | undefined>(undefined)
@@ -70,7 +70,7 @@ export default function SharePage() {
       </nav>
 
       <h1 className="font-display sv-h1">
-        A 75-day {snap.medium} challenge.
+        A {snap.dayStates.length}-day {MEDIUM_PHRASE[snap.medium] ?? 'creative'} challenge.
       </h1>
       <p className="sv-sub">
         {snap.takenAt

@@ -14,6 +14,7 @@ export interface CertData {
   logsWritten: number
   /** Images and links kept. */
   artifactsKept: number
+  /** As it reads in a sentence (MEDIUM_PHRASE). */
   medium: string
   /** Already formatted for reading, e.g. "23 Sep 2026". */
   startDate: string
