@@ -8,6 +8,7 @@ import { RuleEditor, ruleNameId, ruleRequiredId } from '@/components/RuleEditor'
 import { Icon } from '@/components/Icon'
 import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
 import { addDays } from '@/lib/creativeDay'
+import { clearSetupDraft, readSetupDraft, writeSetupDraft } from '@/lib/setupDraft'
 import { POLICY_NAMES, POLICY_PITCHES, clockTime, longDay } from '@/lib/format'
 import {
   DEFAULT_RULES,
@@ -28,39 +29,6 @@ const MEDIA: { id: Medium; label: string }[] = [
 ]
 
 const POLICY_ORDER: MissPolicy[] = ['classic', 'grace', 'extend']
-
-const DRAFT_KEY = '75create.setupDraft'
-
-interface SetupDraft {
-  step: number
-  medium: Medium
-  rules: Rule[]
-  policy: MissPolicy
-  startChoice: 'today' | 'future'
-  futureDate: string
-  why: string
-}
-
-function readDraft(): SetupDraft | null {
-  try {
-    const d = JSON.parse(sessionStorage.getItem(DRAFT_KEY) ?? 'null') as SetupDraft | null
-    // Only a draft of the expected shape: anything else starts fresh.
-    if (!d || !Array.isArray(d.rules) || !MEDIA.some((m) => m.id === d.medium)) return null
-    if (!POLICY_ORDER.includes(d.policy) || ![0, 1, 2].includes(d.step)) return null
-    return d
-  } catch {
-    return null
-  }
-}
-
-function writeDraft(d: SetupDraft | null) {
-  try {
-    if (d) sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d))
-    else sessionStorage.removeItem(DRAFT_KEY)
-  } catch {
-    /* storage unavailable: the draft just won't survive a reload */
-  }
-}
 
 export default function Setup() {
   const { user, challenge, phase, creativeToday, dayCloses, startChallenge, loading } = useApp()
@@ -83,8 +51,11 @@ export default function Setup() {
   // The draft outlives a reload or an evicted tab (setup is the most typing
   // in the app, often on a phone): kept for this tab until Start.
   const [restored, setRestored] = useState(false)
+  const userId = user?.id
   useEffect(() => {
-    const d = readDraft()
+    // Once the account is known: a draft is only ever this account's.
+    if (!userId || restored) return
+    const d = readSetupDraft(userId, creativeToday ? addDays(creativeToday, 1) : undefined)
     if (d) {
       /* eslint-disable react-hooks/set-state-in-effect -- restoring a saved draft once, after mount */
       setStep(d.step)
@@ -97,10 +68,10 @@ export default function Setup() {
       /* eslint-enable react-hooks/set-state-in-effect */
     }
     setRestored(true)
-  }, [])
+  }, [userId, restored, creativeToday])
   useEffect(() => {
-    if (restored) writeDraft({ step, medium, rules, policy, startChoice, futureDate, why })
-  }, [restored, step, medium, rules, policy, startChoice, futureDate, why])
+    if (restored && userId) writeSetupDraft(userId, { step, medium, rules, policy, startChoice, futureDate, why })
+  }, [restored, userId, step, medium, rules, policy, startChoice, futureDate, why])
 
   useEffect(() => {
     if (loading) return
@@ -118,10 +89,14 @@ export default function Setup() {
     start: startChoice === 'today' || !futureDate ? 'today' : futureDate,
     whyNote: why,
   }
+  // A picked start date is tomorrow at the earliest, in the user's creative day.
+  const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
   const problem =
     step === 2 && startChoice === 'future' && !futureDate
       ? 'Pick a start date, or choose Today.'
-      : draftProblem(draft)
+      : step === 2 && startChoice === 'future' && tomorrow && futureDate < tomorrow
+        ? 'Pick a date from tomorrow on, or choose Today.'
+        : draftProblem(draft)
   const canFinish = problem === null
   const headingRef = useRef<HTMLHeadingElement>(null)
 
@@ -136,8 +111,6 @@ export default function Setup() {
     setStep(to)
   }
 
-  // A picked start date is tomorrow at the earliest, in the user's creative day.
-  const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
 
   // Next and Start stay focusable while blocked (aria-disabled): pressing
   // one goes to what's blocking it, so the reason is never out of reach.
@@ -160,7 +133,7 @@ export default function Setup() {
     if (!canFinish) return showProblem()
     try {
       startChallenge(draft)
-      writeDraft(null)
+      clearSetupDraft()
       router.push('/dashboard')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not start the challenge.')

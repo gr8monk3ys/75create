@@ -29,6 +29,7 @@ import {
   emptySnapshot,
 } from '@/lib/challengeSession'
 import { Challenge, Day, User } from '@/lib/types'
+import { clearSetupDraft } from '@/lib/setupDraft'
 
 export type BannerKind = 'skip' | 'extend' | 'reset' | 'restore'
 
@@ -205,6 +206,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (session.read().creativeToday !== snap.creativeToday) void catchUp()
     }
     const timer = setInterval(onChange, TICK_MS)
+    // And right as today closes, so the card never says "open until" past
+    // its own cut-off (the minute tick is the backstop for a sleeping tab).
+    const closesIn = Date.parse(snap.dayClosesAt) - Date.now()
+    const atClose =
+      closesIn > 0 && closesIn < 24 * 3_600_000 ? setTimeout(onChange, closesIn + 250) : undefined
     // Back in the foreground: another tab or device may have written since,
     // and a tick must toggle what's stored, not what this tab last drew.
     const onReturn = () => {
@@ -219,11 +225,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     window.addEventListener('storage', onStorage)
     return () => {
       clearInterval(timer)
+      clearTimeout(atClose)
       document.removeEventListener('visibilitychange', onReturn)
       window.removeEventListener('focus', onReturn)
       window.removeEventListener('storage', onStorage)
     }
-  }, [session, authKnown, supabase, repo, snap.creativeToday, sync])
+  }, [session, authKnown, supabase, repo, snap.creativeToday, snap.dayClosesAt, sync])
 
   // Real auth: when Supabase is configured the server session is the source of
   // truth for being signed in, and the prototype local session is disabled.
@@ -299,6 +306,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const signOut = useCallback(() => {
     if (supabase) void supabase.auth.signOut()
     repo?.setSignedIn(false)
+    // A half-written setup belongs to this account, not the next one here.
+    clearSetupDraft()
     sync()
   }, [sync, repo, supabase])
 

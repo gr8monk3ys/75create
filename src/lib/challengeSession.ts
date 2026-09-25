@@ -15,7 +15,7 @@ import {
   missConsequence,
   streaks,
 } from './challengeEngine'
-import { creativeDate, daysBetween, localDate, localTime } from './creativeDay'
+import { creativeDate, dayWindow, localTime } from './creativeDay'
 import { clockTime, longDay } from './format'
 import {
   Artifact,
@@ -242,8 +242,7 @@ export function createChallengeSession(
       phase: user ? 'no-challenge' : 'signed-out',
       user,
       creativeToday,
-      dayCloses: user ? closesAt(user.lateNightBufferHrs) : '00:00',
-      dayClosesAt: user ? closingInstant(now, user.tz, user.lateNightBufferHrs, creativeToday) : '',
+      ...closing(user, now),
     }
     if (!user || !challenge) return empty
 
@@ -291,8 +290,7 @@ export function createChallengeSession(
       resetMessage: phase === 'reset-pending' ? resetCopy(challenge, pending!.index) : null,
       missedDay: phase === 'reset-pending' ? pending!.index : null,
       creativeToday,
-      dayCloses: closesAt(user.lateNightBufferHrs),
-      dayClosesAt: closingInstant(now, user.tz, user.lateNightBufferHrs, creativeToday),
+      ...closing(user, now),
       ending,
       notice: noticeFor(challenge),
       stakes: {
@@ -306,7 +304,8 @@ export function createChallengeSession(
 
   function noticeFor(challenge: Challenge): RolloverEvent | null {
     const n = repo.pendingNotice()
-    if (!n || n.challengeId !== challenge.id) return null
+    // One saved before notices carried their attempt belongs to this one.
+    if (!n || (n.challengeId !== undefined && n.challengeId !== challenge.id)) return null
     return { kind: n.kind, message: n.message, days: n.days }
   }
 
@@ -523,7 +522,7 @@ export function createChallengeSession(
     if (running && after < before) {
       const when =
         change.tz === undefined || change.tz === user.tz
-          ? `after ${clockTime(closesAt(next.lateNightBufferHrs))}`
+          ? `after ${clockTime(localTime(dayWindow(now, next.tz, next.lateNightBufferHrs).closesAt, next.tz))}`
           : 'later today'
       return {
         ok: false,
@@ -802,24 +801,11 @@ function isFinished(days: Day[], currentIndex: number): boolean {
   return currentIndex > days.length || last?.state === 'complete'
 }
 
-/**
- * When the creative day `creativeToday` closes: the local midnight after it,
- * plus the buffer. Counted from the local wall clock (a DST shift that night
- * moves it by the hour it moves the clock).
- */
-function closingInstant(now: Date, tz: string, bufferHrs: number, creativeToday: string): string {
-  const [h, m] = localTime(now, tz).split(':').map(Number)
-  const intoNextDay = daysBetween(creativeToday, localDate(now, tz)) // 0 before midnight, 1 after
-  const minutesLeft = (1 - intoNextDay) * 1440 + Math.round(bufferHrs) * 60 - (h * 60 + m)
-  const at = new Date(now.getTime() + minutesLeft * 60_000)
-  at.setSeconds(0, 0)
-  return at.toISOString()
-}
-
-/** The local time the creative day closes: midnight plus the buffer. */
-function closesAt(bufferHrs: number): string {
-  const h = ((Math.round(bufferHrs) % 24) + 24) % 24
-  return `${String(h).padStart(2, '0')}:00`
+/** When today closes, as the card shows it ("HH:MM" local) and as an instant. */
+function closing(user: User | null, now: Date): { dayCloses: string; dayClosesAt: string } {
+  if (!user) return { dayCloses: '00:00', dayClosesAt: '' }
+  const { closesAt } = dayWindow(now, user.tz, user.lateNightBufferHrs)
+  return { dayCloses: localTime(closesAt, user.tz), dayClosesAt: closesAt.toISOString() }
 }
 
 function dayList(days: number[]): string {

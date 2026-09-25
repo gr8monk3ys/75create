@@ -58,6 +58,7 @@ describe('decodeSnapshot on untrusted links', () => {
     const raw = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url')
     expect(decodeSnapshot(raw({ dayStates: ['complete', 'evil'] }))).toBeNull()
     expect(decodeSnapshot(raw({ dayStates: 'cx' }))).toBeNull()
+    expect(decodeSnapshot(raw({ dayStates: 'c', medium: '__proto__' }))?.medium).toBe('other')
     const snap = decodeSnapshot(raw({ dayStates: ['complete'], includeLogs: true }))
     expect(snap?.logs).toEqual({})
     expect(snap?.missPolicy).toBe('classic')

@@ -347,8 +347,7 @@ textarea.field-input {
     border-color 0.12s ease,
     background-color 0.12s ease;
 }
-.chip[aria-pressed='true'],
-.chip[aria-checked='true'] {
+.chip[aria-pressed='true'] {
   border-color: var(--cobalt);
   background: color-mix(in srgb, var(--cobalt) 14%, var(--paper));
   /* Not hue alone: the chosen chip takes the same state offset as a chosen
@@ -683,6 +682,13 @@ h3 {
    made is solid text colour, skipped an outline with its bar, chosen things
    a highlight ring. */
 @media (forced-colors: active) {
+  /* The legend is drawn by hand in system colours: the forced palette would
+     otherwise drop its gradients (the skip bar, the miss hatch). */
+  .sw {
+    forced-color-adjust: none;
+    background: Canvas;
+    box-shadow: none;
+  }
   .sw-c {
     background: CanvasText;
   }
@@ -690,8 +696,17 @@ h3 {
     background: linear-gradient(CanvasText, CanvasText) center / 60% 2px no-repeat, Canvas;
     border: 1px solid CanvasText;
   }
+  .sw-m {
+    background: repeating-linear-gradient(-45deg, CanvasText, CanvasText 1.5px, Canvas 1.5px, Canvas 4px);
+    border: 1px solid CanvasText;
+  }
+  .sw-t {
+    border-color: Highlight;
+  }
+  .sw-f {
+    border-color: CanvasText;
+  }
   .chip[aria-pressed='true'],
-  .chip[aria-checked='true'],
   .media.sel,
   .policy-pick.sel {
     outline: 3px solid Highlight;

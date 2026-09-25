@@ -23,6 +23,29 @@ export function creativeDate(now: Date, tz: string, bufferHrs: number): string {
   return localDate(new Date(now.getTime() - bufferHrs * 3_600_000), tz)
 }
 
+/**
+ * The creative day `now` is in, and the instant it closes: the moment
+ * `creativeDate` moves on, found from the rule itself (the local midnight
+ * after it, plus the buffer in real hours), so a clock change that night
+ * can't put the two out of step. Every "when does today close" answer (the
+ * card's countdown, the cut-off shown in settings, the rollover) comes from
+ * here.
+ */
+export function dayWindow(now: Date, tz: string, bufferHrs: number): { date: string; closesAt: Date } {
+  const shift = bufferHrs * 3_600_000
+  const date = creativeDate(now, tz, bufferHrs)
+  // localDate only moves forward, so search the minutes for its next step.
+  // Zone offsets are whole minutes; 50 hours covers any day and shift.
+  let lo = Math.floor((now.getTime() - shift) / 60_000)
+  let hi = lo + 50 * 60
+  while (hi - lo > 1) {
+    const mid = Math.floor((lo + hi) / 2)
+    if (localDate(new Date(mid * 60_000), tz) === date) lo = mid
+    else hi = mid
+  }
+  return { date, closesAt: new Date(hi * 60_000 + shift) }
+}
+
 /** Local wall-clock time as "HH:MM" (24h) in a timezone. */
 export function localTime(now: Date, tz: string): string {
   const parts = new Intl.DateTimeFormat('en-GB', {

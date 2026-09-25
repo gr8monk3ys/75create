@@ -312,23 +312,52 @@ export const Grid = memo(function Grid({
           }
         }
         @media (forced-colors: active) {
-          /* Fills vanish here: made is drawn solid in the text colour,
-             skipped as an outline with its mark (see globals.css). */
+          /* Every state redrawn in system colours, with the forced palette
+             off for the cells: it would drop the gradients (the skip bar, the
+             miss hatch) and leave made and skipped days blank. */
+          .cell {
+            forced-color-adjust: none;
+            background: Canvas;
+            color: CanvasText;
+            box-shadow: none;
+          }
+          .cell-future {
+            border: 1.5px dotted CanvasText;
+          }
+          .cell-today {
+            border: 2.5px solid Highlight;
+          }
           .cell-complete {
             background: CanvasText;
           }
           .cell-skipped {
-            background: Canvas;
             border: 2px solid CanvasText;
           }
+          .cell-missed {
+            background: repeating-linear-gradient(-45deg, CanvasText, CanvasText 1.5px, Canvas 1.5px, Canvas 4px);
+            border: 1.5px solid CanvasText;
+          }
+          .cell-mark,
           .cell-skipped .cell-mark {
             color: CanvasText;
+          }
+          .cell-missed .cell-mark {
+            background: Canvas;
           }
           .grid-compact .cell-skipped {
             background:
               linear-gradient(CanvasText, CanvasText) center / 60% 2px no-repeat,
               Canvas;
             border-width: 1px;
+          }
+          .cell.made-today,
+          .cell.sel {
+            outline-color: Highlight;
+          }
+          .cell:focus-visible,
+          .cell.sel:focus-visible,
+          .cell.made-today:focus-visible {
+            outline: 3px solid Highlight;
           }
         }
         @media (prefers-reduced-motion: reduce) {

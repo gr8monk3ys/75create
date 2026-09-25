@@ -46,6 +46,7 @@ export function encodeSnapshot(snap: ShareSnapshot): string {
 }
 
 const STATES = new Set<string>(['future', 'complete', 'missed', 'skipped', 'today'])
+const MEDIA = new Set<unknown>(['writing', 'drawing', 'music', 'photography', 'video', 'code', 'mixed', 'other'])
 
 export function decodeSnapshot(fragment: string): ShareSnapshot | null {
   try {
@@ -71,7 +72,8 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
       }
     }
     return {
-      medium: typeof parsed.medium === 'string' ? parsed.medium : 'other',
+      // Only a known medium: a crafted one ("__proto__") would reach the page.
+      medium: MEDIA.has(parsed.medium) ? parsed.medium : 'other',
       startDate: typeof parsed.startDate === 'string' ? parsed.startDate : '',
       missPolicy: ['classic', 'grace', 'extend'].includes(parsed.missPolicy) ? parsed.missPolicy : 'classic',
       dayStates: parsed.dayStates,
