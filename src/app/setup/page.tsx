@@ -1,48 +1,37 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
-import { RuleEditor } from '@/components/RuleEditor'
-import { newId } from '@/lib/repository'
+import { RuleEditor, ruleNameId, ruleRequiredId } from '@/components/RuleEditor'
+import { Icon } from '@/components/Icon'
+import { ChallengeDraft, draftProblem } from '@/lib/challengeSession'
+import { addDays } from '@/lib/creativeDay'
+import { clearSetupDraft, readSetupDraft, writeSetupDraft } from '@/lib/setupDraft'
+import { POLICY_NAMES, POLICY_PITCHES, clockTime, longDay } from '@/lib/format'
 import {
-  Challenge,
   DEFAULT_RULES,
   Medium,
   MissPolicy,
   Rule,
 } from '@/lib/types'
 
-const MEDIA: { id: Medium; label: string; glyph: string }[] = [
-  { id: 'writing', label: 'Writing', glyph: '✍' },
-  { id: 'drawing', label: 'Drawing', glyph: '✎' },
-  { id: 'music', label: 'Music', glyph: '♪' },
-  { id: 'photography', label: 'Photography', glyph: '◉' },
-  { id: 'video', label: 'Video', glyph: '▶' },
-  { id: 'code', label: 'Code / generative', glyph: '⌘' },
-  { id: 'mixed', label: 'Mixed', glyph: '✦' },
-  { id: 'other', label: 'Other', glyph: '◇' },
+const MEDIA: { id: Medium; label: string }[] = [
+  { id: 'writing', label: 'Writing' },
+  { id: 'drawing', label: 'Drawing' },
+  { id: 'music', label: 'Music' },
+  { id: 'photography', label: 'Photography' },
+  { id: 'video', label: 'Video' },
+  { id: 'code', label: 'Code / generative' },
+  { id: 'mixed', label: 'Mixed' },
+  { id: 'other', label: 'Other' },
 ]
 
-const POLICIES: { id: MissPolicy; name: string; line: string }[] = [
-  { id: 'classic', name: 'Classic', line: 'Any missed day restarts you at Day 1.' },
-  { id: 'grace', name: 'Grace', line: 'Three skip tokens for life. A fourth miss resets.' },
-  { id: 'extend', name: 'Extend', line: 'A missed day adds a day to the end. Streak resets, challenge continues.' },
-]
-
-function todayIso(tz: string): string {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date())
-  const g = (t: string) => p.find((x) => x.type === t)!.value
-  return `${g('year')}-${g('month')}-${g('day')}`
-}
+const POLICY_ORDER: MissPolicy[] = ['classic', 'grace', 'extend']
 
 export default function Setup() {
-  const { user, repo, refresh, loading } = useApp()
+  const { user, challenge, phase, creativeToday, dayCloses, startChallenge, loading } = useApp()
   const router = useRouter()
   const [step, setStep] = useState(0)
 
@@ -50,58 +39,136 @@ export default function Setup() {
   const [rules, setRules] = useState<Rule[]>(() =>
     DEFAULT_RULES.map((r) => ({ ...r })),
   )
-  const [policy, setPolicy] = useState<MissPolicy>('grace')
+  // Classic by default: it's the format's own rule, and the one that makes
+  // the stakes real. Grace and Extend are there for a gentler run.
+  const [policy, setPolicy] = useState<MissPolicy>('classic')
   const [startChoice, setStartChoice] = useState<'today' | 'future'>('today')
   const [futureDate, setFutureDate] = useState('')
   const [why, setWhy] = useState('')
 
-  const tz = user?.tz ?? 'UTC'
+  const [error, setError] = useState<string | null>(null)
+
+  // The draft outlives a reload or an evicted tab (setup is the most typing
+  // in the app, often on a phone): kept for this tab until Start.
+  const [restored, setRestored] = useState(false)
+  const userId = user?.id
+  useEffect(() => {
+    // Once the account is known: a draft is only ever this account's.
+    if (!userId || restored) return
+    const d = readSetupDraft(userId, creativeToday ? addDays(creativeToday, 1) : undefined)
+    if (d) {
+      /* eslint-disable react-hooks/set-state-in-effect -- restoring a saved draft once, after mount */
+      setStep(d.step)
+      setMedium(d.medium)
+      setRules(d.rules)
+      setPolicy(d.policy)
+      setStartChoice(d.startChoice)
+      setFutureDate(d.futureDate)
+      setWhy(d.why)
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+    setRestored(true)
+  }, [userId, restored, creativeToday])
+  useEffect(() => {
+    if (restored && userId) writeSetupDraft(userId, { step, medium, rules, policy, startChoice, futureDate, why })
+  }, [restored, userId, step, medium, rules, policy, startChoice, futureDate, why])
 
   useEffect(() => {
-    if (!loading && !user) router.replace('/signin')
-  }, [loading, user, router])
+    if (loading) return
+    if (!user) router.replace('/signin')
+    // One challenge at a time: a running one is finished or reset from the
+    // dashboard. A finished round (or maintenance) can set up the next one;
+    // it closes when that starts.
+    else if (challenge && phase !== 'finished' && phase !== 'maintenance') router.replace('/dashboard')
+  }, [loading, user, challenge, phase, router])
 
-  const canFinish = useMemo(
-    () => rules.length >= 3 && rules.every((r) => r.name.trim().length > 0),
-    [rules],
-  )
+  const draft: ChallengeDraft = {
+    medium,
+    rules,
+    missPolicy: policy,
+    start: startChoice === 'today' || !futureDate ? 'today' : futureDate,
+    whyNote: why,
+  }
+  // A picked start date is tomorrow at the earliest, in the user's creative day.
+  const tomorrow = creativeToday ? addDays(creativeToday, 1) : undefined
+  const problem =
+    step === 2 && startChoice === 'future' && !futureDate
+      ? 'Pick a start date, or choose Today.'
+      : step === 2 && startChoice === 'future' && tomorrow && futureDate < tomorrow
+        ? 'Pick a date from tomorrow on, or choose Today.'
+        : draftProblem(draft)
+  const canFinish = problem === null
+  const headingRef = useRef<HTMLHeadingElement>(null)
+
+  // Each step replaces the last: move focus to its heading so keyboard and
+  // screen-reader users land at the top of the new step, not on the page.
+  const [moved, setMoved] = useState(false)
+  useEffect(() => {
+    if (moved) headingRef.current?.focus()
+  }, [step, moved])
+  function go(to: number) {
+    setMoved(true)
+    setStep(to)
+  }
+
+
+  // Next and Start stay focusable while blocked (aria-disabled): pressing
+  // one goes to what's blocking it, so the reason is never out of reach.
+  const dateRef = useRef<HTMLInputElement>(null)
+  function showProblem() {
+    const nameless = rules.find((r) => r.name.trim() === '')
+    const target =
+      nameless ? document.getElementById(ruleNameId(nameless))
+      : !rules.some((r) => r.required) && rules[0] ? document.getElementById(ruleRequiredId(rules[0]))
+      : step === 2 && startChoice === 'future' && !futureDate ? dateRef.current
+      : null
+    target?.focus()
+    target?.scrollIntoView({ block: 'center' })
+  }
+
+  const firstDay = startChoice === 'today' ? creativeToday : futureDate
+  const lastDay = firstDay ? addDays(firstDay, 74) : ''
 
   function finish() {
-    if (!canFinish) return
-    const startDate =
-      startChoice === 'today' || !futureDate ? todayIso(tz) : futureDate
-    const challenge: Challenge = {
-      id: newId(),
-      medium,
-      rules,
-      missPolicy: policy,
-      startDate,
-      status: 'active',
-      skipTokensUsed: 0,
-      whyNote: why.trim(),
-      createdAt: new Date().toISOString(),
-      maintenanceMode: false,
-      extraDays: 0,
+    if (!canFinish) return showProblem()
+    try {
+      startChallenge(draft)
+      clearSetupDraft()
+      router.push('/dashboard')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the challenge.')
     }
-    repo.saveChallenge(challenge)
-    refresh()
-    router.push('/dashboard')
   }
 
   return (
     <main className="setup">
-      <div className="steps font-mono">
+      {/* A way out for anyone without a challenge (a first visit, or one
+          just ended): Settings has export and sign-out. */}
+      <nav className="page-nav" aria-label="Main">
+        <Link href="/" className="wordmark font-display brand">
+          75 Create
+        </Link>
+        <Link href="/settings" className="back-link">
+          Settings
+        </Link>
+      </nav>
+      <ol className="steps font-mono" aria-label="Setup steps">
         {['Medium', 'Rules', 'Stakes'].map((s, i) => (
-          <span key={s} className={`step ${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`}>
-            {String(i + 1).padStart(2, '0')} {s}
-          </span>
+          <li
+            key={s}
+            className={`step ${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`}
+            aria-current={i === step ? 'step' : undefined}
+          >
+            {i + 1} {s}
+          </li>
         ))}
-      </div>
+      </ol>
 
       {step === 0 && (
         <section className="pane">
-          <span className="eyebrow">Step one</span>
-          <h1 className="font-display setup-h1">What are you making?</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            What are you making?
+          </h1>
           <p className="sub">This just tailors the wording. You can mix media freely.</p>
           <div className="media-grid">
             {MEDIA.map((m) => (
@@ -110,15 +177,16 @@ export default function Setup() {
                 type="button"
                 className={`media ${medium === m.id ? 'sel' : ''}`}
                 onClick={() => setMedium(m.id)}
+                aria-pressed={medium === m.id}
               >
-                <span className="glyph">{m.glyph}</span>
+                <Icon name={m.id} size={26} className="glyph" />
                 {m.label}
               </button>
             ))}
           </div>
           <div className="nav-row">
             <span />
-            <button className="btn" onClick={() => setStep(1)}>
+            <button className="btn" onClick={() => go(1)}>
               Next: rules
             </button>
           </div>
@@ -127,18 +195,29 @@ export default function Setup() {
 
       {step === 1 && (
         <section className="pane">
-          <span className="eyebrow">Step two</span>
-          <h1 className="font-display setup-h1">Your daily rules</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            Your daily rules
+          </h1>
           <p className="sub">
-            Start from the default five or make them yours — 3 to 7 tasks. These
+            Start from the default five or make them yours — 3 to 7 rules. These
             lock once you begin.
           </p>
           <RuleEditor rules={rules} onChange={setRules} />
+          {/* Always mounted, so a new problem is announced as it appears;
+              right above the button it holds back. */}
+          <p className="form-hint font-mono" role="status" id="rules-problem">
+            {problem ?? ''}
+          </p>
           <div className="nav-row">
-            <button className="btn btn-ghost" onClick={() => setStep(0)}>
+            <button className="btn btn-ghost" onClick={() => go(0)}>
               Back
             </button>
-            <button className="btn" onClick={() => setStep(2)} disabled={!canFinish}>
+            <button
+              className="btn"
+              onClick={() => (canFinish ? go(2) : showProblem())}
+              aria-disabled={!canFinish}
+              aria-describedby="rules-problem"
+            >
               Next: stakes
             </button>
           </div>
@@ -147,31 +226,34 @@ export default function Setup() {
 
       {step === 2 && (
         <section className="pane">
-          <span className="eyebrow">Step three</span>
-          <h1 className="font-display setup-h1">Set your stakes</h1>
+          <h1 className="font-display setup-h1" ref={headingRef} tabIndex={-1}>
+            Set your stakes
+          </h1>
 
           <div className="policy-choices">
-            {POLICIES.map((p) => (
+            {POLICY_ORDER.map((id) => (
               <button
-                key={p.id}
+                key={id}
                 type="button"
-                className={`policy-pick ${policy === p.id ? 'sel' : ''}`}
-                onClick={() => setPolicy(p.id)}
+                className={`policy-pick ${policy === id ? 'sel' : ''}`}
+                onClick={() => setPolicy(id)}
+                aria-pressed={policy === id}
               >
-                <span className="pname font-display">{p.name}</span>
-                <span className="pline">{p.line}</span>
+                <span className="pname font-display">{POLICY_NAMES[id]}</span>
+                <span className="pline">{POLICY_PITCHES[id]}</span>
               </button>
             ))}
           </div>
           <p className="lock-note font-mono">This choice locks when you start. Choose honestly.</p>
 
           <div className="start-block">
-            <span className="field-label font-mono">Start date</span>
-            <div className="start-row">
+            <span className="field-label" id="start-label">Start date</span>
+            <div className="start-row" role="group" aria-labelledby="start-label">
               <button
                 type="button"
                 className={`chip ${startChoice === 'today' ? 'sel' : ''}`}
                 onClick={() => setStartChoice('today')}
+                aria-pressed={startChoice === 'today'}
               >
                 Today
               </button>
@@ -179,15 +261,20 @@ export default function Setup() {
                 type="button"
                 className={`chip ${startChoice === 'future' ? 'sel' : ''}`}
                 onClick={() => setStartChoice('future')}
+                aria-pressed={startChoice === 'future'}
               >
                 Pick a date
               </button>
               {startChoice === 'future' && (
                 <input
+                  ref={dateRef}
                   type="date"
-                  className="date"
+                  className="field-input date"
+                  aria-label="Start date"
+                  aria-describedby="stakes-problem"
+                  aria-invalid={!futureDate}
                   value={futureDate}
-                  min={todayIso(tz)}
+                  min={tomorrow}
                   onChange={(e) => setFutureDate(e.target.value)}
                 />
               )}
@@ -195,12 +282,16 @@ export default function Setup() {
           </div>
 
           <div className="why-block">
-            <span className="field-label font-mono">Why are you starting?</span>
-            <p className="why-hint">
+            <label className="field-label" htmlFor="why">
+              Why are you starting?
+            </label>
+            <p className="why-hint" id="why-hint">
               We&apos;ll show this back to you on the hard days. One or two lines.
             </p>
             <textarea
-              className="why-input"
+              id="why"
+              aria-describedby="why-hint"
+              className="field-input why-input"
               rows={3}
               value={why}
               onChange={(e) => setWhy(e.target.value)}
@@ -208,26 +299,103 @@ export default function Setup() {
             />
           </div>
 
+          {/* Last look before it locks: what Start commits to, in one place. */}
+          <div className="lock-summary panel" aria-labelledby="lock-title">
+            <h2 className="font-display lock-h2" id="lock-title">
+              What you’re locking in
+            </h2>
+            <ul className="lock-list">
+              <li>
+                {rules.length} daily rules, {rules.filter((r) => r.required).length} required to make
+                a day:
+                <ol className="lock-rules">
+                  {rules.map((r) => (
+                    <li key={r.id}>
+                      {r.name.trim() || 'A rule with no name yet'}
+                      {r.required ? '' : ' (optional)'}
+                    </li>
+                  ))}
+                </ol>
+              </li>
+              <li>
+                {POLICY_NAMES[policy]}: {POLICY_PITCHES[policy]}
+              </li>
+              <li>
+                {!firstDay ? (
+                  'Day 1: pick a date above'
+                ) : (
+                  <>
+                    Day 1 is {startChoice === 'today' ? 'today, ' : ''}
+                    {longDay(firstDay)}; Day 75 is {longDay(lastDay)}
+                    {policy === 'extend' ? ', or later if a miss adds a day' : ''}
+                  </>
+                )}
+              </li>
+              {dayCloses && (
+                <li>
+                  {dayCloses === '00:00'
+                    ? 'Each day closes at midnight (Settings can give late-night work a few hours past it)'
+                    : <>
+                        Each day stays open until {clockTime(dayCloses)}, so late-night work counts
+                        {startChoice === 'today' ? ' (today included)' : ''}
+                      </>}
+                </li>
+              )}
+            </ul>
+          </div>
+
+          {/* What still blocks Start, said politely as it changes; a failure
+              to start is the one thing worth interrupting for. */}
+          <p className="form-hint font-mono" role="status" id="stakes-problem">
+            {error ? '' : (problem ?? '')}
+          </p>
           <div className="nav-row">
-            <button className="btn btn-ghost" onClick={() => setStep(1)}>
+            <button className="btn btn-ghost" onClick={() => go(1)}>
               Back
             </button>
-            <button className="btn" onClick={finish} disabled={!canFinish}>
-              Start my 75 →
+            <button
+              className="btn"
+              onClick={finish}
+              aria-disabled={!canFinish}
+              aria-describedby="stakes-problem"
+            >
+              Start my 75
             </button>
           </div>
+          {error && (
+            <p className="form-hint font-mono" role="alert">
+              {error}
+            </p>
+          )}
         </section>
       )}
 
       <style jsx>{`
+        /* Empty, it takes no room but stays in the accessibility tree, so
+           the live region is there before its first message. */
+        .form-hint:empty {
+          margin: 0;
+        }
+        .form-hint {
+          margin: 1.75rem 0 0;
+          font-size: 0.75rem;
+          color: var(--coral-ink);
+          text-align: right;
+        }
+        /* A hint sits right above the button it holds back. */
+        .form-hint:not(:empty) + .nav-row {
+          margin-top: 0.75rem;
+        }
         .setup {
           max-width: 640px;
-          padding-top: 2rem;
+          padding-top: 1rem;
         }
         .steps {
+          list-style: none;
+          padding: 0;
           display: flex;
           gap: 1rem;
-          font-size: 0.7rem;
+          font-size: 0.75rem;
           letter-spacing: 0.1em;
           text-transform: uppercase;
           color: var(--muted);
@@ -235,10 +403,17 @@ export default function Setup() {
           flex-wrap: wrap;
         }
         .step.on {
-          color: var(--coral);
+          color: var(--ink);
+          font-weight: 700;
         }
         .step.done {
           color: var(--ink);
+        }
+        .date {
+          width: auto;
+        }
+        .setup-h1:focus {
+          outline: none;
         }
         .setup-h1 {
           font-size: clamp(2rem, 6vw, 3rem);
@@ -251,7 +426,8 @@ export default function Setup() {
         }
         .media-grid {
           display: grid;
-          grid-template-columns: repeat(2, 1fr);
+          /* Two across where they fit; one column at large text. */
+          grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
           gap: 0.75rem;
         }
         .media {
@@ -259,14 +435,20 @@ export default function Setup() {
           align-items: center;
           gap: 0.75rem;
           padding: 1rem 1.1rem;
-          border-radius: 12px;
+          border-radius: 14px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);
           color: var(--ink);
           font-family: var(--font-body);
           font-size: 1rem;
+          min-height: 56px;
+          min-width: 0;
+          overflow-wrap: anywhere;
+          text-align: left;
           cursor: pointer;
-          transition: all 0.12s ease;
+          transition:
+            border-color 0.12s ease,
+            box-shadow 0.12s ease;
         }
         .media:hover {
           border-color: var(--ink-soft);
@@ -275,16 +457,47 @@ export default function Setup() {
           border-color: var(--cobalt);
           box-shadow: 3px 4px 0 var(--cobalt);
         }
-        .glyph {
-          font-size: 1.3rem;
+        .media :global(.glyph) {
+          flex: none;
+          color: var(--ink-soft);
+        }
+        /* Cobalt is "made": only the chosen medium carries it. */
+        .media.sel :global(.glyph) {
           color: var(--cobalt);
         }
         .nav-row {
           display: flex;
+          flex-wrap: wrap;
           justify-content: space-between;
           align-items: center;
           margin-top: 2.5rem;
           gap: 1rem;
+        }
+        .lock-summary {
+          margin-top: 2rem;
+          padding: 1.25rem 1.5rem;
+        }
+        .lock-h2 {
+          font-size: 1.25rem;
+          margin: 0 0 0.6rem;
+        }
+        .lock-rules {
+          margin: 0.35rem 0 0;
+          padding-left: 1.25rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.2rem;
+        }
+        .lock-list {
+          margin: 0;
+          padding-left: 1.1rem;
+          list-style: disc;
+          display: flex;
+          flex-direction: column;
+          gap: 0.35rem;
+          line-height: 1.5;
+          color: var(--ink-soft);
+          max-width: 60ch;
         }
         .policy-choices {
           display: flex;
@@ -298,12 +511,14 @@ export default function Setup() {
           flex-direction: column;
           gap: 0.3rem;
           padding: 1rem 1.2rem;
-          border-radius: 12px;
+          border-radius: 14px;
           border: 1.5px solid var(--line);
           background: var(--paper-2);
           cursor: pointer;
           color: var(--ink);
-          transition: all 0.12s ease;
+          transition:
+            border-color 0.12s ease,
+            box-shadow 0.12s ease;
         }
         .policy-pick.sel {
           border-color: var(--cobalt);
@@ -314,19 +529,12 @@ export default function Setup() {
         }
         .pline {
           color: var(--ink-soft);
-          font-size: 0.92rem;
+          font-size: 0.875rem;
         }
         .lock-note {
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin: 0.9rem 0 2rem;
-        }
-        .field-label {
-          font-size: 0.7rem;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: var(--muted);
-          display: block;
         }
         .start-row {
           display: flex;
@@ -335,51 +543,14 @@ export default function Setup() {
           flex-wrap: wrap;
           align-items: center;
         }
-        .chip {
-          padding: 0.55rem 1rem;
-          border-radius: 999px;
-          border: 1.5px solid var(--line);
-          background: var(--paper-2);
-          color: var(--ink);
-          cursor: pointer;
-          font-family: var(--font-mono);
-          font-size: 0.8rem;
-        }
-        .chip.sel {
-          border-color: var(--cobalt);
-          background: color-mix(in srgb, var(--cobalt) 12%, var(--paper-2));
-        }
-        .date {
-          font-family: var(--font-body);
-          padding: 0.5rem 0.75rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
         .start-block,
         .why-block {
           margin-top: 2rem;
         }
         .why-hint {
-          color: var(--muted);
-          font-size: 0.85rem;
+          color: var(--ink-soft);
+          font-size: 0.875rem;
           margin: 0.4rem 0 0.7rem;
-        }
-        .why-input {
-          width: 100%;
-          font-family: var(--font-body);
-          font-size: 1rem;
-          padding: 0.85rem 1rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-          resize: vertical;
-        }
-        .why-input:focus {
-          outline: none;
-          border-color: var(--cobalt);
         }
       `}</style>
     </main>

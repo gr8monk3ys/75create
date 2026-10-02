@@ -19,14 +19,36 @@ export default function ErrorBoundary({
     reportError(error, { boundary: 'route' })
   }, [error])
 
+  // The tab says what the page says, not the route that failed. On a hard
+  // load the route's own metadata <title> lands after this boundary mounts,
+  // so the title is held while the boundary is shown. Whatever title it
+  // displaced is put back when the boundary goes (Try again on the same
+  // route); a route navigated to sets its own.
+  useEffect(() => {
+    const title = 'Something went wrong · 75 Create'
+    const here = window.location.pathname
+    let displaced = document.title
+    const hold = () => {
+      if (window.location.pathname !== here || document.title === title) return
+      displaced = document.title
+      document.title = title
+    }
+    hold()
+    const watch = new MutationObserver(hold)
+    watch.observe(document.head, { childList: true, subtree: true, characterData: true })
+    return () => {
+      watch.disconnect()
+      if (window.location.pathname === here && document.title === title) document.title = displaced
+    }
+  }, [])
+
   return (
     <main className="err">
-      <span className="eyebrow">Something broke</span>
       <h1 className="font-display err-h1">That didn’t load.</h1>
       <p className="err-body">
         Your challenge is safe — every day you’ve logged is stored on this device
         and nothing here touched it. Try again, and if this keeps happening you can
-        still export your data from settings.
+        still <Link href="/settings">export your data from Settings</Link>.
       </p>
       <div className="err-actions">
         <button className="btn" onClick={reset}>
@@ -51,7 +73,7 @@ export default function ErrorBoundary({
           padding: 2rem 1.5rem;
         }
         .err-h1 {
-          font-size: clamp(2rem, 7vw, 2.8rem);
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0.25rem 0 0.5rem;
         }
         .err-body {
@@ -67,7 +89,7 @@ export default function ErrorBoundary({
         }
         .err-digest {
           color: var(--muted);
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           margin-top: 1.5rem;
         }
       `}</style>

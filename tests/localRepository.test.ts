@@ -77,9 +77,63 @@ describe('LocalRepository structured data', () => {
   it('deleteAllData clears everything', async () => {
     repo.saveUser(makeUser())
     repo.saveChallenge(makeChallenge())
+    localStorage.setItem('75create.reminder.lastFired', '2026-01-01')
+    localStorage.setItem('unrelated', 'kept')
     await repo.deleteAllData()
     expect(repo.getUser()).toBeNull()
     expect(repo.getChallenges()).toHaveLength(0)
+    expect(Object.keys(localStorage).filter((k) => k.startsWith('75create.'))).toEqual([])
+    expect(localStorage.getItem('unrelated')).toBe('kept')
+  })
+})
+
+describe('LocalRepository accounts on one device', () => {
+  let repo: LocalRepository
+  beforeEach(async () => {
+    localStorage.clear()
+    repo = new LocalRepository()
+    await repo.deleteAllData()
+  })
+
+  const other: User = { ...makeUser(), id: 'u2', email: 'other@b.com' }
+
+  it('parks the current account and starts the new one empty', () => {
+    repo.saveUser(makeUser())
+    repo.saveChallenge(makeChallenge())
+    repo.switchUser(other)
+    expect(repo.getUser()?.id).toBe('u2')
+    expect(repo.getChallenges()).toEqual([])
+    expect(repo.isSignedIn()).toBe(false)
+    expect(repo.parkedUsers().map((u) => u.id)).toEqual(['u1'])
+  })
+
+  it('switching back restores the parked account exactly', () => {
+    repo.saveUser({ ...makeUser(), reminderTime: '08:30' })
+    repo.saveChallenge(makeChallenge())
+    repo.switchUser(other)
+    repo.saveChallenge(makeChallenge({ id: 'theirs' }))
+    repo.switchUser(makeUser())
+    expect(repo.getUser()?.reminderTime).toBe('08:30')
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['c1'])
+    expect(repo.parkedUsers().map((u) => u.id)).toEqual(['u2'])
+  })
+
+  it('deleting one account leaves parked accounts and their images alone', async () => {
+    repo.saveUser(makeUser())
+    const keep = await repo.saveArtifactBlob(new Blob([new Uint8Array([1])], { type: 'image/png' }))
+    repo.saveChallenge(makeChallenge())
+    repo.saveArtifactMeta('c1', 1, { id: 'a1', dayId: 'c1:1', kind: 'image', blobRef: keep, createdAt: 'x' })
+    repo.switchUser(other)
+    const gone = await repo.saveArtifactBlob(new Blob([new Uint8Array([2])], { type: 'image/png' }))
+    repo.saveChallenge(makeChallenge({ id: 'c2' }))
+    repo.saveArtifactMeta('c2', 1, { id: 'a2', dayId: 'c2:1', kind: 'image', blobRef: gone, createdAt: 'x' })
+
+    await repo.deleteAllData()
+    expect(repo.getUser()).toBeNull()
+    expect(await repo.getArtifactBlob(gone)).toBeNull()
+    expect(await repo.getArtifactBlob(keep)).not.toBeNull()
+    repo.switchUser(makeUser())
+    expect(repo.getChallenges().map((c) => c.id)).toEqual(['c1'])
   })
 })
 

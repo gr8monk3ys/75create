@@ -33,7 +33,12 @@ const siteUrl =
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: '75 Create — 75 days of creative discipline',
+  title: {
+    default: '75 Create — 75 days of creative discipline',
+    // Each route names itself, so tabs, history and screen readers can tell
+    // the pages apart.
+    template: '%s · 75 Create',
+  },
   description:
     'A free, zero-friction tracker for a 75-day creative challenge. One mark a day. Keep the streak, log the work, and walk away with 75 days of proof.',
   manifest: '/manifest.webmanifest',
@@ -61,7 +66,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#efe9dc',
+  // The browser chrome follows the page's own paper in both themes.
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#efe9dc' },
+    { media: '(prefers-color-scheme: dark)', color: '#15140f' },
+  ],
   width: 'device-width',
   initialScale: 1,
 }

@@ -10,7 +10,8 @@ export type Medium =
   | 'mixed'
   | 'other'
 
-export type MissPolicy = 'classic' | 'grace' | 'extend'
+import type { MissPolicy } from './missPolicy'
+export type { MissPolicy }
 
 export type DayState = 'future' | 'complete' | 'missed' | 'skipped' | 'today'
 
@@ -20,11 +21,19 @@ export type ChallengeStatus =
   | 'completed'
   | 'maintenance'
 
+/**
+ * What satisfies a rule. Plain rules are ticked by hand; an evidence rule is
+ * met by the evidence itself — the day's log or an artifact — so the proof
+ * can't be skipped with a checkbox.
+ */
+export type Evidence = 'log' | 'artifact'
+
 export interface Rule {
   id: string
   name: string
   description: string
   required: boolean
+  evidence?: Evidence
 }
 
 export interface Challenge {
@@ -42,6 +51,14 @@ export interface Challenge {
   maintenanceMode: boolean
   /** Days added to the base 75 by the Extend policy. */
   extraDays: number
+  /** Archived attempts: the day they ended on (the miss, or the day quit). */
+  endedOnDay?: number
+  /**
+   * Who ended an archived attempt: a miss (`reset`) or the person
+   * (`person`, quitting). A quit day was never missed, so it isn't drawn
+   * as one. Absent on attempts archived before this was recorded (resets).
+   */
+  endedBy?: 'reset' | 'person'
 }
 
 export interface Day {
@@ -88,8 +105,8 @@ export interface User {
   reminderTime: string | null
 }
 
-export const TOTAL_DAYS = 75
-export const MAX_SKIP_TOKENS = 3
+// Shared with the Edge Functions, so the reminders apply the same stakes.
+export { MAX_SKIP_TOKENS, TOTAL_DAYS } from './missPolicy'
 export const MAX_LOG_CHARS = 500
 export const MIN_RULES = 3
 export const MAX_RULES = 7
@@ -116,6 +133,7 @@ export const DEFAULT_RULES: Rule[] = [
     name: 'Log the day',
     description: 'A short note (1–3 sentences) on what you made or learned.',
     required: true,
+    evidence: 'log',
   },
   {
     id: 'artifact',
@@ -123,6 +141,7 @@ export const DEFAULT_RULES: Rule[] = [
     description:
       "Upload or link a photo, snippet, or excerpt of the day's work (private by default).",
     required: true,
+    evidence: 'artifact',
   },
   {
     id: 'no-passive',

@@ -4,12 +4,16 @@
  * - Navigations: network-first, falling back to the cached copy of the page,
  *   then to the cached landing page. Keeps deploys fresh while staying usable
  *   offline (all challenge state lives in localStorage/IndexedDB anyway).
- * - /_next/static/ (content-hashed, immutable): cache-first.
+ * - /_next/static/ (content-hashed, immutable): cache-first, in their own
+ *   cache capped at STATIC_MAX entries so hashed chunks from old deploys are
+ *   pruned instead of piling up forever.
  * - Other same-origin GETs (icons, manifest): stale-while-revalidate.
  */
 
-const VERSION = 'v1'
+const VERSION = 'v2'
 const CACHE = `75create-${VERSION}`
+const STATIC_CACHE = `75create-static-${VERSION}`
+const STATIC_MAX = 150
 
 const PRECACHE = [
   '/',
@@ -47,9 +51,23 @@ self.addEventListener('install', (event) => {
   event.waitUntil(precache().then(() => self.skipWaiting()))
 })
 
-// Lets the page trigger an immediate activation after it sees a new worker.
+// Lets the page trigger an immediate activation after it sees a new worker,
+// and hand over the static files it loaded before this worker controlled it.
 self.addEventListener('message', (event) => {
   if (event.data === 'skip-waiting') self.skipWaiting()
+  if (event.data && event.data.type === 'cache-static' && Array.isArray(event.data.urls)) {
+    const own = event.data.urls.filter((u) => {
+      try {
+        const url = new URL(u)
+        return url.origin === self.location.origin && url.pathname.startsWith('/_next/static/')
+      } catch {
+        return false
+      }
+    })
+    event.waitUntil(
+      Promise.allSettled(own.slice(0, STATIC_MAX).map((u) => cacheFirst(new Request(u)))),
+    )
+  }
 })
 
 self.addEventListener('activate', (event) => {
@@ -57,7 +75,9 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+        Promise.all(
+          keys.filter((k) => k !== CACHE && k !== STATIC_CACHE).map((k) => caches.delete(k)),
+        )
       )
       .then(() => self.clients.claim())
   )
@@ -76,12 +96,21 @@ async function networkFirstNavigation(request) {
 }
 
 async function cacheFirst(request) {
-  const cache = await caches.open(CACHE)
+  const cache = await caches.open(STATIC_CACHE)
   const cached = await cache.match(request)
   if (cached) return cached
   const fresh = await fetch(request)
-  if (fresh.ok) cache.put(request, fresh.clone())
+  if (fresh.ok) {
+    await cache.put(request, fresh.clone())
+    void trim(cache, STATIC_MAX)
+  }
   return fresh
+}
+
+/** Keep the newest `max` entries (Cache keys come back in insertion order). */
+async function trim(cache, max) {
+  const keys = await cache.keys()
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - max)).map((k) => cache.delete(k)))
 }
 
 async function staleWhileRevalidate(request) {

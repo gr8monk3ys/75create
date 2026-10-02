@@ -1,4 +1,6 @@
-@import 'tailwindcss';
+/* Only the reset: the app styles itself, and the full import generated
+   utility rules from stray strings across the repo. */
+@import 'tailwindcss/preflight';
 
 /* ============================================================
    75 Create — "The daily mark"
@@ -6,12 +8,14 @@
    ============================================================ */
 
 :root {
+  color-scheme: light;
   --paper: #efe9dc;
   --paper-2: #e7e0d1;
   --paper-3: #ded5c2;
   --ink: #1b1a17;
   --ink-soft: #4a463d;
-  --muted: #8a8274;
+  /* ≥4.5:1 on every paper tone: secondary text is still text. */
+  --muted: #625b4e;
   --line: #d6ccb8;
 
   /* pigments */
@@ -20,12 +24,24 @@
   --marigold: #e0910f;
   --pink: #ff48b0;
   --moss: #2f7d4f;
+  /* Pigments dark enough to carry text (the raw pigments are for fills). */
+  --coral-ink: #ad2f1a;
+  --marigold-ink: #8c5906;
+  /* Text on a --coral-ink fill. */
+  --on-coral-ink: #ffffff;
+  /* Marks on marigold (light in both themes). */
+  --on-marigold: #1b1a17;
+  /* Form-control edges: ≥3:1 against every paper tone, so a field reads as
+     a field on a dim phone at night. */
+  --field-border: #837968;
 
   /* grid semantics */
   --cell-complete: var(--cobalt);
-  --cell-today: var(--coral);
+  /* A touch deeper than the coral pigment so the ring clears 3:1. */
+  --cell-today: #e03d24;
   --cell-skipped: var(--marigold);
-  --cell-missed: #cdbfa6;
+  /* ≥3:1 on the grid panel: a miss is a fact, not an absence. */
+  --cell-missed: #7d7463;
   --cell-future: transparent;
 
   --font-display: var(--font-bricolage), 'Trebuchet MS', sans-serif;
@@ -40,10 +56,16 @@
     --paper-3: #272419;
     --ink: #f3ecdd;
     --ink-soft: #cdc5b4;
-    --muted: #8f8877;
+    --muted: #9a9382;
     --line: #322e22;
-    --cobalt: #5b74ff;
-    --cell-missed: #3a3526;
+    --cobalt: #6f85ff;
+    --cell-today: var(--coral);
+    color-scheme: dark;
+    --coral-ink: #ff7a63;
+    --marigold-ink: #f0b04a;
+    --on-coral-ink: #15140f;
+    --field-border: #7a7362;
+    --cell-missed: #7a7362;
   }
 }
 
@@ -81,16 +103,89 @@ body {
   font-family: var(--font-mono);
 }
 
-.eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
 a {
   color: inherit;
+  text-underline-offset: 0.2em;
+}
+/* A link inside a sentence is underlined: the reset takes the browser's
+   underline away, and colour alone can't mark it (the ink is the same). */
+p a:not(.btn),
+.inline-link {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+}
+
+/* The parts of the page the browser draws still wear the palette. */
+::selection {
+  background: color-mix(in srgb, var(--cobalt) 28%, transparent);
+  color: var(--ink);
+}
+html {
+  caret-color: var(--coral);
+  accent-color: var(--cobalt);
+  scrollbar-color: var(--line) transparent;
+}
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+/* Hidden from sight, not from assistive tech. */
+/* A page's loading line: small mono, muted, on the ramp. */
+.status-line {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--muted);
+  padding: 4rem 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  /* Hidden by its own height, not a fixed offset, so a label that wraps at
+     large text can't peek into view. */
+  top: 0;
+  transform: translateY(-110%);
+  z-index: 60;
+  padding: 0.75rem 1.1rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.skip-link:focus {
+  top: 1rem;
+  transform: none;
+}
+
+kbd {
+  font-family: var(--font-mono);
+  /* Relative to its line, but never under the 11px floor. */
+  font-size: max(0.7rem, 0.78em);
+  padding: 0.1em 0.45em;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--ink);
 }
 
 /* centred single-message pages (404, and anything else that just needs to
@@ -107,7 +202,7 @@ a {
   gap: 0.75rem;
 }
 .page-message h1 {
-  font-size: clamp(2rem, 7vw, 2.8rem);
+  font-size: clamp(2rem, 6vw, 3rem);
   margin: 0.25rem 0 0.25rem;
 }
 .page-message p {
@@ -125,7 +220,7 @@ a {
 
 .btn {
   font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0.85rem 1.4rem;
@@ -143,10 +238,20 @@ a {
   justify-content: center;
   gap: 0.5rem;
   text-decoration: none;
+  /* At large text sizes a label wraps inside its button rather than
+     pushing the page sideways. */
+  max-width: 100%;
+  /* Breaks inside a word only when that word can't fit on a line alone. */
+  overflow-wrap: break-word;
 }
-.btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 4px 6px 0 var(--coral);
+@media (hover: hover) {
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 4px 6px 0 var(--coral);
+  }
+  .btn-ghost:hover {
+    box-shadow: 4px 6px 0 var(--cobalt);
+  }
 }
 .btn:active {
   transform: translateY(0);
@@ -156,25 +261,170 @@ a {
   background: transparent;
   color: var(--ink);
 }
-.btn-ghost:hover {
-  box-shadow: 4px 6px 0 var(--cobalt);
-}
-.btn:disabled {
-  opacity: 0.4;
+/* aria-disabled buttons look disabled but stay focusable, so focus never
+   drops to the page when a button turns off under the keyboard. Listed
+   after hover and active so they win over both. */
+/* Dimmed by colour, not opacity, so the focus ring on it stays full
+   strength. */
+.btn:disabled,
+.btn[aria-disabled='true'],
+.btn[aria-disabled='true']:hover,
+.btn[aria-disabled='true']:active {
+  --dim: color-mix(in srgb, var(--ink) 42%, var(--paper));
+  background: var(--dim);
+  border-color: var(--dim);
+  color: var(--paper);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+.btn-ghost:disabled,
+.btn-ghost[aria-disabled='true'],
+.btn-ghost[aria-disabled='true']:hover,
+.btn-ghost[aria-disabled='true']:active {
+  background: transparent;
+  color: var(--dim);
 }
 
 :focus-visible {
   outline: 3px solid var(--cobalt);
   outline-offset: 2px;
 }
+/* A date or time field's picker button is its own Tab stop, drawn by the
+   browser; while it has focus the field matches neither :focus nor
+   :focus-visible (only :focus-within), and the browser's own ring vanishes
+   on dark paper. Ring the whole field whenever focus is anywhere in it. */
+input[type='date']:focus-within,
+input[type='time']:focus-within {
+  outline: 3px solid var(--cobalt);
+  outline-offset: 2px;
+}
+/* And the picker button says it's the one focused, not a date segment. */
+input::-webkit-calendar-picker-indicator:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
 
+/* --- shared form primitives: one field, one chip, one small button --- */
+/* The few native checkboxes (settings, share, the rule editor) at a size and
+   pigment that sit with the check-in's boxes; their labels carry the 44px. */
+input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  accent-color: var(--cobalt);
+}
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.field-input {
+  width: 100%;
+  max-width: 100%;
+  min-height: 44px;
+  font-family: var(--font-body);
+  /* 16px stops iOS Safari zooming the viewport on focus. */
+  font-size: 1rem;
+  line-height: 1.45;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--field-border);
+  background: var(--paper);
+  color: var(--ink);
+}
+textarea.field-input {
+  resize: vertical;
+}
+.field-input:focus {
+  border-color: var(--cobalt);
+}
+.chip {
+  min-height: 44px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 1.5px solid var(--field-border);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease;
+}
+.chip[aria-pressed='true'] {
+  border-color: var(--cobalt);
+  background: color-mix(in srgb, var(--cobalt) 14%, var(--paper));
+  /* Not hue alone: the chosen chip takes the same state offset as a chosen
+     medium or policy, and a heavier label. */
+  box-shadow: 2px 3px 0 var(--cobalt);
+  font-weight: 700;
+}
+.btn.small {
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  font-size: 0.75rem;
+}
+.btn-danger {
+  background: var(--coral-ink);
+  border-color: var(--coral-ink);
+  color: var(--on-coral-ink);
+}
+.field-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The brand / back row at the top of every inner page. */
+.page-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0 2rem;
+}
+.page-nav .brand,
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.page-nav .brand {
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+.page-nav {
+  flex-wrap: wrap;
+}
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  text-decoration: none;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.back-link:hover {
+  color: var(--coral-ink);
+}
+
+/* Reduced motion keeps every state change, just without travel: hover lifts
+   and press offsets become instant, and components drop their decorative
+   loops (the today pulse, confetti) themselves. */
 @media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.001ms !important;
-    transition-duration: 0.001ms !important;
+  .btn,
+  .btn:hover,
+  .btn:active {
+    transition: box-shadow 0.12s ease, background 0.12s ease;
+    transform: none;
   }
 }
 
@@ -192,13 +442,15 @@ a {
   }
 }
 
+/* Today's ring beats by printing a second, off-register pass (the one
+   depth this world allows), three times, then stays still. */
 @keyframes today-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--coral) 55%, transparent);
+    box-shadow: 0 0 0 0 transparent;
   }
   50% {
-    box-shadow: 0 0 0 5px color-mix(in srgb, var(--coral) 0%, transparent);
+    box-shadow: 2px 3px 0 0 color-mix(in srgb, var(--cell-today) 70%, transparent);
   }
 }
 
@@ -208,26 +460,51 @@ a {
 main {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 0 1.5rem 5rem;
+  /* The side gutter stops growing with text size on a phone, so large text
+     spends the width on words, not margins. */
+  padding: 0 min(1.5rem, 5vw) 5rem;
+}
+.site-head,
+.site-foot {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+.site-foot {
+  padding-bottom: 3rem;
 }
 .nav {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
   align-items: center;
   justify-content: space-between;
   padding: 1.5rem 0;
 }
+
+/* Display-size words can outgrow a phone at large text: break them rather
+   than scroll the page. */
+h1,
+h2,
+h3 {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
 .wordmark {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 .nav .btn {
+  min-height: 44px;
   padding: 0.55rem 1.1rem;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .hero {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   gap: 3rem;
   align-items: center;
   padding: 2.5rem 0 4rem;
@@ -237,7 +514,7 @@ main {
   margin: 1rem 0 1.25rem;
 }
 .lede {
-  font-size: 1.12rem;
+  font-size: 1.125rem;
   line-height: 1.55;
   color: var(--ink-soft);
   max-width: 34ch;
@@ -256,6 +533,11 @@ main {
 .hero-grid {
   padding: 1.25rem;
 }
+.grid-sample {
+  /* A caption, not a stat label: sentence case (uppercase is for labels). */
+  font-size: 0.75rem;
+  color: var(--muted);
+}
 .grid-caption {
   display: flex;
   justify-content: space-between;
@@ -265,16 +547,23 @@ main {
   flex-wrap: wrap;
 }
 .grid-legend {
-  font-size: 0.66rem;
+  font-size: 0.75rem;
   color: var(--muted);
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.75rem;
+}
+.grid-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 .sw {
   display: inline-block;
   width: 0.7rem;
   height: 0.7rem;
-  border-radius: 2px;
+  border-radius: 4px;
   vertical-align: -1px;
   margin-right: 0.15rem;
 }
@@ -282,10 +571,26 @@ main {
   background: var(--cell-complete);
 }
 .sw-s {
-  background: var(--cell-skipped);
+  /* Not hue alone: the same ink bar a small skipped cell carries. */
+  background:
+    linear-gradient(var(--on-marigold), var(--on-marigold)) center / 60% 2px no-repeat,
+    var(--cell-skipped);
 }
 .sw-m {
-  background: var(--cell-missed);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--cell-missed),
+    var(--cell-missed) 1.5px,
+    transparent 1.5px,
+    transparent 4px
+  );
+  box-shadow: inset 0 0 0 1.5px var(--cell-missed);
+}
+.sw-t {
+  border: 2.5px solid var(--cell-today);
+}
+.sw-f {
+  border: 1.5px dotted var(--muted);
 }
 
 .sec-h2 {
@@ -314,7 +619,7 @@ main {
 }
 .rule-num {
   font-size: 1rem;
-  color: var(--coral);
+  color: var(--muted);
   padding-top: 0.35rem;
 }
 .rule-h3 {
@@ -341,14 +646,14 @@ main {
 }
 .policy-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1.25rem;
 }
 .policy {
   padding: 1.5rem;
 }
 .policy h3 {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   margin: 0 0 0.6rem;
 }
 .closer {
@@ -360,18 +665,56 @@ main {
 .foot {
   text-align: center;
   color: var(--muted);
-  font-size: 0.72rem;
+  font-size: 0.8rem;
   padding-top: 2.5rem;
   line-height: 1.6;
 }
 
 @media (max-width: 820px) {
   .hero {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2rem;
     padding-top: 1rem;
   }
   .policy-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* --- Forced colors (Windows High Contrast) ---
+   The system replaces every colour, so a state carried by a fill, a border
+   colour or an offset shadow vanishes. Draw each one with system colours:
+   made is solid text colour, skipped an outline with its bar, chosen things
+   a highlight ring. */
+@media (forced-colors: active) {
+  /* The legend is drawn by hand in system colours: the forced palette would
+     otherwise drop its gradients (the skip bar, the miss hatch). */
+  .sw {
+    forced-color-adjust: none;
+    background: Canvas;
+    box-shadow: none;
+  }
+  .sw-c {
+    background: CanvasText;
+  }
+  .sw-s {
+    background: linear-gradient(CanvasText, CanvasText) center / 60% 2px no-repeat, Canvas;
+    border: 1px solid CanvasText;
+  }
+  .sw-m {
+    background: repeating-linear-gradient(-45deg, CanvasText, CanvasText 1.5px, Canvas 1.5px, Canvas 4px);
+    border: 1px solid CanvasText;
+  }
+  .sw-t {
+    border-color: Highlight;
+  }
+  .sw-f {
+    border-color: CanvasText;
+  }
+  .chip[aria-pressed='true'],
+  .media.sel,
+  .policy-pick.sel {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
   }
 }

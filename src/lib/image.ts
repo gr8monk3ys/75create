@@ -5,6 +5,9 @@
 const MAX_DIMENSION = 1600
 const MAX_BYTES = 5 * 1024 * 1024
 
+/** A failure worded for the person: safe to show as-is. */
+export class ImageError extends Error {}
+
 export interface CompressResult {
   blob: Blob
   width: number
@@ -13,9 +16,12 @@ export interface CompressResult {
 
 export async function compressImage(file: File): Promise<CompressResult> {
   if (!file.type.startsWith('image/')) {
-    throw new Error('That file isn’t an image.')
+    throw new ImageError('That file isn’t an image.')
   }
-  const bitmap = await loadBitmap(file)
+  // The browser's own decode errors are worded for developers.
+  const bitmap = await loadBitmap(file).catch(() => {
+    throw new ImageError('That file isn’t an image we can read.')
+  })
   const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height))
   const width = Math.round(bitmap.width * scale)
   const height = Math.round(bitmap.height * scale)
@@ -24,7 +30,7 @@ export async function compressImage(file: File): Promise<CompressResult> {
   canvas.width = width
   canvas.height = height
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Couldn’t process the image.')
+  if (!ctx) throw new ImageError('Couldn’t process the image.')
   ctx.drawImage(bitmap, 0, 0, width, height)
 
   // Step quality down until under the size cap.
@@ -35,7 +41,7 @@ export async function compressImage(file: File): Promise<CompressResult> {
     blob = await toBlob(canvas, quality)
   }
   if (blob.size > MAX_BYTES) {
-    throw new Error('That image is too large even after compression (5 MB max).')
+    throw new ImageError('That image is too large even after compression (5 MB max).')
   }
   return { blob, width, height }
 }
@@ -47,7 +53,7 @@ function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    img.onerror = () => reject(new Error('Couldn’t read that image.'))
+    img.onerror = () => reject(new ImageError('Couldn’t read that image.'))
     img.src = URL.createObjectURL(file)
   })
 }
@@ -55,7 +61,7 @@ function loadBitmap(file: File): Promise<ImageBitmap | HTMLImageElement> {
 function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error('Encoding failed.'))),
+      (b) => (b ? resolve(b) : reject(new ImageError('Couldn’t process the image.'))),
       'image/jpeg',
       quality,
     )

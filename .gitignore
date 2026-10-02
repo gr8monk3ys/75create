@@ -15,3 +15,15 @@ next-env.d.ts
 /playwright-report
 /blob-report
 /playwright/.cache
+
+# Impeccable live-mode runtime state (server port/pid, sessions)
+/.impeccable/live/
+
+# local secrets (see .env.example)
+.env*.local
+.env
+
+# Agent skills are installed per machine, not vendored (project settings
+# under .claude/ can still be committed)
+.claude/skills/
+.claude/agents/

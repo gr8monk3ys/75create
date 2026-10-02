@@ -27,6 +27,12 @@ export function normalizeArtifactUrl(input: string): string | null {
     }
     if (!ALLOWED_PROTOCOLS.has(parsed.protocol)) return null
     if (!parsed.hostname) return null
+    // A sentence typed into the link field ("did some sketching") parses as a
+    // host once https:// is prefixed. A real address has no spaces and a
+    // dotted host (or is localhost / an IP literal).
+    if (/\s/.test(raw)) return null
+    const host = parsed.hostname
+    if (!host.includes('.') && host !== 'localhost' && !host.startsWith('[')) return null
     return parsed.toString()
   }
   return null

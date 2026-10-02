@@ -1,32 +1,54 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Repository, newId } from '@/lib/repository'
 import { Artifact } from '@/lib/types'
-import { compressImage } from '@/lib/image'
+import { ImageError, compressImage } from '@/lib/image'
 import { normalizeArtifactUrl, safeHref } from '@/lib/safeUrl'
+import { ToggleResult } from '@/lib/challengeSession'
+import { Icon } from './Icon'
+import { useApp } from './AppProvider'
 
 interface Props {
-  repo: Repository
-  challengeId: string
   dayIndex: number
   artifacts: Artifact[]
-  onChange: () => void
-  readOnly?: boolean
+  /** Called with each write's result, so the card can celebrate completion.
+   *  Returns true when it announced something itself (completion, reopening). */
+  onResult: (result: ToggleResult) => boolean | void
+  /** Says a short confirmation through the card's live region. */
+  onAnnounce?: (message: string) => void
+  /** Id of the element that labels this group (the rule or field heading). */
+  labelledBy?: string
+  /** The rule's note, when shown. */
+  describedBy?: string
+  /** Id for the upload button, so a rule label can point at it. */
+  uploadId?: string
 }
 
 export function ArtifactInput({
-  repo,
-  challengeId,
   dayIndex,
   artifacts,
-  onChange,
-  readOnly = false,
+  onResult,
+  onAnnounce,
+  labelledBy,
+  describedBy,
+  uploadId,
 }: Props) {
+  const { attachImage, attachLink, removeArtifact, wouldReopen } = useApp()
   const [url, setUrl] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  // Which control an error belongs to, so it's tied to that field alone.
+  // `n` re-keys the message, so the same mistake twice is announced twice.
+  const [error, setErrorState] = useState<{ text: string; from: 'upload' | 'link'; n: number } | null>(null)
+  const setError = (text: string | null, from: 'upload' | 'link' = 'link') =>
+    setErrorState((prev) => (text ? { text, from, n: (prev?.n ?? 0) + 1 } : null))
   const fileRef = useRef<HTMLInputElement>(null)
+  const uploadRef = useRef<HTMLButtonElement>(null)
+
+  /** Report a write: the card speaks for completion; otherwise say what was kept. */
+  function report(result: ToggleResult, added: string) {
+    const spoke = onResult(result)
+    if (result.ok && !spoke) onAnnounce?.(added)
+  }
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -35,18 +57,10 @@ export function ArtifactInput({
     setBusy(true)
     try {
       const { blob } = await compressImage(file)
-      const blobRef = await repo.saveArtifactBlob(blob)
-      const artifact: Artifact = {
-        id: newId(),
-        dayId: `${challengeId}:${dayIndex}`,
-        kind: 'image',
-        blobRef,
-        createdAt: new Date().toISOString(),
-      }
-      repo.saveArtifactMeta(challengeId, dayIndex, artifact)
-      onChange()
+      report(await attachImage(dayIndex, blob), 'Image added.')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed.')
+      const why = err instanceof ImageError ? err.message : 'That upload didn’t work.'
+      setError(`${why} Try a JPEG or PNG under 5 MB, or paste a link instead.`, 'upload')
     } finally {
       setBusy(false)
       if (fileRef.current) fileRef.current.value = ''
@@ -56,79 +70,100 @@ export function ArtifactInput({
   function addUrl() {
     const value = normalizeArtifactUrl(url)
     if (!value) {
-      if (url.trim()) setError('That doesn’t look like a web link (http or https).')
+      if (url.trim()) setError('That isn’t a web address. Paste a link like example.com/my-work.')
       return
     }
     setError(null)
-    const artifact: Artifact = {
-      id: newId(),
-      dayId: `${challengeId}:${dayIndex}`,
-      kind: 'url',
-      url: value,
-      createdAt: new Date().toISOString(),
-    }
-    repo.saveArtifactMeta(challengeId, dayIndex, artifact)
+    report(attachLink(dayIndex, value), `Link to ${hostOf(value)} added.`)
     setUrl('')
-    onChange()
-  }
-
-  async function removeArtifact(a: Artifact) {
-    if (a.blobRef) await repo.deleteArtifactBlob(a.blobRef)
-    repo.deleteArtifactMeta(challengeId, dayIndex, a.id)
-    onChange()
   }
 
   return (
-    <div className="artifact">
+    <div
+      className="artifact"
+      role={labelledBy ? 'group' : undefined}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
+    >
       {artifacts.length > 0 && (
-        <div className="thumbs">
+        <ul className="thumbs" aria-label="Today's artifacts">
           {artifacts.map((a) => (
-            <ArtifactThumb
-              key={a.id}
-              artifact={a}
-              repo={repo}
-              onRemove={readOnly ? undefined : () => removeArtifact(a)}
-            />
+            <li key={a.id}>
+              <ArtifactThumb
+                artifact={a}
+                dayIndex={dayIndex}
+                reopens={wouldReopen(dayIndex, a.id)}
+                onArm={(message) => onAnnounce?.(message)}
+                onRemove={async () => {
+                  // The thumb (and its button) is about to go: keep focus in
+                  // the group rather than dropping it to the page.
+                  uploadRef.current?.focus()
+                  report(
+                    await removeArtifact(dayIndex, a.id),
+                    a.kind === 'url' ? `Link to ${hostOf(a.url ?? '')} removed.` : 'Image removed.',
+                  )
+                }}
+              />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
-      {!readOnly && (
-        <div className="controls">
+      <div className="controls">
+        <button
+          ref={uploadRef}
+          id={uploadId}
+          type="button"
+          className="btn btn-ghost small"
+          // aria-disabled, not disabled: the button keeps focus while the
+          // image compresses, so the keyboard stays in the card.
+          onClick={() => !busy && fileRef.current?.click()}
+          aria-disabled={busy}
+          aria-busy={busy}
+          aria-describedby={error?.from === 'upload' ? `url-err-${dayIndex}` : undefined}
+        >
+          <Icon name="image" size={18} />
+          {busy ? 'Compressing…' : 'Upload image'}
+        </button>
+        <div className="url-row">
+          <label className="sr-only" htmlFor={`url-${dayIndex}`}>
+            Or paste a link to the work
+          </label>
+          <input
+            id={`url-${dayIndex}`}
+            className="field-input url-input"
+            type="url"
+            inputMode="url"
+            placeholder="or paste a link"
+            value={url}
+            aria-invalid={error?.from === 'link' ? true : undefined}
+            aria-describedby={error?.from === 'link' ? `url-err-${dayIndex}` : undefined}
+            onChange={(e) => {
+              setUrl(e.target.value)
+              if (error) setError(null)
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
+          />
           <button
             type="button"
             className="btn btn-ghost small"
-            onClick={() => fileRef.current?.click()}
-            disabled={busy}
+            onClick={addUrl}
+            // Stays focusable once the field clears after adding.
+            aria-disabled={!url.trim()}
           >
-            {busy ? 'Compressing…' : 'Upload image'}
+            Add link
           </button>
-          <span className="or font-mono">or</span>
-          <div className="url-row">
-            <input
-              className="url-input"
-              placeholder="paste a link"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addUrl())}
-            />
-            <button type="button" className="btn btn-ghost small" onClick={addUrl}>
-              Add
-            </button>
-          </div>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            onChange={onFile}
-            hidden
-          />
         </div>
-      )}
-      {error && <p className="err font-mono">{error}</p>}
+        <input ref={fileRef} type="file" accept="image/*" onChange={onFile} hidden />
+      </div>
+      <p className="err" role="alert" id={`url-err-${dayIndex}`} key={error?.n ?? 0}>
+        {error?.text}
+      </p>
 
       <style jsx>{`
         .artifact {
+          width: 100%;
+          min-width: 0;
           display: flex;
           flex-direction: column;
           gap: 0.75rem;
@@ -137,6 +172,9 @@ export function ArtifactInput({
           display: flex;
           gap: 0.6rem;
           flex-wrap: wrap;
+          list-style: none;
+          margin: 0;
+          padding: 0;
         }
         .controls {
           display: flex;
@@ -144,63 +182,106 @@ export function ArtifactInput({
           gap: 0.6rem;
           flex-wrap: wrap;
         }
-        .small {
-          /* 44px min height: comfortable thumb target on a phone. */
-          padding: 0.7rem 1rem;
-          min-height: 44px;
-          font-size: 0.7rem;
-        }
-        .or {
-          font-size: 0.7rem;
-          color: var(--muted);
-        }
         .url-row {
           display: flex;
           gap: 0.4rem;
-          flex: 1;
-          min-width: 180px;
+          flex: 1 1 14rem;
+          min-width: 0;
         }
         .url-input {
           flex: 1;
-          font-family: var(--font-body);
-          /* 16px stops iOS Safari zooming the viewport on focus. */
-          font-size: 1rem;
-          min-height: 44px;
-          padding: 0.5rem 0.7rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
+          width: auto;
+          min-width: 0;
         }
-        .url-input:focus {
-          outline: none;
-          border-color: var(--cobalt);
+        /* After the base rule, so it wins: on a small phone (or at large
+           text) the link gets the full width and Add link its own line. */
+        @media (max-width: 26em) {
+          .url-row {
+            flex-basis: 100%;
+            flex-wrap: wrap;
+          }
+          .url-input {
+            flex: 1 1 100%;
+          }
         }
         .err {
-          font-size: 0.72rem;
-          color: var(--coral);
+          font-size: 0.8rem;
+          line-height: 1.4;
+          color: var(--coral-ink);
           margin: 0;
+        }
+        .err:empty {
+          display: none;
         }
       `}</style>
     </div>
   )
 }
 
-function ArtifactThumb({
+/** The host of a link, for a thumbnail that says where it goes. */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return 'link'
+  }
+}
+
+/**
+ * One artifact. With `onRemove`, removal takes two taps: the first arms it and
+ * says so, the second deletes. An image is gone for good once removed, so a
+ * stray tap on a phone must not be enough.
+ */
+export function ArtifactThumb({
   artifact,
-  repo,
   onRemove,
+  onArm,
+  dayIndex,
+  reopens = false,
+  size = 84,
 }: {
   artifact: Artifact
-  repo: Repository
   onRemove?: () => void
+  /** Says that the first tap armed removal (the confirm is otherwise silent). */
+  onArm?: (message: string) => void
+  dayIndex?: number
+  /** Removing this would take a completed day back off the grid. */
+  reopens?: boolean
+  size?: number
 }) {
+  const { repo } = useApp()
   const [src, setSrc] = useState<string | null>(null)
+  const [armed, setArmed] = useState(false)
+  const armedAt = useRef(0)
+  const removeRef = useRef<HTMLButtonElement>(null)
+  const boxRef = useRef<HTMLDivElement>(null)
+  // A finished recap can hold 75+ images: read and decode each one only when
+  // it scrolls near the viewport, not all at once on mount.
+  const [near, setNear] = useState(false)
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      setNear(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setNear(true)
+          io.disconnect()
+        }
+      },
+      { rootMargin: '400px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
 
   useEffect(() => {
     let objectUrl: string | null = null
     let cancelled = false
-    if (artifact.kind === 'image' && artifact.blobRef) {
+    if (near && artifact.kind === 'image' && artifact.blobRef) {
       repo.getArtifactBlob(artifact.blobRef).then((blob) => {
         if (blob && !cancelled) {
           objectUrl = URL.createObjectURL(blob)
@@ -212,74 +293,213 @@ function ArtifactThumb({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [artifact, repo])
+    // Keyed on the stored blob, not the artifact object: every snapshot
+    // rebuilds that object, and re-reading the image on each autosave would
+    // re-decode it for nothing.
+  }, [artifact.blobRef, artifact.kind, repo, near])
+
+  // An armed remove stands down after 4s, unless focus is still on it: a
+  // screen-reader user takes longer than that to hear the prompt and act.
+  // Focus leaving it stands it down too (onBlur), so it can't stay armed.
+  useEffect(() => {
+    if (!armed) return
+    const t = setTimeout(() => {
+      if (document.activeElement !== removeRef.current) setArmed(false)
+    }, 4000)
+    return () => clearTimeout(t)
+  }, [armed])
+
+  // Re-checked at render: a row synced from another device, or stored before
+  // validation existed, can still carry an unsafe scheme.
+  const href = artifact.kind === 'url' ? safeHref(artifact.url) : null
+  const what = artifact.kind === 'image' ? 'image' : `link to ${href ? hostOf(href) : 'an unsafe address'}`
+  const alt = dayIndex ? `Day ${dayIndex} image` : 'Artifact image'
 
   return (
-    <div className="thumb">
-      {artifact.kind === 'image' ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        src ? <img src={src} alt="Day artifact" /> : <span className="ph">…</span>
-      ) : (
-        // Re-checked at render: a row synced from another device, or stored
-        // before validation existed, can still carry an unsafe scheme.
-        safeHref(artifact.url) ? (
-          <a
-            href={safeHref(artifact.url)!}
-            target="_blank"
-            rel="noreferrer"
-            className="link font-mono"
-          >
-            🔗 link
+    <div ref={boxRef} className={`thumb ${armed ? 'armed' : ''}`} style={{ width: `${size / 16}rem`, height: `${size / 16}rem` }}>
+      <div className="frame">
+        {artifact.kind === 'image' ? (
+          src ? (
+            // A local object URL from IndexedDB: nothing for next/image to optimize.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={src} alt={alt} decoding="async" />
+          ) : (
+            <span className="ph" role="img" aria-label="Loading image" />
+          )
+        ) : href ? (
+          <a href={href} target="_blank" rel="noreferrer" className="link" title={href}>
+            <Icon name="link" size={20} />
+            {/* Breaks only after a dot, so a host wraps as "behance. / net". */}
+            <span className="host">{hostOf(href).replace(/\./g, '.\u200b')}</span>
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
-          <span className="link font-mono">⚠ unsafe link</span>
-        )
-      )}
+          <span className="link unsafe">Unsafe link hidden</span>
+        )}
+      </div>
       {onRemove && (
-        <button className="x" onClick={onRemove} aria-label="Remove artifact">
-          ✕
+        <button
+          ref={removeRef}
+          type="button"
+          className="x"
+          onBlur={() => setArmed(false)}
+          onClick={() => {
+            if (armed) {
+              // A double tap lands both taps here: the second, straight after
+              // arming, isn't a decision. An image is gone for good.
+              if (Date.now() - armedAt.current < 600) return
+              return onRemove()
+            }
+            armedAt.current = Date.now()
+            setArmed(true)
+            onArm?.(`Press again to remove this ${what}${reopens ? '; today will no longer be complete' : ''}.`)
+          }}
+          aria-label={
+            armed
+              ? `Confirm: remove this ${what}${reopens ? '. Today will no longer be complete' : ''}`
+              : `Remove this ${what}`
+          }
+        >
+          {armed ? (
+            <span className="confirm">
+              Remove?
+              {reopens && (
+                <>
+                  <br />
+                  Day reopens
+                </>
+              )}
+            </span>
+          ) : (
+            <Icon name="close" size={16} />
+          )}
         </button>
       )}
       <style jsx>{`
         .thumb {
           position: relative;
-          width: 76px;
-          height: 76px;
-          border-radius: 8px;
+        }
+        .frame {
+          width: 100%;
+          height: 100%;
+          border-radius: 10px;
           overflow: hidden;
           border: 1.5px solid var(--line);
           background: var(--paper);
           display: grid;
+          grid-template-columns: minmax(0, 1fr);
           place-items: center;
+        }
+        .thumb.armed .frame {
+          border-color: var(--coral);
         }
         .thumb :global(img) {
           width: 100%;
           height: 100%;
           object-fit: cover;
         }
+        /* The frame clips its content, so the ring is drawn inside it. */
+        .link:focus-visible {
+          outline-offset: -3px;
+          border-radius: 10px;
+        }
         .link {
-          font-size: 0.68rem;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          gap: 0.3rem;
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
           color: var(--cobalt);
           text-align: center;
-          padding: 0.3rem;
+          padding: 0.4rem;
+          text-decoration: none;
+          max-width: 100%;
+          min-width: 0;
+        }
+        .host {
+          /* Up to two lines, so a host reads whole in the small tile (sized
+             in rem, so it grows with the text). */
+          display: -webkit-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
+          max-width: 100%;
+          overflow: hidden;
+          overflow-wrap: anywhere;
+          line-height: 1.25;
+        }
+        .unsafe {
+          color: var(--coral-ink);
         }
         .ph {
-          color: var(--muted);
+          width: 40%;
+          height: 40%;
+          border-radius: 999px;
+          background: var(--paper-3);
         }
         .x {
           position: absolute;
-          top: 3px;
-          right: 3px;
-          width: 20px;
-          height: 20px;
-          border-radius: 50%;
+          /* The visible chip is small; the hit area is a full 44px corner,
+             pushed out past the tile's edge so it stays clear of the tile's
+             centre (a tap or double tap there is meant for the work). */
+          top: -12px;
+          right: -12px;
+          min-width: 44px;
+          height: 44px;
+          padding: 0;
           border: none;
-          background: color-mix(in srgb, var(--ink) 70%, transparent);
+          background: transparent;
           color: var(--paper);
-          font-size: 0.65rem;
           cursor: pointer;
           display: grid;
+          place-items: start end;
+        }
+        .x :global(svg),
+        .confirm {
+          background: color-mix(in srgb, var(--ink) 78%, transparent);
+          border-radius: 999px;
+          margin: 4px;
+        }
+        /* The chip itself stays on the tile's corner, inside the pushed-out
+           hit area. */
+        .thumb:not(.armed) .x :global(svg) {
+          margin: 16px 16px 0 0;
+        }
+        .x :global(svg) {
+          padding: 3px;
+          width: 24px;
+          height: 24px;
+        }
+        .thumb.armed .x {
+          /* Armed, the confirm takes the whole tile: it can't be clipped or
+             run off-screen, and it is the one thing left to decide. */
+          top: 0;
+          right: auto;
+          inset: 0 auto auto 0;
+          min-width: 100%;
+          min-height: 100%;
+          /* At large text the confirm can outgrow the tile: it grows over the
+             row rather than being cut off. */
+          width: max-content;
+          height: auto;
+          z-index: 2;
           place-items: center;
+          /* The focus ring follows the tile's corners. */
+          border-radius: 10px;
+        }
+        .confirm {
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
+          line-height: 1.25;
+          text-align: center;
+          padding: 0.35rem 0.5rem;
+          /* A card-like block, not a pill: it wraps to two lines. */
+          border-radius: 10px;
+          background: var(--coral-ink);
+          color: var(--on-coral-ink);
         }
       `}</style>
     </div>

@@ -1,45 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
 
 export default function SignIn() {
-  const { signIn, signInWithGoogle, supabaseEnabled, repo } = useApp()
+  const { signIn, signInWithGoogle, supabaseEnabled, loading, user, challenge } = useApp()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  // Signed in (just now, or already, or by a magic link opened in this tab):
+  // there's nothing to do here. Go where the account's challenge is.
+  useEffect(() => {
+    if (!loading && user) router.replace(challenge ? '/dashboard' : '/setup')
+  }, [loading, user, challenge, router])
 
   async function enter(e: React.FormEvent) {
     e.preventDefault()
-    const value = email.trim()
-    if (!value || busy) return
+    // Addresses are case-insensitive: Me@x.com and me@x.com are one account.
+    const value = email.trim().toLowerCase()
+    if (!value || busy || loading) return
     setBusy(true)
+    setError('')
     try {
       const mode = await signIn(value)
-      if (mode === 'magic-link-sent') {
-        setSent(true)
-        return
-      }
-      // Local mode: route based on whether an account already has a challenge.
-      const hasChallenge = repo.getActiveChallenge() !== null
-      router.push(hasChallenge ? '/dashboard' : '/setup')
+      if (mode === 'magic-link-sent') setSent(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'That didn’t work. Try again.')
     } finally {
       setBusy(false)
     }
   }
 
   async function google() {
-    if (supabaseEnabled) {
-      await signInWithGoogle() // redirects to Google
-      return
-    }
-    const value = email.trim() || 'creative@example.com'
-    if (!email.trim()) setEmail(value)
-    await signIn(value)
-    router.push(repo.getActiveChallenge() ? '/dashboard' : '/setup')
+    await signInWithGoogle() // redirects to Google
   }
 
   return (
@@ -49,9 +47,8 @@ export default function SignIn() {
       </Link>
 
       <div className="auth-card panel">
-        <span className="eyebrow">Start or resume</span>
         <h1 className="font-display auth-h1">
-          {sent ? 'Check your email' : 'Sign in with your email'}
+          {sent ? 'Check your email' : supabaseEnabled ? 'Sign in with your email' : 'Start on this device'}
         </h1>
 
         {sent ? (
@@ -62,28 +59,48 @@ export default function SignIn() {
         ) : (
           <form onSubmit={enter} className="auth-form">
             <label className="field">
-              <span className="field-label font-mono">Email</span>
+              <span className="field-label">Email</span>
               <input
                 type="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 required
-                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@studio.com"
-                className="input"
+                className="field-input input"
               />
             </label>
-            <button type="submit" className="btn" disabled={busy}>
-              {busy ? 'Sending…' : 'Send magic link'}
-            </button>
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
             <button
-              type="button"
-              className="btn btn-ghost google"
-              onClick={google}
-              disabled={busy}
+              type="submit"
+              className="btn"
+              // Stays focusable while sending, so focus never drops to the page.
+              aria-disabled={busy || loading}
             >
-              Continue with Google
+              {supabaseEnabled
+                ? busy
+                  ? 'Sending…'
+                  : 'Send magic link'
+                : 'Continue on this device'}
             </button>
+            {/* Only offered where it's real: without a backend there is no
+                Google sign-in to continue with. */}
+            {supabaseEnabled && (
+              <button
+                type="button"
+                className="btn btn-ghost google"
+                onClick={() => !busy && google()}
+                aria-disabled={busy}
+              >
+                Continue with Google
+              </button>
+            )}
           </form>
         )}
 
@@ -94,9 +111,9 @@ export default function SignIn() {
           </p>
         ) : (
           <p className="proto-note font-mono">
-            Prototype note: this build runs entirely in your browser. There&apos;s no
-            server configured, so the magic link and Google button sign you in
-            instantly and your challenge is saved locally on this device.
+            This build runs entirely in your browser: your email just names your
+            challenge on this device, and everything is saved here. No account,
+            no server, nothing sent anywhere.
           </p>
         )}
       </div>
@@ -112,16 +129,21 @@ export default function SignIn() {
           max-width: 480px;
         }
         .back {
-          font-size: 1.2rem;
+          font-size: 1.25rem;
           text-decoration: none;
         }
         .auth-card {
           width: 100%;
-          padding: 2rem;
+          padding: min(2rem, 6vw);
         }
         .auth-h1 {
-          font-size: 1.9rem;
+          font-size: 2rem;
           margin: 0.5rem 0 1.5rem;
+        }
+        .auth-error {
+          margin: 0;
+          color: var(--coral-ink);
+          font-size: 0.875rem;
         }
         .auth-form {
           display: flex;
@@ -133,31 +155,15 @@ export default function SignIn() {
           flex-direction: column;
           gap: 0.4rem;
         }
-        .field-label {
-          font-size: 0.7rem;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: var(--muted);
-        }
         .input {
-          font-family: var(--font-body);
-          font-size: 1rem;
-          padding: 0.85rem 1rem;
-          border-radius: 10px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
-        .input:focus {
-          border-color: var(--cobalt);
-          outline: none;
+          padding: 0.8rem 1rem;
         }
         .google {
           border-style: solid;
         }
         .proto-note {
           margin-top: 1.5rem;
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           line-height: 1.6;
           color: var(--muted);
           border-top: 1.5px dashed var(--line);

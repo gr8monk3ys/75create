@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
@@ -14,7 +14,6 @@ import {
   unsubscribeFromPush,
   type PushStatus,
 } from '@/lib/push'
-import { supabase } from '@/lib/supabase'
 import { downloadBlob } from '@/lib/certificate'
 
 export default function Settings() {
@@ -25,14 +24,95 @@ export default function Settings() {
     if (!loading && !user) router.replace('/signin')
   }, [loading, user, router])
 
-  if (loading || !user) return null
+  if (loading || !user) {
+    return (
+      <main className="settings">
+        <p className="status-line" role="status">
+          Loading settings…
+        </p>
+      </main>
+    )
+  }
   // Keyed on the user so the form seeds its fields from stored preferences
   // once, instead of copying them in through an effect on every render.
   return <SettingsForm key={user.id} user={user} />
 }
 
+/**
+ * The way out, stated plainly. Before Day 1 it's a free redo of the setup;
+ * mid-attempt it's quitting, which the format allows but never hides: the
+ * attempt ends where it is and moves to past attempts with everything made.
+ */
+function EndChallenge() {
+  const { ending, endAttempt } = useApp()
+  const router = useRouter()
+  const [armed, setArmed] = useState(false)
+  const keepRef = useRef<HTMLButtonElement>(null)
+  const armRef = useRef<HTMLButtonElement>(null)
+  const wasArmed = useRef(false)
+
+  // Arming lands on "Keep going", which takes the arming button's place: a
+  // double tap or a second Enter keeps the challenge, never ends it. The
+  // danger button is the deliberate second choice. Cancelling lands back on
+  // the button that armed it, so focus never drops to the page.
+  useEffect(() => {
+    if (armed) keepRef.current?.focus()
+    else if (wasArmed.current) armRef.current?.focus()
+    wasArmed.current = armed
+  }, [armed])
+
+  if (!ending) return null
+  const redo = ending.kind === 'redo'
+
+  function end() {
+    endAttempt()
+    router.push('/setup')
+  }
+
+  return (
+    <section className="block panel" aria-labelledby="end-title">
+      <h2 className="font-display block-h2" id="end-title">
+        {redo ? 'Change your setup' : 'End this challenge'}
+      </h2>
+      <p className="block-sub">
+        {redo
+          ? 'Day 1 hasn’t started, so nothing is lost: set it up again with different rules, stakes or a start date.'
+          : `This attempt ends on Day ${ending.day} and moves to past attempts with everything you made. Then you set up a new challenge.`}
+      </p>
+      {armed ? (
+        <div
+          className="end-row"
+          role="group"
+          aria-label={redo ? 'Confirm setting it up again' : `Confirm ending on Day ${ending.day}`}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setArmed(false)
+          }}
+        >
+          <button ref={keepRef} type="button" className="btn btn-ghost" onClick={() => setArmed(false)}>
+            Keep going
+          </button>
+          <button type="button" className="btn btn-danger" onClick={end}>
+            {ending.kind === 'redo' ? 'Yes, set it up again' : `Yes, end on Day ${ending.day}`}
+          </button>
+        </div>
+      ) : (
+        <button ref={armRef} type="button" className="btn btn-ghost" onClick={() => setArmed(true)}>
+          {redo ? 'Set it up again' : 'End this challenge'}
+        </button>
+      )}
+      <style jsx>{`
+        .end-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.6rem;
+        }
+      `}</style>
+    </section>
+  )
+}
+
 function SettingsForm({ user }: { user: User }) {
-  const { repo, refresh, signOut, supabaseEnabled } = useApp()
+  const { repo, signOut, supabaseEnabled, changeDayBoundary, setReminder } = useApp()
   const [reminderOn, setReminderOn] = useState(user.reminderTime !== null)
   const [reminderTime, setReminderTime] = useState(user.reminderTime ?? '20:00')
   const [buffer, setBuffer] = useState(user.lateNightBufferHrs)
@@ -41,6 +121,11 @@ function SettingsForm({ user }: { user: User }) {
   )
   const [exporting, setExporting] = useState(false)
   const [confirmText, setConfirmText] = useState('')
+  // Why a day-boundary change was refused, shown under the control that asked.
+  // `n` re-keys the note, so pressing a refused choice again is announced again.
+  const [boundaryNote, setBoundaryNote] = useState<{ on: 'tz' | 'buffer'; text: string; n: number } | null>(
+    null,
+  )
   const deviceTz = detectTimezone()
   const [pushStatus, setPushStatus] = useState<PushStatus>('unsupported')
 
@@ -56,11 +141,12 @@ function SettingsForm({ user }: { user: User }) {
   }, [])
 
   async function saveReminders(on: boolean, time: string) {
-    repo.saveUser({ ...user, reminderTime: on ? time : null })
-    refresh()
+    setReminder(on ? time : null)
 
     // Push first where it's available: it's the only reminder that reaches a
     // phone with the app closed, and the only one that works on iOS at all.
+    // The SDK only exists in builds with a backend; fetch it on demand.
+    const supabase = supabaseEnabled ? (await import('@/lib/supabase')).supabase : null
     if (isPushSupported() && supabase) {
       const status = on
         ? await subscribeToPush(supabase, user.id)
@@ -79,14 +165,14 @@ function SettingsForm({ user }: { user: User }) {
   }
 
   function saveBuffer(hrs: number) {
-    setBuffer(hrs)
-    repo.saveUser({ ...user, lateNightBufferHrs: hrs })
-    refresh()
+    const result = changeDayBoundary({ lateNightBufferHrs: hrs })
+    if (result.ok) setBuffer(hrs)
+    setBoundaryNote((prev) => (result.ok ? null : { on: 'buffer', text: result.reason, n: (prev?.n ?? 0) + 1 }))
   }
 
   function saveTz(tz: string) {
-    repo.saveUser({ ...user, tz })
-    refresh()
+    const result = changeDayBoundary({ tz })
+    setBoundaryNote((prev) => (result.ok ? null : { on: 'tz', text: result.reason, n: (prev?.n ?? 0) + 1 }))
   }
 
   async function doExport() {
@@ -111,12 +197,12 @@ function SettingsForm({ user }: { user: User }) {
 
   return (
     <main className="settings">
-      <nav className="set-nav">
+      <nav className="page-nav" aria-label="Main">
         <Link href="/dashboard" className="wordmark font-display brand">
           75 Create
         </Link>
-        <Link href="/dashboard" className="font-mono back">
-          ← back to grid
+        <Link href="/dashboard" className="back-link">
+          Back to your grid
         </Link>
       </nav>
 
@@ -138,10 +224,14 @@ function SettingsForm({ user }: { user: User }) {
         </label>
         {reminderOn && (
           <div className="time-row">
+            <label className="sr-only" htmlFor="reminder-time">
+              Reminder time
+            </label>
             <input
+              id="reminder-time"
               type="time"
               value={reminderTime}
-              className="time"
+              className="field-input time"
               onChange={(e) => {
                 setReminderTime(e.target.value)
                 saveReminders(true, e.target.value)
@@ -160,8 +250,8 @@ function SettingsForm({ user }: { user: User }) {
       <section className="block panel">
         <h2 className="font-display block-h2">Time zone</h2>
         <p className="block-sub">
-          Your day rolls over here. It follows this device automatically — change
-          it only if you want your challenge pinned to somewhere else.
+          Your day rolls over in this time zone. It was set from this device when
+          you signed up; if you travel or move, this page offers the new one.
         </p>
         <div className="tz-row">
           <span className="tz-current font-mono">{user.tz}</span>
@@ -171,26 +261,42 @@ function SettingsForm({ user }: { user: User }) {
             </button>
           )}
         </div>
+        {boundaryNote?.on === 'tz' && (
+          <p className="refused" role="alert" key={boundaryNote.n}>
+            {boundaryNote.text}
+          </p>
+        )}
       </section>
 
       <section className="block panel">
-        <h2 className="font-display block-h2">Late-night buffer</h2>
+        <h2 className="font-display block-h2" id="buffer-title">
+          Late-night buffer
+        </h2>
         <p className="block-sub">
           How many hours past midnight still counts as “today” — for when you create
           after 12.
         </p>
-        <div className="chips">
+        <div className="chips" role="group" aria-labelledby="buffer-title">
           {[0, 2, 3, 4, 6].map((h) => (
             <button
               key={h}
+              type="button"
               className={`chip ${buffer === h ? 'sel' : ''}`}
+              aria-pressed={buffer === h}
               onClick={() => saveBuffer(h)}
             >
               {h === 0 ? 'Midnight' : `${h}am`}
             </button>
           ))}
         </div>
+        {boundaryNote?.on === 'buffer' && (
+          <p className="refused" role="alert" key={boundaryNote.n}>
+            {boundaryNote.text}
+          </p>
+        )}
       </section>
+
+      <EndChallenge />
 
       <section className="block panel">
         <h2 className="font-display block-h2">Export your data</h2>
@@ -198,7 +304,12 @@ function SettingsForm({ user }: { user: User }) {
           Everything you’ve logged and every artifact image, as a ZIP with JSON and
           CSV. Yours to keep.
         </p>
-        <button className="btn btn-ghost" onClick={doExport} disabled={exporting}>
+        <button
+          className="btn btn-ghost"
+          onClick={() => !exporting && doExport()}
+          aria-disabled={exporting}
+          aria-busy={exporting}
+        >
           {exporting ? 'Packaging…' : 'Download export (.zip)'}
         </button>
       </section>
@@ -209,15 +320,23 @@ function SettingsForm({ user }: { user: User }) {
           Immediate and permanent. Wipes every challenge, log, and artifact on this
           device. Export first if you want a copy.
         </p>
+        {/* A visible label: the instruction mustn't vanish as you type, on
+            the one action that can't be undone. */}
+        <label className="field-label" htmlFor="delete-confirm">
+          Type DELETE to confirm
+        </label>
         <div className="del-row">
           <input
-            className="del-input"
-            placeholder="Type DELETE to confirm"
+            id="delete-confirm"
+            className="field-input del-input"
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellCheck={false}
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
           />
           <button
-            className="btn del-btn"
+            className="btn btn-danger del-btn"
             onClick={deleteAccount}
             disabled={confirmText !== 'DELETE'}
           >
@@ -243,25 +362,8 @@ function SettingsForm({ user }: { user: User }) {
           max-width: 640px;
           padding-top: 1rem;
         }
-        .set-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0 2.5rem;
-        }
-        .brand {
-          font-size: 1.25rem;
-          text-decoration: none;
-        }
-        .back {
-          font-size: 0.78rem;
-          color: var(--ink-soft);
-          text-decoration: none;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-        }
         .set-h1 {
-          font-size: 2.5rem;
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0 0 0.4rem;
         }
         .account {
@@ -269,22 +371,32 @@ function SettingsForm({ user }: { user: User }) {
           font-size: 0.8rem;
           margin: 0 0 2rem;
         }
-        .block {
-          padding: 1.5rem;
+        .settings :global(.block) {
+          /* Held to the viewport on a phone, so large text keeps its width
+             (the reminder time keeps its AM/PM). */
+          padding: min(1.5rem, 5vw);
           margin-bottom: 1.25rem;
         }
-        .block-h2 {
-          font-size: 1.35rem;
+        .settings :global(.block-h2) {
+          font-size: 1.25rem;
           margin: 0 0 0.75rem;
         }
-        .block-sub {
+        .settings :global(.block-sub) {
           color: var(--ink-soft);
           line-height: 1.5;
           margin: 0 0 1.1rem;
         }
+        .refused {
+          margin: 0.9rem 0 0;
+          max-width: 60ch;
+          font-size: 0.875rem;
+          line-height: 1.5;
+          color: var(--coral-ink);
+        }
         .row-toggle {
           display: flex;
           align-items: center;
+          min-height: 44px;
           gap: 0.6rem;
           cursor: pointer;
           font-weight: 600;
@@ -297,19 +409,14 @@ function SettingsForm({ user }: { user: User }) {
           flex-wrap: wrap;
         }
         .time {
-          font-family: var(--font-body);
-          padding: 0.5rem 0.75rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
+          width: auto;
         }
         .hint {
-          font-size: 0.72rem;
+          font-size: 0.8rem;
           color: var(--muted);
         }
         .note {
-          font-size: 0.7rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin: 1.1rem 0 0;
           border-top: 1.5px dashed var(--line);
@@ -323,35 +430,16 @@ function SettingsForm({ user }: { user: User }) {
           flex-wrap: wrap;
         }
         .tz-current {
-          font-size: 0.85rem;
+          /* A value, not a control: plain text, so it isn't mistaken for a
+             chip to press. */
+          font-size: 0.875rem;
+          font-weight: 700;
           color: var(--ink);
-          background: var(--paper-3);
-          border-radius: 8px;
-          padding: 0.5rem 0.75rem;
-        }
-        .small {
-          padding: 0.6rem 1rem;
-          min-height: 44px;
-          font-size: 0.7rem;
         }
         .chips {
           display: flex;
           gap: 0.5rem;
           flex-wrap: wrap;
-        }
-        .chip {
-          padding: 0.55rem 1rem;
-          border-radius: 999px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-          cursor: pointer;
-          font-family: var(--font-mono);
-          font-size: 0.8rem;
-        }
-        .chip.sel {
-          border-color: var(--cobalt);
-          background: color-mix(in srgb, var(--cobalt) 12%, var(--paper));
         }
         .danger {
           border-color: color-mix(in srgb, var(--coral) 45%, var(--line));
@@ -363,21 +451,9 @@ function SettingsForm({ user }: { user: User }) {
         }
         .del-input {
           flex: 1;
-          min-width: 180px;
+          min-width: min(100%, 180px);
+          width: auto;
           font-family: var(--font-mono);
-          font-size: 0.85rem;
-          padding: 0.7rem 0.9rem;
-          border-radius: 8px;
-          border: 1.5px solid var(--line);
-          background: var(--paper);
-          color: var(--ink);
-        }
-        .del-btn {
-          background: var(--coral);
-          border-color: var(--coral);
-        }
-        .del-btn:hover:not(:disabled) {
-          box-shadow: 4px 6px 0 var(--ink);
         }
         .signout {
           margin-top: 1rem;
@@ -398,5 +474,5 @@ function reminderChannelNote(supabaseEnabled: boolean, pushStatus: PushStatus): 
   if (supabaseEnabled) {
     return 'This device gets a browser notification while the app is open. Email reminders are sent by the server at your reminder time, when that function is deployed.'
   }
-  return 'Prototype note: email and push reminders need the server backend. For now this fires a browser notification on this device, and only while the app is open.'
+  return 'The reminder is a browser notification on this device, and it only arrives while the app is open.'
 }

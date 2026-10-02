@@ -1,13 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useApp } from '@/components/AppProvider'
+import { Grid } from '@/components/Grid'
 import { encodeSnapshot, ShareSnapshot } from '@/lib/shareSnapshot'
 
 export default function ShareGenerator() {
-  const { loading, user, challenge, dayData, derived } = useApp()
+  const { loading, user, challenge, dayData, derived, creativeToday } = useApp()
   const router = useRouter()
   const [includeLogs, setIncludeLogs] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -31,6 +32,8 @@ export default function ShareGenerator() {
       startDate: challenge.startDate,
       missPolicy: challenge.missPolicy,
       dayStates: derived.days.map((d) => d.state),
+      dayIndex: derived.currentIndex,
+      takenAt: creativeToday || undefined,
       current: derived.streak.current,
       longest: derived.streak.longest,
       includeLogs,
@@ -38,38 +41,91 @@ export default function ShareGenerator() {
     }
     const origin = typeof window !== 'undefined' ? window.location.origin : ''
     return `${origin}/share#${encodeSnapshot(snap)}`
-  }, [challenge, dayData.logs, derived, includeLogs])
+  }, [challenge, dayData.logs, derived, includeLogs, creativeToday])
+
+  // One status node, always mounted, so assistive tech hears each change.
+  // Cleared first, then filled on the next frame: the same message twice
+  // is announced twice.
+  const [status, setStatus] = useState('')
+  const linkRef = useRef<HTMLTextAreaElement>(null)
+
+  function say(message: string) {
+    setStatus('')
+    requestAnimationFrame(() => setStatus(message))
+  }
+
+  // A phone's share sheet is the quick way to send it; Copy stays for the rest.
+  const [canShare, setCanShare] = useState(false)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCanShare(typeof navigator.share === 'function')
+  }, [])
+
+  async function share() {
+    try {
+      await navigator.share({ title: 'My 75 Create grid', url: link })
+    } catch (e) {
+      // Closing the sheet isn't a failure; anything else falls back to Copy.
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      await copy()
+    }
+  }
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(link)
       setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      say('Link copied.')
+      setTimeout(() => {
+        setCopied(false)
+        setStatus((s) => (s === 'Link copied.' ? '' : s))
+      }, 1500)
     } catch {
-      /* clipboard unavailable — user can select manually */
+      // No clipboard access (permissions, an old browser): select the link
+      // so it's ready to copy by hand, and say so.
+      linkRef.current?.focus()
+      linkRef.current?.select()
+      say('Couldn’t reach the clipboard. The link is selected above: copy it by hand.')
     }
   }
 
-  if (loading || !user || !challenge) return null
+  if (loading || !user || !challenge) {
+    return (
+      <main>
+        <p className="status-line" role="status">
+          Loading…
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="share-gen">
-      <nav className="sg-nav">
+      <nav className="page-nav" aria-label="Main">
         <Link href="/dashboard" className="wordmark font-display brand">
           75 Create
         </Link>
-        <Link href="/dashboard" className="font-mono back">
-          ← back to grid
+        <Link href="/dashboard" className="back-link">
+          Back to your grid
         </Link>
       </nav>
 
-      <span className="eyebrow">Share your progress</span>
-      <h1 className="font-display sg-h1">A read-only link to your grid.</h1>
+      <h1 className="font-display sg-h1">Share a read-only link to your grid.</h1>
       <p className="sg-sub">
-        Anyone with the link sees your grid and streak — nothing else, no account
-        needed. The link carries a snapshot from right now; generate a fresh one to
-        update it.
+        Anyone with the link sees your grid, streak and medium — nothing else, no account
+        needed. The link carries a snapshot from today; come back here for a fresh
+        one when you want to share where you are then.
       </p>
+
+      {/* What they'll see: the grid as of today, the day open now drawn as
+          still to come (the viewer shows no live "today"). */}
+      <figure className="sg-preview panel">
+        <Grid
+          days={derived.days.map((d) => (d.state === 'today' ? { ...d, state: 'future' as const } : d))}
+          compact
+        />
+        <figcaption className="font-mono sg-cap">What they’ll see, as of today</figcaption>
+      </figure>
 
       <label className="toggle">
         <input
@@ -86,14 +142,43 @@ export default function ShareGenerator() {
       </label>
 
       <div className="link-box panel">
-        <code className="link">{link}</code>
-        <button className="btn" onClick={copy}>
-          {copied ? 'Copied' : 'Copy link'}
-        </button>
+        <label className="sr-only" htmlFor="share-link">
+          Share link
+        </label>
+        <textarea
+          ref={linkRef}
+          id="share-link"
+          className="link font-mono"
+          readOnly
+          rows={3}
+          value={link}
+          onFocus={(e) => e.currentTarget.select()}
+        />
+        <div className="link-actions">
+          {canShare && (
+            <button className="btn" onClick={share}>
+              Share…
+            </button>
+          )}
+          <button className={canShare ? 'btn btn-ghost' : 'btn'} onClick={copy}>
+            {copied ? 'Copied' : 'Copy link'}
+          </button>
+        </div>
       </div>
+      {link.length > 2000 && (
+        // Plain fact, so the owner can decide: the logs make it long.
+        <p className="len-note">
+          This link is {link.length.toLocaleString()} characters long because it carries your
+          logs. Some messaging apps cut links that long; turn the logs off for a short one.
+        </p>
+      )}
+      <p className="copy-status" role="status">
+        {status}
+      </p>
 
       <a href={link} target="_blank" rel="noreferrer" className="preview-link font-mono">
-        Preview the shared page →
+        Preview the shared page
+        <span className="sr-only"> (opens in a new tab)</span>
       </a>
 
       <style jsx>{`
@@ -101,25 +186,8 @@ export default function ShareGenerator() {
           max-width: 680px;
           padding-top: 1rem;
         }
-        .sg-nav {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.5rem 0 2.5rem;
-        }
-        .brand {
-          font-size: 1.25rem;
-          text-decoration: none;
-        }
-        .back {
-          font-size: 0.78rem;
-          color: var(--ink-soft);
-          text-decoration: none;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-        }
         .sg-h1 {
-          font-size: clamp(2rem, 6vw, 2.8rem);
+          font-size: clamp(2rem, 6vw, 3rem);
           margin: 0.5rem 0 0.75rem;
         }
         .sg-sub {
@@ -127,13 +195,23 @@ export default function ShareGenerator() {
           line-height: 1.55;
           margin: 0 0 2rem;
         }
+        .sg-preview {
+          margin: 0 0 1.5rem;
+          padding: 1rem;
+          max-width: 24rem;
+        }
+        .sg-cap {
+          margin-top: 0.6rem;
+          font-size: 0.75rem;
+          color: var(--muted);
+        }
         .toggle {
           display: flex;
           gap: 0.75rem;
           align-items: flex-start;
           padding: 1rem 1.25rem;
           border: 1.5px solid var(--line);
-          border-radius: 12px;
+          border-radius: 14px;
           cursor: pointer;
           margin-bottom: 1.5rem;
         }
@@ -146,28 +224,52 @@ export default function ShareGenerator() {
         }
         .t-desc {
           display: block;
-          font-size: 0.82rem;
+          font-size: 0.8rem;
           color: var(--muted);
           margin-top: 0.2rem;
         }
         .link-box {
           display: flex;
+          /* At large text the buttons drop below the link, so the link
+             keeps a readable width. */
+          flex-wrap: wrap;
           gap: 0.75rem;
           align-items: center;
           padding: 0.75rem 0.75rem 0.75rem 1rem;
         }
+        .link-actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 0.5rem;
+        }
         .link {
-          flex: 1;
-          font-family: var(--font-mono);
-          font-size: 0.78rem;
+          flex: 1 1 14em;
+          min-width: 0;
+          font-size: 0.8rem;
+          line-height: 1.45;
           color: var(--ink-soft);
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          background: transparent;
+          border: 0;
+          resize: none;
+          word-break: break-all;
+        }
+        .len-note {
+          margin: 0.75rem 0 0;
+          font-size: 0.875rem;
+          color: var(--ink-soft);
+          max-width: 60ch;
+        }
+        .copy-status {
+          min-height: 1.4em;
+          margin: 0.5rem 0 0;
+          font-size: 0.875rem;
+          color: var(--ink-soft);
         }
         .preview-link {
-          display: inline-block;
-          margin-top: 1.25rem;
+          display: inline-flex;
+          align-items: center;
+          min-height: 44px;
+          margin-top: 0.75rem;
           font-size: 0.8rem;
           color: var(--cobalt);
           text-decoration: none;

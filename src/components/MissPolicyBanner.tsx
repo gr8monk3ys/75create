@@ -9,34 +9,51 @@ interface Props {
   onDismiss: () => void
 }
 
-export function MissPolicyBanner({
-  banner,
-  whyNote,
-  onConfirmReset,
-  onDismiss,
-}: Props) {
+const TITLES: Record<Banner['kind'], [one: string, many: string]> = {
+  reset: ['This attempt has ended.', 'This attempt has ended.'],
+  skip: ['A skip token covered you.', 'Skip tokens covered you.'],
+  extend: ['The challenge got longer.', 'The challenge got longer.'],
+  restore: ['A made day came back.', 'Made days came back.'],
+}
+
+/**
+ * The consequence of a missed day, stated plainly, with the person's own
+ * reason for starting shown back to them. A reset can only be confirmed, not
+ * dismissed: there is no attempt left to continue.
+ */
+export function MissPolicyBanner({ banner, whyNote, onConfirmReset, onDismiss }: Props) {
   const isReset = banner.kind === 'reset'
   return (
-    <div className={`banner panel kind-${banner.kind}`} role="alert">
+    <section
+      id="notice"
+      className={`banner panel kind-${banner.kind}`}
+      role={isReset ? 'alert' : 'status'}
+      aria-labelledby="banner-title"
+      // Focus can land here when a rollover brings it (see the dashboard).
+      tabIndex={-1}
+    >
       <div className="banner-body">
-        <span className="eyebrow">
-          {isReset ? 'A day was missed' : banner.kind === 'skip' ? 'Skip token used' : banner.kind === 'extend' ? 'Challenge extended' : 'Note'}
-        </span>
+        <h2 id="banner-title" className="font-display title">
+          {TITLES[banner.kind][(banner.count ?? 1) > 1 ? 1 : 0]}
+        </h2>
         <p className="msg">{banner.message}</p>
-        {isReset && whyNote && (
-          <blockquote className="why">
-            <span className="why-label font-mono">Why you started</span>
-            {whyNote}
-          </blockquote>
+        {/* Their reason for starting belongs with a miss, not with good news. */}
+        {whyNote && banner.kind !== 'restore' && (
+          <figure className="why">
+            <blockquote>{whyNote}</blockquote>
+            <figcaption>
+              <span aria-hidden>— </span>Why you started
+            </figcaption>
+          </figure>
         )}
       </div>
       <div className="banner-actions">
         {isReset ? (
           <button className="btn" onClick={onConfirmReset}>
-            Restart at Day 1
+            Start again at Day 1
           </button>
         ) : (
-          <button className="btn btn-ghost small" onClick={onDismiss}>
+          <button className="btn btn-ghost" onClick={onDismiss}>
             Got it
           </button>
         )}
@@ -46,9 +63,9 @@ export function MissPolicyBanner({
         .banner {
           display: flex;
           gap: 1.25rem;
-          align-items: center;
+          align-items: flex-end;
           justify-content: space-between;
-          padding: 1.25rem 1.5rem;
+          padding: min(1.4rem, 5vw) min(1.5rem, 5vw);
           flex-wrap: wrap;
         }
         .kind-reset {
@@ -58,41 +75,58 @@ export function MissPolicyBanner({
         .kind-skip {
           border-color: var(--marigold);
         }
-        .kind-extend {
+        .kind-restore {
+          /* Cobalt: this is about a day that was made. */
           border-color: var(--cobalt);
+        }
+        .kind-extend {
+          /* A miss, not a made day: never cobalt. */
+          border-color: var(--ink-soft);
         }
         .banner-body {
           flex: 1;
-          min-width: 240px;
+          min-width: min(100%, 260px);
+        }
+        .title {
+          font-size: 1.25rem;
+          margin: 0;
         }
         .msg {
-          margin: 0.35rem 0 0;
-          font-size: 1.02rem;
-          line-height: 1.45;
+          margin: 0.45rem 0 0;
+          font-size: 1rem;
+          line-height: 1.5;
+          max-width: 60ch;
         }
         .why {
-          margin: 0.9rem 0 0;
-          padding: 0.75rem 1rem;
-          border-left: 3px solid var(--coral);
-          background: color-mix(in srgb, var(--coral) 7%, transparent);
-          border-radius: 0 8px 8px 0;
-          font-style: italic;
-          color: var(--ink-soft);
+          margin: 1rem 0 0;
+          padding: 0.9rem 1.1rem;
+          background: var(--paper);
+          border-radius: 10px;
+          max-width: 60ch;
         }
-        .why-label {
-          display: block;
-          font-style: normal;
-          font-size: 0.62rem;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
+        .why blockquote {
+          margin: 0;
+          overflow-wrap: anywhere;
+          /* Lead: their own words, in the reading face. */
+          font-family: var(--font-body);
+          font-size: 1.125rem;
+          line-height: 1.5;
+          color: var(--ink);
+          quotes: '“' '”';
+        }
+        .why blockquote::before {
+          content: open-quote;
+        }
+        .why blockquote::after {
+          content: close-quote;
+        }
+        .why figcaption {
+          margin-top: 0.45rem;
+          font-family: var(--font-mono);
+          font-size: 0.75rem;
           color: var(--muted);
-          margin-bottom: 0.3rem;
-        }
-        .small {
-          padding: 0.5rem 0.9rem;
-          font-size: 0.7rem;
         }
       `}</style>
-    </div>
+    </section>
   )
 }
