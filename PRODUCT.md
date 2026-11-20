@@ -3,7 +3,7 @@
 <!-- impeccable:product-schema 1 -->
 
 > Inferred during `/impeccable init` from the repository (README, design spec in
-> `docs/superpowers/specs/`, landing copy, `CONTEXT.md`) because the owner
+> `docs/superpowers/specs/`, landing copy, `GLOSSARY.md`) because the owner
 > delegated the interview ("go with your recommended answers"). Facts marked
 > _(inferred)_ are hypotheses to confirm, not decisions the owner made.
 
