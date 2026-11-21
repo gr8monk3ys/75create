@@ -91,7 +91,7 @@ store is kept aside rather than overwritten.
 - `src/components/AppProvider.tsx` — a thin React adapter over the session:
   re-syncs on a minute tick, on focus, visibility and other-tab writes (with a
   backend, after pulling from the other devices), exposes `useApp()`.
-- `CONTEXT.md` — the domain glossary; `PRODUCT.md` — product context.
+- `GLOSSARY.md` — the domain glossary; `PRODUCT.md` — product context.
 
 See `docs/superpowers/specs/` for the design spec and `docs/superpowers/plans/` for
 the implementation plan.
