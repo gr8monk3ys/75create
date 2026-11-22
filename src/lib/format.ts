@@ -6,7 +6,7 @@ import { Medium, MissPolicy } from './types'
 import type { Milestone, Tally } from './challengeSession'
 
 function utcDate(iso: string): Date | null {
-  const [y, m, d] = iso.split('-').map(Number)
+  const [y = NaN, m = NaN, d = NaN] = iso.split('-').map(Number)
   const date = new Date(Date.UTC(y, m - 1, d))
   // Intl throws on an invalid date; corrupt stored data must not crash a page.
   return Number.isNaN(date.getTime()) ? null : date
@@ -38,7 +38,7 @@ export function shortDate(iso: string): string {
 
 /** "3:00 am", "midnight", "8:30 pm" for a 24h "HH:MM". */
 export function clockTime(hhmm: string): string {
-  const [h, m] = hhmm.split(':').map(Number)
+  const [h = NaN, m = NaN] = hhmm.split(':').map(Number)
   if (h === 0 && m === 0) return 'midnight'
   const hour = h % 12 || 12
   return `${hour}:${String(m).padStart(2, '0')} ${h < 12 ? 'am' : 'pm'}`

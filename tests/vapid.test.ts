@@ -1,3 +1,4 @@
+import { defined } from './defined'
 import { parseJson } from './json'
 import { describe, it, expect } from 'bun:test'
 import {
@@ -42,9 +43,10 @@ describe('VAPID signing', () => {
     )
 
     const [header, claims, signature] = token.split('.')
-    expect(decodeSegment(header)).toEqual({ typ: 'JWT', alg: 'ES256' })
+    expect(decodeSegment(defined(header, 'JWT header'))).toEqual({ typ: 'JWT', alg: 'ES256' })
 
-    const padded = signature + '='.repeat((4 - (signature.length % 4)) % 4)
+    const sig = defined(signature, 'JWT signature')
+    const padded = sig + '='.repeat((4 - (sig.length % 4)) % 4)
     const binary = atob(padded.replace(/-/g, '+').replace(/_/g, '/'))
     const sigBytes = new Uint8Array(binary.length)
     for (let i = 0; i < binary.length; i++) sigBytes[i] = binary.charCodeAt(i)
@@ -69,7 +71,7 @@ describe('VAPID signing', () => {
       key,
     )
 
-    const claims = decodeSegment(token.split('.')[1])
+    const claims = decodeSegment(defined(token.split('.')[1], 'JWT claims'))
     expect(claims.aud).toBe('https://updates.push.services.mozilla.com')
     expect(claims.sub).toBe('mailto:hi@75create.app')
     // RFC 8292 caps the lifetime at 24 hours; anything longer is rejected.

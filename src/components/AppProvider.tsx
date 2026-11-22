@@ -109,7 +109,9 @@ interface Stack {
 function sameDays(a: Day[], b: Day[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) {
-    if (a[i].state !== b[i].state || a[i].completedAt !== b[i].completedAt || a[i].index !== b[i].index) {
+    const x = a[i]
+    const y = b[i]
+    if (!x || !y || x.state !== y.state || x.completedAt !== y.completedAt || x.index !== y.index) {
       return false
     }
   }

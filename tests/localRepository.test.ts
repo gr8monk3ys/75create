@@ -70,7 +70,7 @@ describe('LocalRepository structured data', () => {
     repo.saveCheck('c1', 1, 'create', true)
     const dd = repo.getDayData('c1')
     expect(dd.completions[1]).toBe('2026-01-01T20:00:00Z')
-    expect(dd.logs[1].text).toBe('made a thing')
+    expect(dd.logs[1]?.text).toBe('made a thing')
     expect(dd.checks['1:create']).toBe(true)
   })
 

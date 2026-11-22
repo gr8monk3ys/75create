@@ -210,7 +210,7 @@ describe('SyncedRepository', () => {
 
     const dd = repo.getDayData('c1')
     expect(Object.keys(dd.completions).sort()).toEqual(['2', '3'])
-    expect(dd.logs[2].text).toBe('typed offline')
+    expect(dd.logs[2]?.text).toBe('typed offline')
     // What the merge added went back up.
     const pushed = state.calls.filter((c) => c.op === 'upsert' && c.table === 'day_data').at(-1)!.row!
     expect(Object.keys((pushed.data as { completions: object }).completions).sort()).toEqual(['2', '3'])

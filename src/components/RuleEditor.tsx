@@ -41,7 +41,7 @@ export function RuleEditor({ rules, onChange }: Props) {
     // The button that had focus is gone: land on the rule that took its
     // place (or the one before it), so keyboard users stay in the list.
     const next = rest[Math.min(at, rest.length - 1)]
-    requestAnimationFrame(() => document.getElementById(ruleNameId(next))?.focus())
+    if (next) requestAnimationFrame(() => document.getElementById(ruleNameId(next))?.focus())
   }
   function add() {
     if (rules.length >= MAX_RULES) return

@@ -56,6 +56,6 @@
     "pre-commit": "bunx lint-staged && bun run typecheck"
   },
   "lint-staged": {
-    "*.{ts,tsx,js,mjs}": "eslint --max-warnings=0"
+    "*.{ts,tsx,js,mjs}": "eslint --max-warnings=0 --no-warn-ignored"
   }
 }

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'bun:test'
+import { fromAny } from '@total-typescript/shoehorn'
 import {
   encodeSnapshot,
   decodeSnapshot,
@@ -35,7 +36,7 @@ describe('shareSnapshot codec', () => {
   })
 
   it('falls back to classic when missPolicy is not one of the known strings', () => {
-    const crafted = { ...sample(), missPolicy: ['grace'] } as unknown as ReturnType<typeof sample>
+    const crafted = fromAny<ShareSnapshot, unknown>({ ...sample(), missPolicy: ['grace'] })
     expect(decodeSnapshot(encodeSnapshot(crafted))?.missPolicy).toBe('classic')
   })
 

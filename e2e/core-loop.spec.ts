@@ -143,9 +143,20 @@ test.describe('the last day', () => {
       const key = '75create.v1'
       const root = JSON.parse(localStorage.getItem(key)!) as {
         challenges: { id: string; startDate: string }[]
-        dayData: Record<string, { completions: Record<number, string> }>
+        dayData: Record<
+          string,
+          {
+            completions: Record<number, string>
+            checks: object
+            logs: object
+            artifacts: object
+            skips: number[]
+            actionedMisses: number[]
+          }
+        >
       }
       const c = root.challenges[0]
+      if (!c) throw new Error('no challenge was started')
       c.startDate = '2026-07-11'
       const dd = root.dayData[c.id] ?? { completions: {}, checks: {}, logs: {}, artifacts: {}, skips: [], actionedMisses: [] }
       for (let d = 1; d <= 74; d++) dd.completions[d] = '2026-07-11T20:00:00.000Z'

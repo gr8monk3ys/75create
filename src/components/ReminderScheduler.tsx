@@ -16,7 +16,7 @@ const CHECK_MS = 30_000
 
 /** Minutes since the creative day began (midnight plus the buffer). */
 function intoCreativeDay(hhmm: string, bufferHrs: number): number {
-  const [h, m] = hhmm.split(':').map(Number)
+  const [h = NaN, m = NaN] = hhmm.split(':').map(Number)
   return (((h * 60 + m - bufferHrs * 60) % 1440) + 1440) % 1440
 }
 

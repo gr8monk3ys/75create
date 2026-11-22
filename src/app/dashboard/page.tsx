@@ -365,7 +365,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     className="btn btn-ghost small"
-                    onClick={() => setOpenDay(pastDays[pastDays.length - 1])}
+                    onClick={() => setOpenDay(pastDays.at(-1) ?? null)}
                   >
                     Browse past days
                   </button>

@@ -18,16 +18,16 @@ describe('mergeDayData', () => {
     const a = { ...emptyDayData(), logs: { 1: log('typed offline', '2026-01-01T22:00:00Z') }, completions: { 1: '2026-01-01T22:00:00Z' } }
     const b = { ...emptyDayData(), logs: { 1: log('first', '2026-01-01T20:00:00Z') }, completions: { 1: '2026-01-01T20:00:00Z' } }
     const m = mergeDayData(a, b)
-    expect(m.logs[1].text).toBe('typed offline')
+    expect(m.logs[1]?.text).toBe('typed offline')
     expect(m.completions[1]).toBe('2026-01-01T20:00:00Z')
-    expect(mergeDayData(b, a).logs[1].text).toBe('typed offline')
+    expect(mergeDayData(b, a).logs[1]?.text).toBe('typed offline')
   })
 
   it('unions artifacts by id without duplicates', () => {
     const art = (id: string, createdAt: string) => ({ id, dayId: 'c:1', kind: 'url' as const, url: 'https://x.co', createdAt })
     const a = { ...emptyDayData(), artifacts: { 1: [art('p', '1'), art('q', '2')] } }
     const b = { ...emptyDayData(), artifacts: { 1: [art('q', '2'), art('r', '3')] } }
-    expect(mergeDayData(a, b).artifacts[1].map((x) => x.id)).toEqual(['p', 'q', 'r'])
+    expect(mergeDayData(a, b).artifacts[1]?.map((x) => x.id)).toEqual(['p', 'q', 'r'])
   })
 })
 
