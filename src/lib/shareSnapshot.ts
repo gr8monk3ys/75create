@@ -3,6 +3,9 @@
 
 import { DayState, Medium, MissPolicy } from './types'
 
+const MISS_POLICIES: readonly MissPolicy[] = ['classic', 'grace', 'extend']
+const isMissPolicy = (v: unknown): v is MissPolicy => MISS_POLICIES.some((p) => p === v)
+
 export interface ShareSnapshot {
   medium: Medium
   startDate: string
@@ -86,7 +89,7 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
       // Only a known medium: a crafted one ("__proto__") would reach the page.
       medium: MEDIA.has(parsed.medium) ? parsed.medium : 'other',
       startDate: typeof parsed.startDate === 'string' ? parsed.startDate : '',
-      missPolicy: ['classic', 'grace', 'extend'].includes(String(parsed.missPolicy)) ? parsed.missPolicy : 'classic',
+      missPolicy: isMissPolicy(parsed.missPolicy) ? parsed.missPolicy : 'classic',
       dayStates,
       dayIndex,
       takenAt,

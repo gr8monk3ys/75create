@@ -34,6 +34,11 @@ describe('shareSnapshot codec', () => {
     expect(decodeSnapshot(encodeSnapshot(p))).toEqual(p)
   })
 
+  it('falls back to classic when missPolicy is not one of the known strings', () => {
+    const crafted = { ...sample(), missPolicy: ['grace'] } as unknown as ReturnType<typeof sample>
+    expect(decodeSnapshot(encodeSnapshot(crafted))?.missPolicy).toBe('classic')
+  })
+
   it('carries the day index, and drops a malformed one', () => {
     const p: ShareSnapshot = { ...sample(), dayIndex: 4 }
     expect(decodeSnapshot(encodeSnapshot(p))?.dayIndex).toBe(4)
