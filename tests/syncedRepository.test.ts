@@ -1,5 +1,7 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import { describe, it, expect, beforeEach } from 'bun:test'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { parseJson, type Outbox, type Stamps } from './json'
 import { LocalRepository } from '@/lib/localRepository'
 import { SyncedRepository } from '@/lib/syncedRepository'
 import type { Challenge } from '@/lib/types'
@@ -76,7 +78,7 @@ function makeMockClient(state: MockState): SupabaseClient {
       }),
     },
   }
-  return client as unknown as SupabaseClient
+  return fromAny<SupabaseClient, typeof client>(client)
 }
 
 function makeChallenge(over: Partial<Challenge> = {}): Challenge {
@@ -130,7 +132,7 @@ describe('SyncedRepository', () => {
     expect((dayRow.data as { checks: Record<string, boolean> }).checks['1:create']).toBe(true)
 
     // outbox drained
-    const outbox = JSON.parse(localStorage.getItem('75create.outbox.v1')!)
+    const outbox = parseJson<Outbox>(localStorage.getItem('75create.outbox.v1')!)
     expect(outbox.challenges).toEqual([])
     expect(outbox.dayData).toEqual([])
   })
@@ -142,12 +144,12 @@ describe('SyncedRepository', () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()
 
-    let outbox = JSON.parse(localStorage.getItem('75create.outbox.v1')!)
+    let outbox = parseJson<Outbox>(localStorage.getItem('75create.outbox.v1')!)
     expect(outbox.challenges).toEqual(['c1'])
 
     state.failUpserts = false
     await repo.flush()
-    outbox = JSON.parse(localStorage.getItem('75create.outbox.v1')!)
+    outbox = parseJson<Outbox>(localStorage.getItem('75create.outbox.v1')!)
     expect(outbox.challenges).toEqual([])
   })
 
@@ -333,8 +335,8 @@ describe('SyncedRepository', () => {
   it('keeps newer local data when an older remote row uses a non-UTC offset', async () => {
     await repo.connectRemote('uid-1', 'a@b.com')
     repo.saveChallenge(makeChallenge({ id: 'c1', medium: 'writing' }))
-    const localStamp = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
-      .challenges.c1 as string
+    const localStamp = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!)
+      .challenges.c1!
     // One minute earlier, written as +02:00 — lexically greater, actually older.
     const remoteAt = plusOffset(Date.parse(localStamp) - 60_000, 2)
 
@@ -349,8 +351,8 @@ describe('SyncedRepository', () => {
   it('takes a newer remote row that uses a non-UTC offset', async () => {
     await repo.connectRemote('uid-1', 'a@b.com')
     repo.saveChallenge(makeChallenge({ id: 'c1', medium: 'writing' }))
-    const localStamp = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
-      .challenges.c1 as string
+    const localStamp = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!)
+      .challenges.c1!
     const remoteAt = plusOffset(Date.parse(localStamp) + 60_000, 2)
 
     state.rows.challenges = [
@@ -368,7 +370,7 @@ describe('SyncedRepository', () => {
     repo.saveChallenge(makeChallenge())
     await repo.flush()
 
-    const stamps = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+    const stamps = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!)
     expect(stamps.challenges.c1).toBe(state.serverNow)
     expect(stamps.dayData.c1 ?? state.serverNow).toBe(state.serverNow)
   })
@@ -405,7 +407,7 @@ describe('SyncedRepository', () => {
     repo.saveChallenge(makeChallenge({ medium: 'music' }))
     await flushing
 
-    const stamps = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+    const stamps = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!)
     expect(stamps.challenges.c1).not.toBe(state.serverNow)
   })
 
@@ -418,7 +420,7 @@ describe('SyncedRepository', () => {
     repo.saveChallenge(makeChallenge({ medium: 'music' }))
     await flushing
 
-    const outbox = JSON.parse(localStorage.getItem('75create.outbox.v1')!)
+    const outbox = parseJson<Outbox>(localStorage.getItem('75create.outbox.v1')!)
     expect(outbox.challenges).toEqual(['c1'])
 
     state.calls = []
@@ -447,7 +449,7 @@ describe('SyncedRepository', () => {
 
     const tables = state.calls.filter((c) => c.op === 'upsert').map((c) => c.table)
     expect(tables).toContain('challenges')
-    expect(JSON.parse(localStorage.getItem('75create.inflight.v1')!).challenges).toEqual(
+    expect(parseJson<Outbox>(localStorage.getItem('75create.inflight.v1')!).challenges).toEqual(
       [],
     )
   })
@@ -456,14 +458,14 @@ describe('SyncedRepository', () => {
     await repo.connectRemote('uid-1', 'a@b.com')
     state.failUpserts = true // keep everything queued
     repo.saveChallenge(makeChallenge({ id: 'c1' }))
-    const first = JSON.parse(localStorage.getItem('75create.stamps.v1')!).challenges.c1
+    const first = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!).challenges.c1!
     await new Promise((r) => setTimeout(r, 5))
     repo.saveChallenge(makeChallenge({ id: 'c2' }))
-    const stamps = JSON.parse(localStorage.getItem('75create.stamps.v1')!)
+    const stamps = parseJson<Stamps>(localStorage.getItem('75create.stamps.v1')!)
     // c1 is still queued, but nothing touched it: its stamp must not move, or
     // it would beat a newer edit of c1 made on another device.
     expect(stamps.challenges.c1).toBe(first)
-    expect(Date.parse(stamps.challenges.c2)).toBeGreaterThan(Date.parse(first))
+    expect(Date.parse(stamps.challenges.c2!)).toBeGreaterThan(Date.parse(first))
   })
 
   it('keeps a queued offline profile edit over the older remote profile', async () => {

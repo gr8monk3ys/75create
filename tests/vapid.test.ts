@@ -1,3 +1,4 @@
+import { parseJson } from './json'
 import { describe, it, expect } from 'bun:test'
 import {
   bytesToBase64Url,
@@ -27,7 +28,7 @@ async function generateKeys(): Promise<{
 
 function decodeSegment(segment: string): Record<string, unknown> {
   const padded = segment + '='.repeat((4 - (segment.length % 4)) % 4)
-  return JSON.parse(atob(padded.replace(/-/g, '+').replace(/_/g, '/')))
+  return parseJson<Record<string, unknown>>(atob(padded.replace(/-/g, '+').replace(/_/g, '/')))
 }
 
 describe('VAPID signing', () => {

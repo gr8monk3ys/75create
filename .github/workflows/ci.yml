@@ -24,6 +24,9 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      - name: Dependency boundaries
+        run: bun run depcruise
+
       - name: Test
         run: bun test
 

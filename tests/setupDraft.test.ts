@@ -1,3 +1,4 @@
+import { fromAny } from '@total-typescript/shoehorn'
 import { describe, it, expect, beforeEach } from 'bun:test'
 import { clearSetupDraft, readSetupDraft, writeSetupDraft, type SetupDraft } from '@/lib/setupDraft'
 import { DEFAULT_RULES } from '@/lib/types'
@@ -31,7 +32,7 @@ describe('setup draft', () => {
   })
 
   it('starts fresh from a malformed draft rather than throwing later', () => {
-    writeSetupDraft('u1', { ...draft, rules: [{ id: 'x', name: 3 } as never] })
+    writeSetupDraft('u1', { ...draft, rules: [fromAny({ id: 'x', name: 3 })] })
     expect(readSetupDraft('u1')).toBeNull()
     sessionStorage.setItem('75create.setupDraft', '{not json')
     expect(readSetupDraft('u1')).toBeNull()

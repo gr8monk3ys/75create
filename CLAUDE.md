@@ -13,3 +13,7 @@ The five canonical roles, label string equal to role name. See `docs/agents/tria
 ### Domain docs
 
 Single-context: `GLOSSARY.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+## Checks
+
+`bun run check` runs lint, typecheck, dependency boundaries (`.dependency-cruiser.cjs`: `src/lib` never imports UI, no cycles) and tests. A pre-commit hook (simple-git-hooks) runs staged lint and typecheck.

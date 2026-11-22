@@ -19,8 +19,10 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:watch": "bun test --watch",
-    "check": "bun run lint && bun run typecheck && bun run test",
-    "test:e2e": "playwright test"
+    "check": "bun run lint && bun run typecheck && bun run depcruise && bun run test",
+    "test:e2e": "playwright test",
+    "depcruise": "depcruise src tests e2e --config .dependency-cruiser.cjs",
+    "prepare": "simple-git-hooks"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.9",
@@ -33,16 +35,27 @@
     "@happy-dom/global-registrator": "^20.0.0",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4.3.3",
+    "@total-typescript/shoehorn": "^0.1.2",
+    "@total-typescript/ts-reset": "^0.6.1",
     "@types/bun": "^1.3.11",
     "@types/node": "^26.1.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "dependency-cruiser": "^18.8.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.2.12",
     "fake-indexeddb": "^6.2.5",
+    "lint-staged": "^17.6.2",
     "postcss": "^8.5.22",
     "sharp": "^0.35.3",
+    "simple-git-hooks": "^2.14.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "bunx lint-staged && bun run typecheck"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs}": "eslint --max-warnings=0"
   }
 }

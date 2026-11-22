@@ -48,25 +48,36 @@ export function encodeSnapshot(snap: ShareSnapshot): string {
 const STATES = new Set<string>(['future', 'complete', 'missed', 'skipped', 'today'])
 const MEDIA = new Set<unknown>(['writing', 'drawing', 'music', 'photography', 'video', 'code', 'mixed', 'other'])
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
 export function decodeSnapshot(fragment: string): ShareSnapshot | null {
   try {
     const bytes = fromBase64Url(fragment)
     const json = new TextDecoder().decode(bytes)
-    const parsed = JSON.parse(json)
-    if (parsed && typeof parsed.dayStates === 'string') {
-      const letters: string[] = [...parsed.dayStates]
-      if (!letters.every((l) => l in FROM_CODE)) return null
-      parsed.dayStates = letters.map((l) => FROM_CODE[l])
+    const parsed: unknown = JSON.parse(json)
+    if (!isRecord(parsed)) return null
+    let dayStates: unknown = parsed.dayStates
+    if (typeof dayStates === 'string') {
+      const letters: string[] = [...dayStates]
+      const states: DayState[] = []
+      for (const l of letters) {
+        const state = FROM_CODE[l]
+        if (!state) return null
+        states.push(state)
+      }
+      dayStates = states
     }
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.dayStates)) return null
+    if (!Array.isArray(dayStates)) return null
     // A link is untrusted input: anything the viewer reads must have the
     // shape it expects, or the page could throw on a crafted fragment.
-    if (!parsed.dayStates.every((s: unknown) => typeof s === 'string' && STATES.has(s))) return null
-    if (parsed.dayIndex !== undefined && !Number.isInteger(parsed.dayIndex)) delete parsed.dayIndex
+    if (!dayStates.every((s: unknown) => typeof s === 'string' && STATES.has(s))) return null
+    const dayIndex = Number.isInteger(parsed.dayIndex) ? (parsed.dayIndex as number) : undefined
     const takenAt =
       typeof parsed.takenAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsed.takenAt) ? parsed.takenAt : undefined
     const logs: Record<number, string> = {}
-    if (parsed.logs && typeof parsed.logs === 'object') {
+    if (isRecord(parsed.logs)) {
       for (const [day, text] of Object.entries(parsed.logs)) {
         if (Number.isInteger(Number(day)) && typeof text === 'string') logs[Number(day)] = text
       }
@@ -75,9 +86,9 @@ export function decodeSnapshot(fragment: string): ShareSnapshot | null {
       // Only a known medium: a crafted one ("__proto__") would reach the page.
       medium: MEDIA.has(parsed.medium) ? parsed.medium : 'other',
       startDate: typeof parsed.startDate === 'string' ? parsed.startDate : '',
-      missPolicy: ['classic', 'grace', 'extend'].includes(parsed.missPolicy) ? parsed.missPolicy : 'classic',
-      dayStates: parsed.dayStates,
-      dayIndex: parsed.dayIndex,
+      missPolicy: ['classic', 'grace', 'extend'].includes(String(parsed.missPolicy)) ? parsed.missPolicy : 'classic',
+      dayStates,
+      dayIndex,
       takenAt,
       current: Number.isFinite(parsed.current) ? parsed.current : 0,
       longest: Number.isFinite(parsed.longest) ? parsed.longest : 0,

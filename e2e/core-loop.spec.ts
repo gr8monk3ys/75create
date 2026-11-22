@@ -141,7 +141,10 @@ test.describe('the last day', () => {
     // Seventy-four days made: the challenge started on 11 July.
     await page.evaluate(() => {
       const key = '75create.v1'
-      const root = JSON.parse(localStorage.getItem(key)!)
+      const root = JSON.parse(localStorage.getItem(key)!) as {
+        challenges: { id: string; startDate: string }[]
+        dayData: Record<string, { completions: Record<number, string> }>
+      }
       const c = root.challenges[0]
       c.startDate = '2026-07-11'
       const dd = root.dayData[c.id] ?? { completions: {}, checks: {}, logs: {}, artifacts: {}, skips: [], actionedMisses: [] }
