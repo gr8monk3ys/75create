@@ -810,7 +810,7 @@ function closing(user: User | null, now: Date): { dayCloses: string; dayClosesAt
 
 function dayList(days: number[]): string {
   if (days.length === 1) return `Day ${days[0]}`
-  const contiguous = days.every((d, i) => i === 0 || d === days[i - 1] + 1)
+  const contiguous = days.every((d, i) => i === 0 || d - 1 === days[i - 1])
   if (contiguous) return `Days ${days[0]}–${days[days.length - 1]}`
   return `Days ${days.slice(0, -1).join(', ')} and ${days[days.length - 1]}`
 }
@@ -832,9 +832,10 @@ function resetCopy(challenge: Challenge, missedDay: number): string {
  * consequence that cost something (a skip or an extension) over a restore.
  */
 function noticeOf(events: RolloverEvent[]): RolloverEvent | null {
-  if (events.length === 0) return null
-  if (events.length === 1) return events[0]
-  const costly = events.find((e) => e.kind !== 'restore') ?? events[0]
+  const [first] = events
+  if (!first) return null
+  if (events.length === 1) return first
+  const costly = events.find((e) => e.kind !== 'restore') ?? first
   // `days` are the costly kind's (the notice is titled by it); the message
   // says everything.
   return { kind: costly.kind, days: costly.days, message: events.map((e) => e.message).join(' ') }

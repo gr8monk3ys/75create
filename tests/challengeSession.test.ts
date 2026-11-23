@@ -7,6 +7,7 @@ import {
   milestoneAt,
   createChallengeSession,
 } from '@/lib/challengeSession'
+import { defined } from './defined'
 import { DEFAULT_RULES, Rule, User } from '@/lib/types'
 
 // The session is exercised through its interface only: a real LocalRepository
@@ -109,7 +110,7 @@ describe('phases', () => {
     expect(() =>
       session.start(draft({ rules: RULES.map((r) => ({ ...r, required: false })) })),
     ).toThrow(/at least one rule/)
-    expect(() => session.start(draft({ rules: [...RULES.slice(0, 2), { ...RULES[2], name: ' ' }] }))).toThrow(/needs a name/)
+    expect(() => session.start(draft({ rules: [...RULES.slice(0, 2), { ...defined(RULES[2], 'third rule'), name: ' ' }] }))).toThrow(/needs a name/)
     session.start(draft())
     expect(() => session.start(draft())).toThrow(/already running/)
   })
@@ -124,7 +125,7 @@ describe('check-in', () => {
     expect(session.toggleRule(1, 'a')).toEqual({ ok: true, justCompleted: false })
     expect(session.toggleRule(1, 'b')).toEqual({ ok: true, justCompleted: true })
     const s = session.read()
-    expect(s.days[0].state).toBe('complete')
+    expect(s.days[0]?.state).toBe('complete')
     expect(s.tally.made).toBe(1)
     expect(s.streak.current).toBe(1)
   })
@@ -132,7 +133,7 @@ describe('check-in', () => {
   it('optional rules do not gate completion, and unchecking reopens the day', () => {
     completeToday()
     expect(session.toggleRule(1, 'b')).toEqual({ ok: true, justCompleted: false, reopened: true })
-    expect(session.read().days[0].state).toBe('today')
+    expect(session.read().days[0]?.state).toBe('today')
     expect(session.read().tally.made).toBe(0)
   })
 
@@ -153,7 +154,7 @@ describe('check-in', () => {
     session.saveLog(1, 'x'.repeat(600))
     session.saveLog(3, 'future')
     const logs = session.read().dayData.logs
-    expect(logs[1].text.length).toBe(500)
+    expect(logs[1]?.text.length).toBe(500)
     expect(logs[3]).toBeUndefined()
   })
 })
@@ -178,22 +179,22 @@ describe('evidence rules', () => {
     expect(session.saveLog(1, '   ')).toEqual({ ok: true, justCompleted: false })
     expect(session.saveLog(1, 'Two thumbnails.')).toEqual({ ok: true, justCompleted: false })
     expect(session.attachLink(1, 'https://example.com/a')).toEqual({ ok: true, justCompleted: true })
-    expect(session.read().days[0].state).toBe('complete')
+    expect(session.read().days[0]?.state).toBe('complete')
   })
 
   it('removing the only artifact reopens the day', async () => {
     session.toggleRule(1, 'make')
     session.saveLog(1, 'x')
     await session.attachImage(1, new Blob([new Uint8Array([1])], { type: 'image/png' }))
-    expect(session.read().days[0].state).toBe('complete')
-    const [artifact] = session.read().dayData.artifacts[1]
+    expect(session.read().days[0]?.state).toBe('complete')
+    const artifact = defined(session.read().dayData.artifacts[1]?.[0], 'the attached artifact')
     expect(session.wouldReopen(1, artifact.id)).toBe(true)
     expect(await session.removeArtifact(1, artifact.id)).toEqual({
       ok: true,
       justCompleted: false,
       reopened: true,
     })
-    expect(session.read().days[0].state).toBe('today')
+    expect(session.read().days[0]?.state).toBe('today')
     expect(await repo.getArtifactBlob(artifact.blobRef!)).toBeNull()
   })
 
@@ -249,7 +250,7 @@ describe('rollover and miss policies', () => {
     expect(after.phase).toBe('active')
     expect(after.currentIndex).toBe(1)
     expect(after.challenge!.startDate).toBe('2026-01-03')
-    const [archived] = repo.getChallenges().filter((c) => c.status === 'archived')
+    const archived = defined(repo.getChallenges().find((c) => c.status === 'archived'), 'an archived challenge')
     expect(archived.endedOnDay).toBe(2)
     const grid = attemptDays(archived, repo.getDayData(archived.id))
     expect(grid.slice(0, 3).map((d) => d.state)).toEqual(['complete', 'missed', 'future'])
@@ -272,7 +273,7 @@ describe('rollover and miss policies', () => {
         message: 'Day 1 was missed. A skip token covered it, so your streak is intact — 2 of 3 left.',
       },
     ])
-    expect(first.snapshot.days[0].state).toBe('skipped')
+    expect(first.snapshot.days[0]?.state).toBe('skipped')
     expect(first.snapshot.stakes).toEqual({ policy: 'grace', tokensLeft: 2, extraDays: 0 })
     // Idempotent: syncing again spends nothing.
     expect(session.sync().events).toEqual([])
@@ -281,7 +282,7 @@ describe('rollover and miss policies', () => {
     at(4) // days 2 and 3 missed: tokens 2 and 3
     const second = session.sync()
     expect(second.events).toHaveLength(1)
-    expect(second.events[0].message).toBe(
+    expect(second.events[0]?.message).toBe(
       'Days 2–3 were missed. Skip tokens covered them, so your streak is intact — 0 of 3 left. No skips left: the next miss ends this attempt.',
     )
     expect(second.snapshot.stakes!.tokensLeft).toBe(0)
@@ -315,7 +316,7 @@ describe('rollover and miss policies', () => {
     expect(snapshot.totalDays).toBe(77)
     expect(snapshot.phase).toBe('active')
     expect(events).toHaveLength(1)
-    expect(events[0].message).toBe(
+    expect(events[0]?.message).toBe(
       'Days 2–3 were missed. Extend adds them to the end: the challenge now runs 77 days.',
     )
     expect(snapshot.stakes).toEqual({ policy: 'extend', tokensLeft: null, extraDays: 2 })
@@ -350,7 +351,7 @@ describe('finishing, maintenance, new round', () => {
     expect(s.currentIndex).toBe(80)
     // Maintenance keeps a daily log with no rules and no misses.
     session.saveLog(80, 'still going')
-    expect(session.read().dayData.logs[80].text).toBe('still going')
+    expect(session.read().dayData.logs[80]?.text).toBe('still going')
     expect(session.toggleRule(80, 'a')).toEqual({ ok: false })
   })
 
@@ -454,7 +455,7 @@ describe('maintenance', () => {
     const dd = session.read().dayData
     expect(dd.artifacts[s.currentIndex]).toHaveLength(1)
     expect(dd.completions[s.currentIndex]).toBeUndefined()
-    const id = dd.artifacts[s.currentIndex][0].id
+    const id = defined(dd.artifacts[s.currentIndex]?.[0], 'the link artifact').id
     expect((await session.removeArtifact(s.currentIndex, id)).ok).toBe(true)
     expect(session.toggleRule(s.currentIndex, 'a')).toEqual({ ok: false })
   })
@@ -520,9 +521,9 @@ describe('reconcile after sync', () => {
     const { snapshot, events } = session.sync()
     expect(repo.getActiveChallenge()!.skipTokensUsed).toBe(0)
     expect(snapshot.dayData.skips).toEqual([])
-    expect(snapshot.days[1].state).toBe('complete')
+    expect(snapshot.days[1]?.state).toBe('complete')
     expect(events[0]).toMatchObject({ kind: 'restore', days: [2] })
-    expect(events[0].message).toMatch(/Day 2 was made on another device, so its skip token is back/)
+    expect(events[0]?.message).toMatch(/Day 2 was made on another device, so its skip token is back/)
   })
 
   it('says so when the merge itself dropped the miss (a real pull)', () => {
@@ -607,12 +608,12 @@ describe('ending and history', () => {
     session.sync()
     session.endAttempt()
     expect(session.read().phase).toBe('no-challenge')
-    const [past] = session.history()
+    const past = defined(session.history()[0], 'a past attempt')
     expect(past).toMatchObject({ outcome: 'ended', endedOn: 2 })
     expect(past.tally.made).toBe(1)
     // Day 2 was quit, not missed.
     expect(past.tally.missed).toBe(0)
-    expect(past.days[1].state).toBe('future')
+    expect(past.days[1]?.state).toBe('future')
   })
 
   it('says what ending would do, and a reset still draws its miss', () => {
@@ -623,8 +624,8 @@ describe('ending and history', () => {
     const s = session.sync().snapshot
     expect(s.ending).toEqual({ kind: 'stop', day: 2 })
     session.confirmReset()
-    const [past] = session.history()
-    expect(past.days[1].state).toBe('missed')
+    const past = defined(session.history()[0], 'a past attempt')
+    expect(past.days[1]?.state).toBe('missed')
   })
 
   it('ending while a miss is pending keeps the miss in history', () => {
@@ -633,9 +634,9 @@ describe('ending and history', () => {
     at(3)
     expect(session.sync().snapshot.phase).toBe('reset-pending')
     session.endAttempt()
-    const [past] = session.history()
+    const past = defined(session.history()[0], 'a past attempt')
     expect(past.endedOn).toBe(2)
-    expect(past.days[1].state).toBe('missed')
+    expect(past.days[1]?.state).toBe('missed')
     expect(past.tally.missed).toBe(1)
   })
 
@@ -651,7 +652,7 @@ describe('ending and history', () => {
     session.start(draft())
     runTo(75)
     session.start(draft({ missPolicy: 'grace' }))
-    const [round] = session.history()
+    const round = defined(session.history()[0], 'a past round')
     expect(round.outcome).toBe('finished')
     expect(round.endedOn).toBeNull()
     expect(round.tally.made).toBe(75)

@@ -133,9 +133,10 @@ export const Grid = memo(function Grid({
       ArrowDown: COLS,
       ArrowUp: -COLS,
     }
-    if (e.key in step) {
+    const delta = step[e.key]
+    if (typeof delta === 'number') {
       e.preventDefault()
-      move(index + step[e.key])
+      move(index + delta)
     } else if (e.key === 'Home') {
       e.preventDefault()
       move(openable[0] ?? 1)

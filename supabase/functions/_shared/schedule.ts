@@ -5,7 +5,7 @@ import { creativeDate, daysBetween, localTime } from './creativeDay.ts'
 import { MissPolicy, lengthWith, missesEndAttempt } from './missPolicy.ts'
 
 function localMinutes(tz: string, now: Date): number {
-  const [h, m] = localTime(now, tz).split(':').map(Number)
+  const [h = NaN, m = NaN] = localTime(now, tz).split(':').map(Number)
   return h * 60 + m
 }
 
@@ -22,7 +22,7 @@ export function reminderDue(
   windowMin: number,
 ): boolean {
   const [h, m] = String(reminderTime).split(':').map(Number)
-  if (!Number.isInteger(h) || !Number.isInteger(m)) return false
+  if (h === undefined || m === undefined || !Number.isInteger(h) || !Number.isInteger(m)) return false
   let local: number
   try {
     local = localMinutes(tz || 'UTC', now)

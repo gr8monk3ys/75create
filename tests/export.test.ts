@@ -1,3 +1,4 @@
+import { parseJson } from './json'
 import { describe, it, expect, beforeEach } from 'bun:test'
 import JSZip from 'jszip'
 import { LocalRepository } from '@/lib/localRepository'
@@ -33,8 +34,10 @@ describe('export', () => {
     session.attachLink(1, 'https://example.com/study.png')
 
     const zip = await JSZip.loadAsync(await (await buildExport(repo)).arrayBuffer())
-    const json = JSON.parse(await zip.file('logs.json')!.async('string'))
-    const exported = json.challenges.find((x: { id: string }) => x.id === c.id)
+    const json = parseJson<{ challenges: { id: string; artifacts: Record<string, unknown[]>; checks: Record<string, boolean> }[] }>(
+      await zip.file('logs.json')!.async('string'),
+    )
+    const exported = json.challenges.find((x) => x.id === c.id)!
     expect(exported.artifacts['1']).toEqual([
       expect.objectContaining({ kind: 'url', url: 'https://example.com/study.png' }),
     ])

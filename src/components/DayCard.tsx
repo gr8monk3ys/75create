@@ -269,9 +269,10 @@ export function DayCard({
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e.target)) return
       if (!cardRef.current?.contains(document.activeElement)) return
       const n = Number(e.key)
-      if (Number.isInteger(n) && n >= 1 && n <= rules.length) {
+      const rule = Number.isInteger(n) ? rules[n - 1] : undefined
+      if (rule) {
         e.preventDefault()
-        toggle(rules[n - 1])
+        toggle(rule)
       } else if (e.key === 'n' || e.key === 'N') {
         e.preventDefault()
         logRef.current?.focus()

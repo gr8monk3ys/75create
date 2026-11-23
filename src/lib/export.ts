@@ -97,8 +97,7 @@ async function addArtifacts(
 ): Promise<void> {
   const dd = repo.getDayData(challenge.id)
   for (const [dayIndex, list] of Object.entries(dd.artifacts)) {
-    for (let i = 0; i < list.length; i++) {
-      const a = list[i]
+    for (const [i, a] of list.entries()) {
       if (a.kind === 'image' && a.blobRef) {
         const blob = await repo.getArtifactBlob(a.blobRef)
         if (blob) {

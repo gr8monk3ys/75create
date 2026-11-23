@@ -76,7 +76,7 @@ test.describe('mobile', () => {
     expect(await tooSmall('.grid-foot button, .detail button')).toEqual([])
 
     await page.evaluate(() => {
-      const root = JSON.parse(localStorage.getItem('75create.v1')!)
+      const root = JSON.parse(localStorage.getItem('75create.v1')!) as { challenges: unknown[] }
       root.challenges = []
       localStorage.setItem('75create.v1', JSON.stringify(root))
     })

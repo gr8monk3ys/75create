@@ -60,13 +60,13 @@ export function localTime(now: Date, tz: string): string {
 
 /** Whole calendar days between two YYYY-MM-DD strings (b - a). */
 export function daysBetween(a: string, b: string): number {
-  const [ay, am, ad] = a.split('-').map(Number)
-  const [by, bm, bd] = b.split('-').map(Number)
+  const [ay = NaN, am = NaN, ad = NaN] = a.split('-').map(Number)
+  const [by = NaN, bm = NaN, bd = NaN] = b.split('-').map(Number)
   return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000)
 }
 
 /** A YYYY-MM-DD date shifted by a number of calendar days. */
 export function addDays(date: string, n: number): string {
-  const [y, m, d] = date.split('-').map(Number)
+  const [y = NaN, m = NaN, d = NaN] = date.split('-').map(Number)
   return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10)
 }
